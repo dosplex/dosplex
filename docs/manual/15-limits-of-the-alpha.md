@@ -12,6 +12,7 @@ These are the limits a user will meet, in plain words. Each says what does not w
 
 ## Controllers and sound
 
+- **Only a Steam Controller or the Deck's own controls open the menu.** A DualShock 4, a DualSense, an Xbox or a Switch Pro controller plays games on its side but cannot open the Dosplex menu. A player who has only such a controller needs a keyboard, or the other player, to change their settings.
 - **A controller that connects first belongs to Main.** Every controller you connect is Main's until someone assigns it. Main can give a controller to Guest; Guest can claim and release their own.
 - **A game that was already running may not see a newly claimed controller.** Start the game after the controller is in place, or restart it once it is claimed.
 - **Guest's own Steam shows one output and one microphone.** The real devices are chosen in the Dosplex Audio menu; Steam's own audio settings cannot change them.

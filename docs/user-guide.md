@@ -37,7 +37,7 @@ Steam, choose **Games**, then **Add a Non-Steam Game to My Library**, and tick
 
 ## Open your menu
 
-On a controller:
+On a Steam Controller:
 
 1. Hold **Select / Back / View** first.
 2. While holding it, press **D-pad Up**. Hold both for about one second.
@@ -49,6 +49,10 @@ button of the pair under the screen), press **D-pad Up**, and hold both for
 about one second. If you set the chord to use **Menu** instead of View, hold
 Menu there. A hold that ends sooner than the configured time (one second by
 default) does not open the menu.
+
+Other gamepads, such as a DualShock 4, a DualSense, an Xbox or a Switch Pro
+controller, play games on the side they belong to but cannot open the menu. Open
+it from a Steam Controller, from the Steam Deck's own controls or from a keyboard.
 
 Your game always gets **Select / Back / View** straight away, exactly as you press
 it, so a game that uses it for its own menu works as usual. Dosplex holds back
@@ -231,7 +235,8 @@ instead. Forgetting does not remove a Bluetooth pairing.
   its own controller. Your bindings stay in your own Steam account. Guest lists
   the free controllers and its own, and claims or releases at once. Main sees
   every controller and uses the **Main**, **Guest** and **Unassigned** buttons on
-  its row; check the result, then confirm with **Keep assignment**, or use Undo.
+  its row; check the result, then confirm with **Keep assignment**, or use Undo. A move that you do
+  not confirm within 15 seconds is undone by itself.
 - **Release:** choose **Release** on a controller you hold, and it is Unassigned
   again for anybody to claim. If it was Guest's last controller, Guest's menu
   closes, because nothing is left to operate it; Main can give Guest a

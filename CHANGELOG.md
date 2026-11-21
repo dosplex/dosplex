@@ -3,9 +3,11 @@
 What changed in each release of Dosplex, newest first. Versions follow `MAJOR.MINOR.PATCH`, with `-alpha.N`
 while a release is an alpha.
 
-## 0.1.0-alpha.1
+## 0.1.0-alpha.2
 
-The first public release. An alpha for SteamOS on a Steam Deck and a Steam Machine.
+The first public release. An alpha for SteamOS on a Steam Deck and a Steam Machine. (0.1.0-alpha.1 was built and
+signed, and not published. This release adds two things to it: the menu offers screen brightness only while the
+Steam Deck's own screen is on, and the manual says which controllers open the menu.)
 
 ### What is in it
 
@@ -29,6 +31,10 @@ The first public release. An alpha for SteamOS on a Steam Deck and a Steam Machi
 
 - Steam's own pages for Wi-Fi, power, updates and storage do not work inside a side.
 - No HDR, no VRR, no refresh rate per side.
+- Only a Steam Controller or the Steam Deck's own controls open the menu. Other gamepads play games but cannot
+  open it; a keyboard can.
+- SteamOS 3.10 with Gamescope 3.17 (the preview channel in November 2026) is not in the tested set: there, a
+  picture size chosen in the menu is undone at once. The installer stops on it.
 - The two players are kept apart in ordinary use, not against a player who sets out to cross the line.
   [The limitations page](docs/limitations.md) says exactly what is open.
 - [Limits of the alpha](docs/manual/15-limits-of-the-alpha.md) has the full list for users.

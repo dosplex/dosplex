@@ -4,9 +4,11 @@ Your menu shows every setting that belongs to your side of the screen. It has fo
 
 ## Open the menu
 
-On a controller, hold **Select / Back / View** first. While holding it, press **D-pad Up** and hold both for about one second. Release both buttons, then use the D-pad or a stick to move, **A / Cross** to select, and **B / Circle** to go back or close.
+On a Steam Controller, hold **Select / Back / View** first. While holding it, press **D-pad Up** and hold both for about one second. Release both buttons, then use the D-pad or a stick to move, **A / Cross** to select, and **B / Circle** to go back or close.
 
 On a Steam Deck, the same chord works on its own controls: hold **View** (the left button of the pair under the screen), press **D-pad Up**, and hold both for about one second. If you set the chord to use **Menu** instead of View, hold **Menu** there. A hold that ends sooner than the configured time does not open the menu; the time is one second by default.
+
+Other gamepads, such as a DualShock 4, a DualSense, an Xbox or a Switch Pro controller, play games on the side they belong to but cannot open the menu. Open it from a Steam Controller, from the Steam Deck's own controls or from a keyboard.
 
 On an assigned keyboard, use **Ctrl+Shift+M** or **Super+Shift+M**, then the arrow keys, **Enter** and **Escape**.
 

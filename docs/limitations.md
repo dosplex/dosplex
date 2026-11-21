@@ -12,6 +12,10 @@ per-user device views use acknowledged assignment. Automatic native discovery is
 not complete.
 Do not start both native and generic owners for one device.
 
+Only a Steam Controller and the Steam Deck's own controls open the Dosplex menu. A DualShock 4, a DualSense, an
+Xbox or a Switch Pro controller is handed to its side as it is, so Dosplex never reads it: it plays games but cannot
+open the menu. A keyboard can.
+
 The Steam Controller puck 28de:1305 is carried the same as the 1304 puck, including the firmware-update
 guard. The older Steam Controller dongle 28de:1142 is not supported.
 
@@ -293,7 +297,9 @@ Machine. What the number means:
   no package for a package manager, and Dosplex is not in any store.
 - **Tested versions only.** A release lists the SteamOS, Gamescope and Steam client versions it was tested
   on, and the installer refuses others unless told to go on. A SteamOS update can therefore make Dosplex
-  refuse to start until a release has been tested on it.
+  refuse to start until a release has been tested on it. SteamOS 3.10 with Gamescope 3.17 (the preview channel
+  in November 2026) is one such version: there, a picture size chosen in the menu is undone at once and the side
+  stays at 1920x1080.
 - **One earlier release is kept.** `dosplex rollback` returns to it. Older ones are removed.
 - **Recovery is a reboot.** Dosplex starts only when asked, so a restart of the machine brings stock SteamOS
   back whatever state a session was in. `dosplex repair` finishes or undoes an install, update or uninstall

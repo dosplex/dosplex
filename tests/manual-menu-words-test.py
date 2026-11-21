@@ -70,6 +70,7 @@ NOT_DOSPLEX = {
     'GitHub': 'emphasis',
     'What you did, and what happened': 'emphasis',
     'Your version': 'emphasis',
+    "Only a Steam Controller or the Deck's own controls open the menu": 'emphasis',
     'Your machine': 'emphasis',
     'Whether it happens again': 'emphasis',
     'A controller that connects first belongs to Main': 'emphasis',

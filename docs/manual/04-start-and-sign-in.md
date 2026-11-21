@@ -1,6 +1,6 @@
 # Start and sign in
 
-Start Dosplex from Steam's library: open **Dosplex** under **Non-Steam** and press **Play**. Steam closes and the screen changes in a moment; after about half a minute both sides are there. If you have not added Dosplex to Steam yet, the chapter on installing shows how.
+Start Dosplex from Steam's library: open **Dosplex** under **Non-Steam** and press **Play**. Steam closes and the screen changes in a moment; after about half a minute both sides are there. The first start after an install takes longer: Guest's Steam sets itself up first, and Guest's half can stay black for a few minutes. If you have not added Dosplex to Steam yet, the chapter on installing shows how.
 
 Only the main player's account can start Dosplex this way. Nothing of Dosplex runs before you press Play, and after a restart of the machine you are in normal SteamOS until you press it again.
 

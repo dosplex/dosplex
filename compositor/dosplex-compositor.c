@@ -1445,7 +1445,9 @@ struct compositor {
     uint64_t perf_cpu_total, perf_cpu_idle;
 
     /* The built-in screen's brightness (T-436); see screen_brightness_init. */
-    bool screen_bl_available;
+    bool screen_bl_available;      /* a backlight device was found (its saved value is restored whatever the panel does) */
+    bool screen_bl_panel_on;       /* the built-in panel is switched on; re-read by screen_bl_panel_refresh */
+    char screen_bl_panel_name[64]; /* the connector last found on or off, for the log */
     char screen_bl_dir[480];       /* /sys/class/backlight/<device>, under screen_bl_sysfs_root */
     char screen_bl_sysfs_root[256]; /* prefix of /sys; empty in production */
     char screen_bl_settings[256];  /* directory of brightness.conf; empty: nothing is remembered */
@@ -5738,8 +5740,67 @@ static void screen_bl_note_shown(struct compositor *comp, bool shown) {
     write_runtime_state(comp);
 }
 
-/* Set the panel to `percent` (0..100, raised to the minimum). Returns the percentage now in effect, or -1. */
-static int screen_brightness_set(struct compositor *comp, int percent, bool remember) {
+/* Whether `name` is a built-in panel connector: card<N>-eDP-<M>, card<N>-DSI-<M> or card<N>-LVDS-<M>. */
+static bool screen_bl_is_panel_connector(const char *name) {
+    const char *p = name;
+    if (strncmp(p, "card", 4) != 0) return false;
+    p += 4;
+    if (!isdigit((unsigned char)*p)) return false;
+    while (isdigit((unsigned char)*p)) p++;
+    if (*p++ != '-') return false;
+    if (strncmp(p, "eDP-", 4) == 0 || strncmp(p, "DSI-", 4) == 0) p += 4;
+    else if (strncmp(p, "LVDS-", 5) == 0) p += 5;
+    else return false;
+    if (!isdigit((unsigned char)*p)) return false;
+    while (isdigit((unsigned char)*p)) p++;
+    return *p == '\0';
+}
+
+/* Whether a built-in panel is switched on. Unknown (no drm directory, no such connector): on, so a backlight keeps
+ * its control. A docked Deck keeps its panel's backlight device but switches the connector off. */
+static bool screen_bl_panel_read(const struct compositor *comp, char *name, size_t name_size) {
+    char base[320];
+    snprintf(base, sizeof(base), "%s/sys/class/drm", comp->screen_bl_sysfs_root);
+    DIR *handle = opendir(base);
+    if (!handle) return true;
+    bool found = false, on = false;
+    struct dirent *entry;
+    while ((entry = readdir(handle))) {
+        if (strlen(entry->d_name) > 60 || !screen_bl_is_panel_connector(entry->d_name)) continue;
+        char path[512], text[32];
+        snprintf(path, sizeof(path), "%s/%.60s/enabled", base, entry->d_name);
+        bool is_on = read_first_line(path, text, sizeof(text)) && !strcmp(text, "enabled");
+        if (!found || (is_on && !on)) snprintf(name, name_size, "%.60s", entry->d_name);
+        found = true;
+        on = on || is_on;
+    }
+    closedir(handle);
+    return found ? on : true;
+}
+
+/* Refreshed when the menu opens, when the control is used and at start (the panel changes on dock and undock; nothing
+ * polls per frame). */
+static void screen_bl_panel_refresh(struct compositor *comp) {
+    char name[64] = "";
+    bool on = screen_bl_panel_read(comp, name, sizeof(name));
+    if (on == comp->screen_bl_panel_on) return;
+    comp->screen_bl_panel_on = on;
+    if (name[0]) snprintf(comp->screen_bl_panel_name, sizeof(comp->screen_bl_panel_name), "%s", name);
+    if (!comp->screen_bl_available) return;
+    if (on) wlr_log(WLR_INFO, "Screen brightness: the built-in panel is on (%s); the menu has a brightness control",
+        comp->screen_bl_panel_name);
+    else wlr_log(WLR_INFO, "Screen brightness: the built-in panel is off (%s); the menu has no brightness control",
+        comp->screen_bl_panel_name);
+}
+
+/* The control is offered and obeyed only while a backlight exists and the panel it lights is on. */
+static bool screen_bl_usable(const struct compositor *comp) {
+    return comp->screen_bl_available && comp->screen_bl_panel_on;
+}
+
+/* Write the panel to `percent` (0..100, raised to the minimum) whether or not the panel is on. Returns the percentage
+ * now in effect, or -1. */
+static int screen_brightness_apply(struct compositor *comp, int percent, bool remember) {
     if (!comp->screen_bl_available || percent < 0 || percent > 100) return -1;
     long long raw = ((long long)comp->screen_bl_max * percent + 50) / 100;
     if (raw < screen_bl_min_raw(comp)) raw = screen_bl_min_raw(comp);
@@ -5762,9 +5823,17 @@ static int screen_brightness_set(struct compositor *comp, int percent, bool reme
     return comp->screen_bl_percent;
 }
 
+/* Set the panel to `percent` for the player or the control socket: refused while the panel is off. */
+static int screen_brightness_set(struct compositor *comp, int percent, bool remember) {
+    screen_bl_panel_refresh(comp);
+    if (!screen_bl_usable(comp)) return -1;
+    return screen_brightness_apply(comp, percent, remember);
+}
+
 /* One step brighter (+1) or dimmer (-1), on the 5 % grid. */
 static void screen_brightness_step(struct compositor *comp, int direction) {
-    if (!comp->screen_bl_available) return;
+    screen_bl_panel_refresh(comp);
+    if (!screen_bl_usable(comp)) return;
     char path[512];
     int raw = 0;
     snprintf(path, sizeof(path), "%s/brightness", comp->screen_bl_dir);
@@ -5778,6 +5847,8 @@ static void screen_brightness_step(struct compositor *comp, int direction) {
 
 static void screen_brightness_init(struct compositor *comp) {
     comp->screen_bl_available = false;
+    comp->screen_bl_panel_on = true;
+    comp->screen_bl_panel_name[0] = '\0';
     comp->screen_bl_sysfs_root[0] = comp->screen_bl_settings[0] = '\0';
     const char *root = getenv("DOSPLEX_SCREEN_ROOT"), *sysfs = getenv("DOSPLEX_SCREEN_SYSFS_ROOT");
     bool hooks = comp->config.test_hooks;
@@ -5804,11 +5875,12 @@ static void screen_brightness_init(struct compositor *comp) {
     }
     if (!screen_bl_find(comp)) return;
     comp->screen_bl_available = true;
+    screen_bl_panel_refresh(comp);
     char path[512];
     int raw = 0, saved = 0;
     snprintf(path, sizeof(path), "%s/brightness", comp->screen_bl_dir);
     comp->screen_bl_percent = read_int_file(path, &raw) ? screen_bl_percent_of(comp, raw) : 50;
-    if (screen_bl_settings_load(comp, &saved)) screen_brightness_set(comp, saved, false);
+    if (screen_bl_settings_load(comp, &saved)) screen_brightness_apply(comp, saved, false);
     wlr_log(WLR_INFO, "Screen brightness: %s, max %d, now %d%%", comp->screen_bl_dir, comp->screen_bl_max,
         comp->screen_bl_percent);
 }
@@ -6358,7 +6430,7 @@ static void render_management_overlay(struct compositor *comp,
         }
         /* The screen is shared, and Main is the driver: only Main's menu has the brightness (T-436). It comes after the
          * counter in the Tab order, and takes the counter's place on a panel too short to show the counter. */
-        if (comp->screen_bl_available && owner->role == SIDE_ROLE_PRIMARY && (ph >= 470 || ph < 408)) {
+        if (screen_bl_usable(comp) && owner->role == SIDE_ROLE_PRIMARY && (ph >= 470 || ph < 408)) {
             int by = ph >= 470 ? y + 300 : y + 196;
             char brightness_line[48];
             comp->screen_bl_drawn = true;
@@ -7997,7 +8069,7 @@ static void write_runtime_state(struct compositor *comp) {
         comp->panel_pid > 0 && !comp->panel_closing ? comp->panel_mode : "",
         comp->panel_surface && !comp->panel_closing ? "true" : "false",
         comp->feedback_available ? "true" : "false",
-        comp->screen_bl_available ? comp->screen_bl_percent : -1,
+        screen_bl_usable(comp) ? comp->screen_bl_percent : -1,
         comp->screen_bl_shown ? "true" : "false",
         fps_mode_name(comp->left.perf.mode), comp->left.perf.recording ? "true" : "false",
         comp->left.perf.recording && strrchr(comp->left.perf.csv_path, '/') ? strrchr(comp->left.perf.csv_path, '/') + 1 : "",
@@ -9137,6 +9209,7 @@ static void launch_device_hud(struct compositor *comp, struct side_ctx *target) 
     comp->management_overlay_owner = target->id;
     if (comp->management_overlay_visible) suspend_overlay_app_input(comp, target);
     comp->pending_shared_action = MODAL_ACTION_NONE;
+    screen_bl_panel_refresh(comp); /* docking changes the panel; the menu is where it shows */
     comp->device_message[0] = 0; /* Main's last note is not Guest's, and the other way round. */
     comp->overlay_focus = 1;
     wlr_log(WLR_INFO, "Management overlay %s on %s side",
@@ -10022,8 +10095,9 @@ static int handle_control_readable(int fd, uint32_t mask, void *data) {
             wlr_log(WLR_INFO, "Control socket: brightness %d -> %d", request[6], percent);
         } else if (request[5] == CONTROL_CMD_GET_BRIGHTNESS && request[6] == 0) {
             brightness_reply = true;
-            reply[5] = comp->screen_bl_available ? CONTROL_OK : CONTROL_UNAVAILABLE;
-            reply[6] = comp->screen_bl_available ? (unsigned char)comp->screen_bl_percent : 0;
+            screen_bl_panel_refresh(comp);
+            reply[5] = screen_bl_usable(comp) ? CONTROL_OK : CONTROL_UNAVAILABLE;
+            reply[6] = screen_bl_usable(comp) ? (unsigned char)comp->screen_bl_percent : 0;
         }
     }
     if (!brightness_reply) reply[6] = (unsigned char)control_layout_number(comp->layout);

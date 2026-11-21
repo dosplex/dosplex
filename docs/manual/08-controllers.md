@@ -4,7 +4,7 @@ Open **Devices** to see the connected controllers and who they belong to. Every 
 
 ## Claim and release
 
-- **Claim:** choose **Claim** on an Unassigned controller that is awake, and it is added to your side. You can hold several, and Steam on your side sees each as its own controller. Guest lists the free controllers and its own. Main sees every controller and uses the **Main**, **Guest** and **Unassigned** buttons on its row; check the result, then confirm with **Keep assignment**, or use **Undo**.
+- **Claim:** choose **Claim** on an Unassigned controller that is awake, and it is added to your side. You can hold several, and Steam on your side sees each as its own controller. Guest lists the free controllers and its own. Main sees every controller and uses the **Main**, **Guest** and **Unassigned** buttons on its row; check the result, then confirm with **Keep assignment**, or use **Undo**. A move that you do not confirm within 15 seconds is undone by itself.
 - **Release:** choose **Release** on a controller you hold, and it is Unassigned again for anybody to claim. If it was Guest's last controller, Guest's menu closes, because nothing is left to operate it; Main can give Guest a controller again.
 - **Swap controls:** Main can exchange its controller with Guest's. When either of you holds several, it swaps the one each of you pressed last. When it cannot tell, it says "Press a button on the controller to swap": press a button on the controller you mean, then choose **Swap controls** again.
 
