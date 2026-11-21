@@ -1,0 +1,46 @@
+wlroots 0.17.4: tag an X11 present with the commit_seq its commit gets
+
+The X11 backend tags each PresentPixmap (and the no-buffer PresentNotifyMSC) with
+wlr_output.commit_seq read inside the commit, before wlr_output_commit_state() has
+incremented it. The commit event that wlr_presentation_time records a feedback's
+commit_seq from carries the incremented value, and the PresentCompleteNotify of this
+present comes back with the serial it was sent with, so a feedback is only answered
+by the present of the commit after its own. The headless and Wayland backends use
+commit_seq + 1. Shown under Xvfb with a client that commits its next frame only when
+the feedback of the one before has arrived: unpatched, its frames were three host
+frames apart where the patched backend gives two with a compositor that commits at
+every frame event, and one with a compositor that commits only on change. Unpatched,
+with a compositor that commits only on change, the client got no feedback for its
+second frame and stopped there.
+Found on Dosplex running as an X11 client of SteamOS's Gamescope; applies to the
+bundled wlroots and to the development build's subproject (compositor/subprojects).
+
+--- a/backend/x11/output.c
++++ b/backend/x11/output.c
+@@ -354,7 +354,14 @@
+ 
+ 	pixman_region32_clear(&output->exposed);
+ 
+-	uint32_t serial = output->wlr_output.commit_seq;
++	// The serial comes back in PresentCompleteNotify as the commit_seq of the
++	// present event. wlr_output_commit_state() increments commit_seq after this
++	// commit succeeds and the commit event carries the incremented value, which
++	// is what wlr_presentation_time matches a present event against. Tag the
++	// present with the value this commit is about to get, as the headless and
++	// Wayland backends do, so the feedback of a commit completes with its own
++	// present and not with the next one.
++	uint32_t serial = output->wlr_output.commit_seq + 1;
+ 	uint32_t options = 0;
+ 	uint64_t target_msc = output->last_msc ? output->last_msc + 1 : 0;
+ 	xcb_present_pixmap(x11->xcb, output->win, x11_buffer->pixmap, serial,
+@@ -403,7 +410,9 @@
+ 			return false;
+ 		}
+ 	} else if (output_pending_enabled(wlr_output, state)) {
+-		uint32_t serial = output->wlr_output.commit_seq;
++		// See output_commit_buffer(): the serial is the commit_seq this commit
++		// is about to get.
++		uint32_t serial = output->wlr_output.commit_seq + 1;
+ 		uint64_t target_msc = output->last_msc ? output->last_msc + 1 : 0;
+ 		xcb_present_notify_msc(x11->xcb, output->win, serial, target_msc, 0, 0);
+ 	}

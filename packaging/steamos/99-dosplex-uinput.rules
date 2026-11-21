@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright 2026 RoyÅke (Roy-Åke Martinsson)
+# Steam Input creates per-game virtual controllers through /dev/uinput.
+# Dosplex side sessions are launched by a system service, so logind uaccess ACLs
+# do not reliably grant this node to deck/guest. Keep it on the input group and
+# clear later ACLs that can otherwise leave only named users with access.
+SUBSYSTEM=="misc", KERNEL=="uinput", ACTION=="add|change", TAG-="uaccess", GROUP="input", MODE="0660", RUN+="/usr/bin/setfacl -b /dev/%k"

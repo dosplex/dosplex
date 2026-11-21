@@ -1,0 +1,884 @@
+{
+  "build": {
+    "base_image": "docker.io/library/archlinux@sha256:5b1b7713182110aee0829fa9cc0571c451b391f0ad2bbafcf7a4ba907ee72ec3",
+    "environment_sha256": "050a0f1aa77f9dd78133f0d50c547adca80adfaa41db5a3e87ca8d8dcc161e5d",
+    "glibc_floor": "2.41",
+    "glibc_max_required": "2.38",
+    "package_snapshot": "https://archive.archlinux.org/repos/2025/07/30",
+    "toolchain": {
+      "binutils": "2.45-1",
+      "gcc": "15.1.1+r7+gf36ec88aa85a-1",
+      "glibc": "2.41+r65+ge7c419a29575-1",
+      "linux-api-headers": "6.15-1",
+      "meson": "1.8.2-2",
+      "ninja": "1.12.1-2",
+      "pkgconf": "2.5.1-1",
+      "python": "3.13.5-1"
+    }
+  },
+  "files": [
+    {
+      "kind": "script",
+      "license": "AGPL-3.0-or-later",
+      "license_files": [
+        "licenses/dosplex-LICENSE"
+      ],
+      "mode": "0755",
+      "name": "dosplex",
+      "origin": "repository",
+      "path": "bin/dosplex-audio-router.py",
+      "sha256": "a9eab995cb4f4ea91e419c55abc67905401bc59b630aa8b26925687bd5d69b19",
+      "size": 42457,
+      "source_path": "packaging/steamos/dosplex-audio-router.py",
+      "version": "0.1.0-preview3"
+    },
+    {
+      "includes": [
+        {
+          "license": "MIT",
+          "license_files": [
+            "licenses/wayland-protocols-1.45-1-COPYING"
+          ],
+          "name": "wayland-protocols",
+          "note": "generated protocol headers compiled into the binary",
+          "version": "1.45-1"
+        }
+      ],
+      "kind": "executable",
+      "license": "AGPL-3.0-or-later",
+      "license_files": [
+        "licenses/dosplex-LICENSE"
+      ],
+      "mode": "0755",
+      "name": "dosplex",
+      "origin": "repository",
+      "path": "bin/dosplex-compositor",
+      "sha256": "a3b86fcaa07668702c60e9e17f7032eb82ace5136a32309b02d51c332d19d831",
+      "size": 188704,
+      "source_path": "compositor/",
+      "version": "0.1.0-preview3"
+    },
+    {
+      "kind": "script",
+      "license": "AGPL-3.0-or-later",
+      "license_files": [
+        "licenses/dosplex-LICENSE"
+      ],
+      "mode": "0755",
+      "name": "dosplex",
+      "origin": "repository",
+      "path": "bin/dosplex-controller-menu.py",
+      "sha256": "8392c140ffd09eba1dda8f3d6f9d87365e54d99f9727a373fe646c2be9710f2f",
+      "size": 8934,
+      "source_path": "packaging/steamos/dosplex-controller-menu.py",
+      "version": "0.1.0-preview3"
+    },
+    {
+      "kind": "script",
+      "license": "AGPL-3.0-or-later",
+      "license_files": [
+        "licenses/dosplex-LICENSE"
+      ],
+      "mode": "0755",
+      "name": "dosplex",
+      "origin": "repository",
+      "path": "bin/dosplex-controller-registry.py",
+      "sha256": "c28fc54abe0a3481c8d5287d73c47550de6e39445089c4ed430297599f2f96e4",
+      "size": 9300,
+      "source_path": "packaging/steamos/dosplex-controller-registry.py",
+      "version": "0.1.0-preview3"
+    },
+    {
+      "kind": "script",
+      "license": "AGPL-3.0-or-later",
+      "license_files": [
+        "licenses/dosplex-LICENSE"
+      ],
+      "mode": "0755",
+      "name": "dosplex",
+      "origin": "repository",
+      "path": "bin/dosplex-display-state.py",
+      "sha256": "1cd81678fb26fc21a4352857d4c6b2fddb80c504b071e59f6fa6478a2e3ba9a4",
+      "size": 3295,
+      "source_path": "packaging/steamos/dosplex-display-state.py",
+      "version": "0.1.0-preview3"
+    },
+    {
+      "kind": "script",
+      "license": "AGPL-3.0-or-later",
+      "license_files": [
+        "licenses/dosplex-LICENSE"
+      ],
+      "mode": "0755",
+      "name": "dosplex",
+      "origin": "repository",
+      "path": "bin/dosplex-gamepad-arbiter.py",
+      "sha256": "0f9ef346ed69dce3193485c122f4a3da6e994eae85ba78952bc122681860bd79",
+      "size": 37472,
+      "source_path": "packaging/steamos/dosplex-gamepad-arbiter.py",
+      "version": "0.1.0-preview3"
+    },
+    {
+      "kind": "script",
+      "license": "AGPL-3.0-or-later",
+      "license_files": [
+        "licenses/dosplex-LICENSE"
+      ],
+      "mode": "0755",
+      "name": "dosplex",
+      "origin": "repository",
+      "path": "bin/dosplex-side-supervisor.py",
+      "sha256": "af9e680264f042a9b2eaeeaa58f9c4447aeeea2707e3dfd9272c6dced1245f68",
+      "size": 35025,
+      "source_path": "packaging/steamos/dosplex-side-supervisor.py",
+      "version": "0.1.0-preview3"
+    },
+    {
+      "kind": "script",
+      "license": "AGPL-3.0-or-later",
+      "license_files": [
+        "licenses/dosplex-LICENSE"
+      ],
+      "mode": "0755",
+      "name": "dosplex",
+      "origin": "repository",
+      "path": "bin/dosplex-side-supervisor.sh",
+      "sha256": "e1e3a35d1cef1e875bac4e88aec5cc7ed6039b540cd8f11d768349394ad6b561",
+      "size": 115,
+      "source_path": "packaging/steamos/dosplex-side-supervisor.sh",
+      "version": "0.1.0-preview3"
+    },
+    {
+      "kind": "script",
+      "license": "AGPL-3.0-or-later",
+      "license_files": [
+        "licenses/dosplex-LICENSE"
+      ],
+      "mode": "0755",
+      "name": "dosplex",
+      "origin": "repository",
+      "path": "bin/dosplex-wine-modelist.py",
+      "sha256": "3e4772656f0e9c8c159c1fc732fd0322921ffe435ec53b39a629d48aaf52a233",
+      "size": 39862,
+      "source_path": "packaging/steamos/dosplex-wine-modelist.py",
+      "version": "0.1.0-preview3"
+    },
+    {
+      "includes": [
+        {
+          "license": "GPL-2.0-or-later",
+          "license_files": [],
+          "name": "hwdata",
+          "note": "data compiled into the library; its license text is not shipped yet",
+          "version": "0.397-1"
+        }
+      ],
+      "kind": "library",
+      "license": "MIT",
+      "license_files": [
+        "licenses/libdisplay-info-0.2.0-LICENSE"
+      ],
+      "mode": "0755",
+      "name": "libdisplay-info",
+      "origin": "upstream",
+      "path": "lib/libdisplay-info.so.2",
+      "sha256": "a8120e9c91f47165310a8268ef16e67d0017223e85a7a0fd727496164368f31e",
+      "size": 223352,
+      "source_sha256": "5a2f002a16f42dd3540c8846f80a90b8f4bdcd067a94b9d2087bc2feae974176",
+      "source_url": "https://gitlab.freedesktop.org/emersion/libdisplay-info/-/releases/0.2.0/downloads/libdisplay-info-0.2.0.tar.xz",
+      "version": "0.2.0"
+    },
+    {
+      "includes": [],
+      "kind": "library",
+      "license": "MIT",
+      "license_files": [
+        "licenses/libliftoff-0.5.0-LICENSE"
+      ],
+      "mode": "0755",
+      "name": "libliftoff",
+      "origin": "upstream",
+      "path": "lib/libliftoff.so.0",
+      "sha256": "354b71cdc9fb377d6dd4ed4dc40ccf9c3ce62ce81a92e74b6897868f250209f5",
+      "size": 35192,
+      "source_sha256": "e29af0c9dc765916c1f192f118efffc947af6600178b04d5bccca1901246f83b",
+      "source_url": "https://gitlab.freedesktop.org/emersion/libliftoff/-/releases/v0.5.0/downloads/libliftoff-0.5.0.tar.gz",
+      "version": "0.5.0"
+    },
+    {
+      "includes": [
+        {
+          "license": "GPL-2.0-or-later",
+          "license_files": [],
+          "name": "hwdata",
+          "note": "data compiled into the library; its license text is not shipped yet",
+          "version": "0.397-1"
+        }
+      ],
+      "kind": "library",
+      "license": "MIT",
+      "license_files": [
+        "licenses/wlroots-0.17.4-LICENSE"
+      ],
+      "mode": "0755",
+      "name": "wlroots",
+      "origin": "upstream",
+      "path": "lib/libwlroots.so.12",
+      "sha256": "9dbcbc4fd4d582c0d4c7a3c4ac3e08ff5da0c7530d01ae3a49b2b26a64f0f870",
+      "size": 1260184,
+      "source_sha256": "d3190d19d03446955e68a92c77d4c74af78384b0db39a85a0b1582adc80f36d1",
+      "source_url": "https://gitlab.freedesktop.org/wlroots/wlroots/-/releases/0.17.4/downloads/wlroots-0.17.4.tar.gz",
+      "version": "0.17.4"
+    },
+    {
+      "kind": "script",
+      "license": "AGPL-3.0-or-later",
+      "license_files": [
+        "licenses/dosplex-LICENSE"
+      ],
+      "mode": "0755",
+      "name": "dosplex",
+      "origin": "repository",
+      "path": "libexec/dosplex-audio-router.py",
+      "sha256": "a9eab995cb4f4ea91e419c55abc67905401bc59b630aa8b26925687bd5d69b19",
+      "size": 42457,
+      "source_path": "packaging/steamos/dosplex-audio-router.py",
+      "version": "0.1.0-preview3"
+    },
+    {
+      "kind": "script",
+      "license": "AGPL-3.0-or-later",
+      "license_files": [
+        "licenses/dosplex-LICENSE"
+      ],
+      "mode": "0755",
+      "name": "dosplex",
+      "origin": "repository",
+      "path": "libexec/dosplex-controller-menu.py",
+      "sha256": "8392c140ffd09eba1dda8f3d6f9d87365e54d99f9727a373fe646c2be9710f2f",
+      "size": 8934,
+      "source_path": "packaging/steamos/dosplex-controller-menu.py",
+      "version": "0.1.0-preview3"
+    },
+    {
+      "kind": "script",
+      "license": "AGPL-3.0-or-later",
+      "license_files": [
+        "licenses/dosplex-LICENSE"
+      ],
+      "mode": "0755",
+      "name": "dosplex",
+      "origin": "repository",
+      "path": "libexec/dosplex-controller-registry.py",
+      "sha256": "c28fc54abe0a3481c8d5287d73c47550de6e39445089c4ed430297599f2f96e4",
+      "size": 9300,
+      "source_path": "packaging/steamos/dosplex-controller-registry.py",
+      "version": "0.1.0-preview3"
+    },
+    {
+      "kind": "script",
+      "license": "AGPL-3.0-or-later",
+      "license_files": [
+        "licenses/dosplex-LICENSE"
+      ],
+      "mode": "0755",
+      "name": "dosplex",
+      "origin": "repository",
+      "path": "libexec/dosplex-desktop-environment.py",
+      "sha256": "54cacc31afdaf3155531e42ef7857373b5774e99a5a17438c6c90c897b3ae6c9",
+      "size": 1608,
+      "source_path": "packaging/steamos/dosplex-desktop-environment.py",
+      "version": "0.1.0-preview3"
+    },
+    {
+      "kind": "script",
+      "license": "AGPL-3.0-or-later",
+      "license_files": [
+        "licenses/dosplex-LICENSE"
+      ],
+      "mode": "0755",
+      "name": "dosplex",
+      "origin": "repository",
+      "path": "libexec/dosplex-session-manager.py",
+      "sha256": "6bcb718bbec14f2403e34f02382df2250b268c2bb4d8c5a771c38a6e12e4413a",
+      "size": 3861,
+      "source_path": "packaging/steamos/dosplex-session-manager.py",
+      "version": "0.1.0-preview3"
+    },
+    {
+      "kind": "script",
+      "license": "AGPL-3.0-or-later",
+      "license_files": [
+        "licenses/dosplex-LICENSE"
+      ],
+      "mode": "0755",
+      "name": "dosplex",
+      "origin": "repository",
+      "path": "libexec/dosplex-side-auth.py",
+      "sha256": "269db7602cb678169a4937432d01f51bb98501f6257cbb4dfff7b0cbe313dc88",
+      "size": 18510,
+      "source_path": "guest/dosplex-side-auth.py",
+      "version": "0.1.0-preview3"
+    },
+    {
+      "kind": "script",
+      "license": "AGPL-3.0-or-later",
+      "license_files": [
+        "licenses/dosplex-LICENSE"
+      ],
+      "mode": "0755",
+      "name": "dosplex",
+      "origin": "repository",
+      "path": "libexec/dosplex-side-display-follower.py",
+      "sha256": "c0fe9eaffb4556adc55338896dde9ece663ce4a68a2d33e7f01f799074f08549",
+      "size": 17533,
+      "source_path": "guest/dosplex-side-display-follower.py",
+      "version": "0.1.0-preview3"
+    },
+    {
+      "kind": "script",
+      "license": "AGPL-3.0-or-later",
+      "license_files": [
+        "licenses/dosplex-LICENSE"
+      ],
+      "mode": "0755",
+      "name": "dosplex",
+      "origin": "repository",
+      "path": "libexec/dosplex-user-side-session.sh",
+      "sha256": "edfc9e9c4bd11917efd4fd7ac36ff2f07ab860fb8ee9f52bc623c9463bdfe594",
+      "size": 15644,
+      "source_path": "guest/dosplex-user-side-session.sh",
+      "version": "0.1.0-preview3"
+    },
+    {
+      "kind": "script",
+      "license": "AGPL-3.0-or-later",
+      "license_files": [
+        "licenses/dosplex-LICENSE"
+      ],
+      "mode": "0755",
+      "name": "dosplex",
+      "origin": "repository",
+      "path": "libexec/steamos-session-select-shim.sh",
+      "sha256": "71598a0ffe0c585d33ea86b956de1be1b4aa8239f555dda8f9a9fa6efbb29128",
+      "size": 1911,
+      "source_path": "packaging/steamos/steamos-session-select-shim.sh",
+      "version": "0.1.0-preview3"
+    },
+    {
+      "kind": "license",
+      "license": "AGPL-3.0-or-later",
+      "license_files": [
+        "licenses/dosplex-LICENSE"
+      ],
+      "mode": "0644",
+      "name": "dosplex",
+      "origin": "repository",
+      "path": "licenses/dosplex-LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "size": 11358,
+      "source_path": "LICENSE",
+      "version": "0.1.0-preview3"
+    },
+    {
+      "kind": "license",
+      "license": "AGPL-3.0-or-later",
+      "license_files": [
+        "licenses/dosplex-LICENSE"
+      ],
+      "mode": "0644",
+      "name": "dosplex",
+      "origin": "repository",
+      "path": "licenses/dosplex-NOTICE",
+      "sha256": "547a6aa5f8340af92b9a6649e4ac1047c7f7cb14bb95fcbc93b61b43a3959daf",
+      "size": 449,
+      "source_path": "NOTICE",
+      "version": "0.1.0-preview3"
+    },
+    {
+      "kind": "license",
+      "license": "AGPL-3.0-or-later",
+      "license_files": [
+        "licenses/dosplex-LICENSE"
+      ],
+      "mode": "0644",
+      "name": "dosplex",
+      "origin": "repository",
+      "path": "licenses/dosplex-THIRD-PARTY-NOTICES.md",
+      "sha256": "8ac795204854a156b5a70ddd0f788b2495bfa3ea3a0fd9c4029f036c43807df8",
+      "size": 3236,
+      "source_path": "THIRD-PARTY-NOTICES.md",
+      "version": "0.1.0-preview3"
+    },
+    {
+      "kind": "license",
+      "license": "MIT",
+      "license_files": [],
+      "mode": "0644",
+      "name": "libdisplay-info",
+      "origin": "upstream",
+      "path": "licenses/libdisplay-info-0.2.0-LICENSE",
+      "sha256": "15b396244e58830c5614b9394f4deccfe684970cd507f299383ab57ad339eedd",
+      "size": 1089,
+      "source_sha256": "5a2f002a16f42dd3540c8846f80a90b8f4bdcd067a94b9d2087bc2feae974176",
+      "source_url": "https://gitlab.freedesktop.org/emersion/libdisplay-info/-/releases/0.2.0/downloads/libdisplay-info-0.2.0.tar.xz",
+      "version": "0.2.0"
+    },
+    {
+      "kind": "license",
+      "license": "MIT",
+      "license_files": [],
+      "mode": "0644",
+      "name": "libliftoff",
+      "origin": "upstream",
+      "path": "licenses/libliftoff-0.5.0-LICENSE",
+      "sha256": "9b230152f28fc7898665f40da7c311a1bf238a68b12cc39d9c83bbfc117a7b6b",
+      "size": 1066,
+      "source_sha256": "e29af0c9dc765916c1f192f118efffc947af6600178b04d5bccca1901246f83b",
+      "source_url": "https://gitlab.freedesktop.org/emersion/libliftoff/-/releases/v0.5.0/downloads/libliftoff-0.5.0.tar.gz",
+      "version": "0.5.0"
+    },
+    {
+      "kind": "license",
+      "license": "MIT",
+      "license_files": [],
+      "mode": "0644",
+      "name": "wayland-protocols",
+      "origin": "distribution",
+      "package": "wayland-protocols 1.45-1",
+      "path": "licenses/wayland-protocols-1.45-1-COPYING",
+      "sha256": "f1a2b233e8a9a71c40f4aa885be08a0842ac85bb8588703c1dd7e6e6502e3124",
+      "size": 1502,
+      "version": "1.45-1"
+    },
+    {
+      "kind": "license",
+      "license": "MIT",
+      "license_files": [],
+      "mode": "0644",
+      "name": "wlroots",
+      "origin": "upstream",
+      "path": "licenses/wlroots-0.17.4-LICENSE",
+      "sha256": "35d427c043dcafe8893b9e7247348f599847c81d9a067703587c80707f3d58df",
+      "size": 1140,
+      "source_sha256": "d3190d19d03446955e68a92c77d4c74af78384b0db39a85a0b1582adc80f36d1",
+      "source_url": "https://gitlab.freedesktop.org/wlroots/wlroots/-/releases/0.17.4/downloads/wlroots-0.17.4.tar.gz",
+      "version": "0.17.4"
+    },
+    {
+      "kind": "data",
+      "license": "AGPL-3.0-or-later",
+      "license_files": [
+        "licenses/dosplex-LICENSE"
+      ],
+      "mode": "0644",
+      "name": "dosplex",
+      "origin": "repository",
+      "path": "share/dosplex/VERSION",
+      "sha256": "c4bbbc534d57078cbfb0dafea6762603ec5d0afd0a8b6b0fc0acd0bed2dc4afd",
+      "size": 15,
+      "source_path": "packaging/release-build/assemble.py",
+      "version": "0.1.0-preview3"
+    }
+  ],
+  "format": "dosplex-sbom",
+  "format_version": 1,
+  "host_provided": {
+    "libraries": [
+      {
+        "license": "custom:BSD-like",
+        "needed_by": [
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "libglvnd",
+        "provided_by": "host",
+        "soname": "libEGL.so.1",
+        "version": "1.7.0-3"
+      },
+      {
+        "license": "custom:BSD-like",
+        "needed_by": [
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "libglvnd",
+        "provided_by": "host",
+        "soname": "libGLESv2.so.2",
+        "version": "1.7.0-3"
+      },
+      {
+        "license": "GPL-2.0-or-later AND LGPL-2.1-or-later",
+        "needed_by": [
+          "bin/dosplex-compositor",
+          "lib/libdisplay-info.so.2",
+          "lib/libliftoff.so.0",
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "glibc",
+        "provided_by": "host",
+        "soname": "libc.so.6",
+        "version": "2.41+r65+ge7c419a29575-1"
+      },
+      {
+        "license": "LGPL-2.1-only OR MPL-1.1",
+        "needed_by": [
+          "bin/dosplex-compositor"
+        ],
+        "observed": "build image",
+        "package": "cairo",
+        "provided_by": "host",
+        "soname": "libcairo.so.2",
+        "version": "1.18.4-1"
+      },
+      {
+        "license": "MIT",
+        "needed_by": [
+          "lib/libliftoff.so.0",
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "libdrm",
+        "provided_by": "host",
+        "soname": "libdrm.so.2",
+        "version": "2.4.125-1"
+      },
+      {
+        "license": "MIT AND BSD-3-Clause AND SGI-B-2.0",
+        "needed_by": [
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "mesa",
+        "provided_by": "host",
+        "soname": "libgbm.so.1",
+        "version": "1:25.1.6-1"
+      },
+      {
+        "license": "MIT",
+        "needed_by": [
+          "bin/dosplex-compositor",
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "libinput",
+        "provided_by": "host",
+        "soname": "libinput.so.10",
+        "version": "1.28.1-1"
+      },
+      {
+        "license": "MIT",
+        "needed_by": [
+          "bin/dosplex-compositor"
+        ],
+        "observed": "build image",
+        "package": "json-c",
+        "provided_by": "host",
+        "soname": "libjson-c.so.5",
+        "version": "0.18-2"
+      },
+      {
+        "license": "GPL-2.0-or-later AND LGPL-2.1-or-later",
+        "needed_by": [
+          "bin/dosplex-compositor",
+          "lib/libdisplay-info.so.2",
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "glibc",
+        "provided_by": "host",
+        "soname": "libm.so.6",
+        "version": "2.41+r65+ge7c419a29575-1"
+      },
+      {
+        "license": "MIT",
+        "needed_by": [
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "pixman",
+        "provided_by": "host",
+        "soname": "libpixman-1.so.0",
+        "version": "0.46.4-1"
+      },
+      {
+        "license": "MIT",
+        "needed_by": [
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "seatd",
+        "provided_by": "host",
+        "soname": "libseat.so.1",
+        "version": "0.9.1-1"
+      },
+      {
+        "license": "LGPL-2.1-or-later AND CC0-1.0 AND GPL-2.0-or-later WITH Linux-syscall-note",
+        "needed_by": [
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "systemd-libs",
+        "provided_by": "host",
+        "soname": "libudev.so.1",
+        "version": "257.7-2"
+      },
+      {
+        "license": "Apache-2.0",
+        "needed_by": [
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "vulkan-icd-loader",
+        "provided_by": "host",
+        "soname": "libvulkan.so.1",
+        "version": "1.4.321.0-1"
+      },
+      {
+        "license": "MIT",
+        "needed_by": [
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "wayland",
+        "provided_by": "host",
+        "soname": "libwayland-client.so.0",
+        "version": "1.23.1-2"
+      },
+      {
+        "license": "MIT",
+        "needed_by": [
+          "bin/dosplex-compositor",
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "wayland",
+        "provided_by": "host",
+        "soname": "libwayland-server.so.0",
+        "version": "1.23.1-2"
+      },
+      {
+        "license": "X11",
+        "needed_by": [
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "libxcb",
+        "provided_by": "host",
+        "soname": "libxcb-composite.so.0",
+        "version": "1.17.0-1"
+      },
+      {
+        "license": "X11",
+        "needed_by": [
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "libxcb",
+        "provided_by": "host",
+        "soname": "libxcb-dri3.so.0",
+        "version": "1.17.0-1"
+      },
+      {
+        "license": "X11-distribute-modifications-variant",
+        "needed_by": [
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "xcb-util-wm",
+        "provided_by": "host",
+        "soname": "libxcb-ewmh.so.2",
+        "version": "0.4.2-2"
+      },
+      {
+        "license": "X11-distribute-modifications-variant",
+        "needed_by": [
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "xcb-util-wm",
+        "provided_by": "host",
+        "soname": "libxcb-icccm.so.4",
+        "version": "0.4.2-2"
+      },
+      {
+        "license": "X11",
+        "needed_by": [
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "libxcb",
+        "provided_by": "host",
+        "soname": "libxcb-present.so.0",
+        "version": "1.17.0-1"
+      },
+      {
+        "license": "X11-distribute-modifications-variant AND HPND-sell-variant",
+        "needed_by": [
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "xcb-util-renderutil",
+        "provided_by": "host",
+        "soname": "libxcb-render-util.so.0",
+        "version": "0.3.10-2"
+      },
+      {
+        "license": "X11",
+        "needed_by": [
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "libxcb",
+        "provided_by": "host",
+        "soname": "libxcb-render.so.0",
+        "version": "1.17.0-1"
+      },
+      {
+        "license": "X11",
+        "needed_by": [
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "libxcb",
+        "provided_by": "host",
+        "soname": "libxcb-res.so.0",
+        "version": "1.17.0-1"
+      },
+      {
+        "license": "X11",
+        "needed_by": [
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "libxcb",
+        "provided_by": "host",
+        "soname": "libxcb-shm.so.0",
+        "version": "1.17.0-1"
+      },
+      {
+        "license": "X11",
+        "needed_by": [
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "libxcb",
+        "provided_by": "host",
+        "soname": "libxcb-xfixes.so.0",
+        "version": "1.17.0-1"
+      },
+      {
+        "license": "X11",
+        "needed_by": [
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "libxcb",
+        "provided_by": "host",
+        "soname": "libxcb-xinput.so.0",
+        "version": "1.17.0-1"
+      },
+      {
+        "license": "X11",
+        "needed_by": [
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "libxcb",
+        "provided_by": "host",
+        "soname": "libxcb.so.1",
+        "version": "1.17.0-1"
+      },
+      {
+        "license": "MIT",
+        "needed_by": [
+          "bin/dosplex-compositor",
+          "lib/libwlroots.so.12"
+        ],
+        "observed": "build image",
+        "package": "libxkbcommon",
+        "provided_by": "host",
+        "soname": "libxkbcommon.so.0",
+        "version": "1.10.0-1"
+      }
+    ],
+    "python": [
+      {
+        "kind": "interpreter",
+        "name": "python3",
+        "provided_by": "host",
+        "used_by": [
+          "bin/dosplex-audio-router.py",
+          "bin/dosplex-controller-menu.py",
+          "bin/dosplex-controller-registry.py",
+          "bin/dosplex-display-state.py",
+          "bin/dosplex-gamepad-arbiter.py",
+          "bin/dosplex-side-supervisor.py",
+          "bin/dosplex-wine-modelist.py",
+          "libexec/dosplex-audio-router.py",
+          "libexec/dosplex-controller-menu.py",
+          "libexec/dosplex-controller-registry.py",
+          "libexec/dosplex-desktop-environment.py",
+          "libexec/dosplex-session-manager.py",
+          "libexec/dosplex-side-auth.py",
+          "libexec/dosplex-side-display-follower.py"
+        ],
+        "version": null
+      },
+      {
+        "kind": "module",
+        "name": "PAM",
+        "provided_by": "host",
+        "used_by": [
+          "libexec/dosplex-side-auth.py"
+        ],
+        "version": null
+      },
+      {
+        "kind": "module",
+        "name": "dbus",
+        "provided_by": "host",
+        "used_by": [
+          "libexec/dosplex-session-manager.py"
+        ],
+        "version": null
+      },
+      {
+        "kind": "module",
+        "name": "evdev",
+        "provided_by": "host",
+        "used_by": [
+          "bin/dosplex-controller-menu.py",
+          "bin/dosplex-gamepad-arbiter.py",
+          "libexec/dosplex-controller-menu.py"
+        ],
+        "version": null
+      },
+      {
+        "kind": "module",
+        "name": "gi",
+        "provided_by": "host",
+        "used_by": [
+          "libexec/dosplex-session-manager.py"
+        ],
+        "version": null
+      },
+      {
+        "kind": "module",
+        "name": "pam",
+        "provided_by": "host",
+        "used_by": [
+          "libexec/dosplex-side-auth.py"
+        ],
+        "version": null
+      }
+    ]
+  },
+  "package": {
+    "commit": "aa9cd17977865aaf6f94530002afbee64f5b80cd",
+    "name": "dosplex",
+    "source_date_epoch": 1791543502,
+    "version": "0.1.0-preview3"
+  }
+}

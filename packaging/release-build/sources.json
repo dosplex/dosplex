@@ -1,0 +1,110 @@
+{
+  "format": 1,
+  "about": "Third-party source archives the release build compiles and bundles. The image build downloads each url and refuses a file whose SHA-256 differs; the payload build checks again (sources.py). 'libraries' are the sonames installed into the payload's lib/ (private libraries, built from the archive). 'embeds' names distribution packages whose data is compiled into those libraries. 'products' are payload files built from the archive's own tree (a data product made from a 'template' of the tree gets a library_path relative to itself, to the product named by 'library'; 'layer_name' and 'disable_variable', when given, replace the layer's name and the variable of its disable_environment). A source with 'into' is a snapshot of a subproject that the host archive leaves out (a git submodule), unpacked into the host's tree; 'overlay' is the directory of the host that holds the meson wrap's patch files for it. 'patches' lists patch files (paths relative to this file's directory) that are applied in order, with patch -p1, to the unpacked tree before the build; the manifest records each with its SHA-256. 'embedded_in' names the payload files that contain compiled code of the source; 'note' is what the SBOM says about that. The layer is built twice from the one tree, for x86_64 and for x86 (32-bit games), and has a product pair for each. A source with none of these is an input of the build that nothing in the payload contains. 'commit' is the git commit an archive is a snapshot of; {commit} in a directory name stands for it (a GitHub archive of a commit unpacks into <repository>-<commit>). The first three were checked against their upstream GPG signatures when pinned; the GitHub archives are identified by the commit they were made from and by their SHA-256 (see README.md).",
+  "sources": [
+    {
+      "name": "libdisplay-info",
+      "version": "0.2.0",
+      "url": "https://gitlab.freedesktop.org/emersion/libdisplay-info/-/releases/0.2.0/downloads/libdisplay-info-0.2.0.tar.xz",
+      "sha256": "5a2f002a16f42dd3540c8846f80a90b8f4bdcd067a94b9d2087bc2feae974176",
+      "directory": "libdisplay-info-0.2.0",
+      "license": "MIT",
+      "license_files": ["LICENSE"],
+      "libraries": ["libdisplay-info.so.2"],
+      "embeds": ["hwdata"]
+    },
+    {
+      "name": "libliftoff",
+      "version": "0.5.0",
+      "url": "https://gitlab.freedesktop.org/emersion/libliftoff/-/releases/v0.5.0/downloads/libliftoff-0.5.0.tar.gz",
+      "sha256": "e29af0c9dc765916c1f192f118efffc947af6600178b04d5bccca1901246f83b",
+      "directory": "libliftoff-0.5.0",
+      "license": "MIT",
+      "license_files": ["LICENSE"],
+      "libraries": ["libliftoff.so.0"],
+      "embeds": []
+    },
+    {
+      "name": "wlroots",
+      "version": "0.17.4",
+      "url": "https://gitlab.freedesktop.org/wlroots/wlroots/-/releases/0.17.4/downloads/wlroots-0.17.4.tar.gz",
+      "sha256": "d3190d19d03446955e68a92c77d4c74af78384b0db39a85a0b1582adc80f36d1",
+      "directory": "wlroots-0.17.4",
+      "license": "MIT",
+      "license_files": ["LICENSE"],
+      "libraries": ["libwlroots.so.12"],
+      "embeds": ["hwdata"],
+      "patches": ["patches/wlroots-0.17.4-x11-present-commit-seq.patch"]
+    },
+    {
+      "name": "gamescope",
+      "version": "3.16.30",
+      "commit": "ad2763da1c48860f649abfe842a087188dcb6e20",
+      "url": "https://github.com/ValveSoftware/gamescope/archive/refs/tags/3.16.30.tar.gz",
+      "filename": "gamescope-3.16.30.tar.gz",
+      "sha256": "e85b06cfa0fce1f7609bb3a691911029b1014bc6014f5d20dc9fbeac80a3d628",
+      "directory": "gamescope-3.16.30",
+      "license": "BSD-2-Clause AND BSD-3-Clause",
+      "license_files": ["LICENSE"],
+      "embeds": ["wayland-protocols"],
+      "products": {
+        "lib/libVkLayer_FROG_gamescope_wsi_x86_64.so": {"kind": "library", "license": "BSD-2-Clause"},
+        "share/vulkan/implicit_layer.d/VkLayer_FROG_gamescope_wsi.x86_64.json": {
+          "kind": "data", "license": "BSD-2-Clause",
+          "template": "layer/VkLayer_FROG_gamescope_wsi.json.in", "family": "x86_64",
+          "layer_name": "VK_LAYER_DOSPLEX_gamescope_wsi_x86_64", "disable_variable": "DOSPLEX_DISABLE_GAMESCOPE_WSI",
+          "library": "lib/libVkLayer_FROG_gamescope_wsi_x86_64.so"
+        },
+        "lib/libVkLayer_FROG_gamescope_wsi_x86.so": {"kind": "library", "license": "BSD-2-Clause"},
+        "share/vulkan/implicit_layer.d/VkLayer_FROG_gamescope_wsi.x86.json": {
+          "kind": "data", "license": "BSD-2-Clause",
+          "template": "layer/VkLayer_FROG_gamescope_wsi.json.in", "family": "x86",
+          "layer_name": "VK_LAYER_DOSPLEX_gamescope_wsi_x86", "disable_variable": "DOSPLEX_DISABLE_GAMESCOPE_WSI",
+          "library": "lib/libVkLayer_FROG_gamescope_wsi_x86.so"
+        }
+      }
+    },
+    {
+      "name": "vkroots",
+      "version": "0.1.0+5106d8a",
+      "commit": "5106d8a0df95de66cc58dc1ea37e69c99afc9540",
+      "url": "https://github.com/Joshua-Ashton/vkroots/archive/5106d8a0df95de66cc58dc1ea37e69c99afc9540.tar.gz",
+      "filename": "vkroots-5106d8a.tar.gz",
+      "sha256": "37b77586e91f7ebee70380dcddd73bf01ae4acef1053e6be41d0485ede022422",
+      "directory": "vkroots-{commit}",
+      "into": "gamescope-3.16.30/subprojects/vkroots",
+      "license": "Apache-2.0 OR MIT",
+      "license_files": ["LICENSE", "LICENSES/MIT.txt", "LICENSES/Apache-2.0.txt"],
+      "embedded_in": ["lib/libVkLayer_FROG_gamescope_wsi_x86_64.so", "lib/libVkLayer_FROG_gamescope_wsi_x86.so"],
+      "note": "the vkroots.h header (a Vulkan layer helper library), compiled into the layer"
+    },
+    {
+      "name": "glm",
+      "version": "1.0.1+0af55cc",
+      "commit": "0af55ccecd98d4e5a8d1fad7de25ba429d60e863",
+      "url": "https://github.com/g-truc/glm/archive/0af55ccecd98d4e5a8d1fad7de25ba429d60e863.tar.gz",
+      "filename": "glm-0af55cc.tar.gz",
+      "sha256": "e7f187d83523f505eb38dd25d297ea6c0d4ed856d733e808f18253f5a8fa88a0",
+      "directory": "glm-{commit}",
+      "into": "gamescope-3.16.30/subprojects/glm",
+      "overlay": "gamescope-3.16.30/subprojects/packagefiles/glm",
+      "license": "MIT",
+      "license_files": ["copying.txt"],
+      "embedded_in": ["lib/libVkLayer_FROG_gamescope_wsi_x86_64.so", "lib/libVkLayer_FROG_gamescope_wsi_x86.so"],
+      "note": "templates of the glm math library (offered under the Happy Bunny License or the MIT License; the MIT License applies here), compiled into the layer"
+    },
+    {
+      "name": "stb",
+      "version": "git+5736b15",
+      "commit": "5736b15f7ea0ffb08dd38af21067c314d6a3aae9",
+      "url": "https://github.com/nothings/stb/archive/5736b15f7ea0ffb08dd38af21067c314d6a3aae9.tar.gz",
+      "filename": "stb-5736b15.tar.gz",
+      "sha256": "d00921d49b06af62aa6bfb97c1b136bec661dd11dd4eecbcb0da1f6da7cedb4c",
+      "directory": "stb-{commit}",
+      "into": "gamescope-3.16.30/subprojects/stb",
+      "overlay": "gamescope-3.16.30/subprojects/packagefiles/stb",
+      "license": "MIT OR Unlicense",
+      "license_files": ["LICENSE"]
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright 2026 RoyÅke (Roy-Åke Martinsson)
+# The wlroots the release bundles (packaging/release-build/sources.json: same archive, same SHA-256), with the
+# release's patches, for a development build and the tests: meson setup build compositor -Dwlroots=subproject
+# (tests/run.py builds this way). Meson fetches the archive once into subprojects/packagecache/ and unpacks it,
+# patched, into subprojects/wlroots-0.17.4/; both are ignored. packagefiles/ holds a copy of the release recipe's
+# patch (meson wants it there; tests/release-sources-test.py keeps the copy equal to packaging/release-build/patches/).
+[wrap-file]
+directory = wlroots-0.17.4
+source_url = https://gitlab.freedesktop.org/wlroots/wlroots/-/releases/0.17.4/downloads/wlroots-0.17.4.tar.gz
+source_filename = wlroots-0.17.4.tar.gz
+source_hash = d3190d19d03446955e68a92c77d4c74af78384b0db39a85a0b1582adc80f36d1
+diff_files = wlroots-0.17.4-x11-present-commit-seq.patch
+
+[provide]
+wlroots = wlroots

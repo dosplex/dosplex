@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright 2026 RoyÅke (Roy-Åke Martinsson)
+[Unit]
+Description=Dosplex External Gamepad Arbiter
+Before=dosplex-compositor.service
+PartOf=dosplex-compositor.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/dosplex-gamepad-arbiter.py
+Restart=always
+RestartSec=1
+Nice=-10
+CPUSchedulingPolicy=fifo
+CPUSchedulingPriority=20
+LimitRTPRIO=50
+
+[Install]
+WantedBy=dosplex-compositor.service

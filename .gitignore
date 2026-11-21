@@ -1,0 +1,22 @@
+__pycache__/
+*.pyc
+
+vm/state/
+
+*.log
+compatibility/captures/
+
+.DS_Store
+
+# generated build outputs
+build/
+compositor-build/
+compositor/build/
+compositor/build-deck/
+compositor/build-local/
+# the wlroots subproject of a development build (compositor/subprojects/wlroots.wrap)
+compositor/subprojects/packagecache/
+compositor/subprojects/wlroots-0.17.4/
+
+# backups
+*.bak

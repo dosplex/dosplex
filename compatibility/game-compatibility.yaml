@@ -1,0 +1,214 @@
+# Dosplex configuration invariants and coverage requirements.
+#
+# Scenarios, their pass criteria, the acceptance policy, the acceptance lock and the history of each
+# game live in scenarios.yaml. Nothing in this file says that a game works.
+#
+# - configuration_invariants (formerly runtime_contracts) are checks of the repository's own text that
+#   guard settings games rely on. They show that a setting was not removed by accident, not that any
+#   game runs. `tests/compatibility-regression-test.py` enforces them, and `tests/compatibility-schema-test.py`
+#   checks that every invariant a game points at exists.
+# - platform_scope, test_dimensions, workload_profiles and required_flow_checks list what has to be
+#   covered. Coverage is kept apart from results: no combination counts as passed because source
+#   contracts or another mode pass.
+
+version: 2
+
+platform_scope:
+  intended_support: all_steamos_devices_except_steam_frame
+  current_test_bed: docked_steam_deck
+  human_acceptance_target: tv_connected_steam_machine
+  future_platforms: [steam_deck]
+  excluded_platforms: [steam_frame]
+  evidence_rule: each_device_family_requires_its_own_validation
+
+# Coverage requirements are separate from observed results. No combination is
+# considered passed merely because source contracts or another mode pass.
+test_dimensions:
+  account_configuration: [two_distinct_steam_accounts]
+  layouts: [single, vertical, horizontal]
+  sides: [primary, guest]
+  game_resolutions: [native, largest_fitting_1_1, largest_fitting_4_3, largest_fitting_16_9]
+  steam_game_resolution: [default, custom]
+  presentation: [fit, stretch]
+  steam_input: [enabled, disabled]
+  window_modes: [fullscreen, borderless, windowed]
+  display_modes: [1920x1080_60, 3840x2160_60]
+  controllers: [steam_controller_and_dualsense, steam_controller_and_dualshock4, two_identical_controllers]
+
+# Workload acceptance is broader than the per-game scenarios. Each is pending until it has results.
+workload_profiles:
+  - id: same_game_couch_coop
+    status: pending
+    checks: [two_instances, two_accounts_where_required, join_same_match, independent_controls_and_audio]
+  - id: different_games
+    status: pending
+    checks: [independent_launch_exit, simultaneous_load, independent_controls_and_audio]
+  - id: game_and_local_movie
+    status: pending
+    checks: [both_side_assignments, fullscreen_within_side, pause_seek_captions, independent_audio, frame_pacing_and_av_sync]
+  - id: game_and_browser_movie
+    status: pending
+    checks: [both_side_assignments, service_login_and_playback, fullscreen_within_side, pause_seek_captions, independent_audio, frame_pacing_and_av_sync]
+
+required_flow_checks:
+  - launch_and_monitor_enumeration
+  - both_players_simultaneous_input
+  - overlay_open_navigate_close_owner_only
+  - resolution_apply_cancel_other_side_survives
+  - presentation_fit_bars_and_stretch
+  - pointer_coordinates_and_relative_mouse_lock
+  - controller_reassign_while_game_running
+  - identical_controller_disconnect_reconnect
+  - steam_input_virtual_device_no_duplicate_events
+  - audio_route_and_reconnect
+  - audio_hdmi_and_headset_independent_outputs
+  - audio_two_headsets_independent_outputs
+  - microphone_ownership_mute_and_new_streams
+  - audio_unplug_fallback_and_restore
+  - game_exit_relaunch
+  - side_crash_restart_other_side_survives
+  - same_game_two_accounts
+  - different_games_two_accounts
+  - saves_and_cloud_separation
+  - suspend_resume
+  - tv_disconnect_reconnect
+  - two_hour_soak_frame_times_latency_memory
+  - rollback_and_cleanup
+
+# How results are judged. The result record itself (the ADR-009 metadata plus the device baseline) is
+# defined and validated by the code that stores it; a result is one of pass, fail, blocked or
+# not_applicable, and a scenario without a result is pending.
+evidence_contract:
+  rules:
+    - "Single layout has only a primary side; guest cases are not applicable."
+    - "Native uses the allocated side pixels; Fit and Stretch coincide at that size."
+    - "Test 1080p60 first; mark unsupported TV modes not applicable with a reason."
+    - "Use pairwise combinations for broad coverage, then all resolution/presentation/layout cases for each claimed supported game."
+    - "Pass requires observed behavior on the candidate; source flags alone are insufficient."
+    - "Every blocked or not-applicable case needs a reason; neither counts as a pass."
+    - "Keep raw logs and controller identifiers private; publish reviewed result summaries."
+
+configuration_invariants:
+  steam_session:
+    file: guest/dosplex-user-side-session.sh
+    required:
+      - kind: env
+        name: GAMESCOPE_WSI_PRESENT_WAIT
+        value: "0"
+        reason: "Avoid nested gamescope/Proton present wait stalls."
+      - kind: env
+        name: GAMESCOPE_WSI_XWAYLAND_WAIT
+        value: "0"
+        reason: "Avoid XWayland wait stalls in nested gamescope."
+      - kind: env
+        name: GAMESCOPE_ZENITY_DISABLE
+        value: "1"
+        reason: "Prevent modal Gamescope WSI dialogs from blocking games."
+      - kind: env
+        name: GAMESCOPE_WSI_HIDEDIALOG
+        value: "1"
+        reason: "Prevent WSI dialogs from interrupting game launch."
+      - kind: absent
+        contains: 'export VK_LOADER_LAYERS_DISABLE='
+        reason: "Preserve Steam/WSI layers and caller policy; window sizing fixes Alien Breed."
+      - kind: env
+        name: PROTON_USE_WAYLAND
+        value: "0"
+        reason: "Keep Proton games on XWayland until native Wayland is proven stable under Dosplex."
+      - kind: env
+        name: gamescope_cursor_composite
+        value: "2"
+        reason: "Nested Gamescope must draw its own cursor: Steam Input's controller mouse moves Gamescope's cursor, not the host pointer, so hardware-cursor games showed no mouse (Steam Machine, Age of Wonders 2, 2026-10-08)."
+      - kind: unset
+        name: SDL_VIDEODRIVER
+        reason: "Let SDL choose the backend instead of forcing a stale or incompatible driver."
+      - kind: command-contains
+        command: gamescope
+        contains: "--xwayland-count 2"
+        reason: "Expose XWayland for Proton and legacy game compatibility: two servers, as SteamOS's own session, so that Steam starts games on the second and applies Maximum Game Resolution and each game's resolution to it (Deck, 2026-11-18)."
+      - kind: absent
+        contains: "--force-windows-fullscreen"
+        reason: "Respect fixed-size game buffers; forced resizing clipped/flickered Alien Breed."
+      - kind: command-contains
+        command: gamescope
+        contains: "--output-width"
+        reason: "Expose the Dosplex side width instead of gamescope's 720p default."
+      - kind: command-contains
+        command: gamescope
+        contains: "--output-height"
+        reason: "Expose the Dosplex side height instead of gamescope's 720p default."
+      - kind: command-contains
+        command: gamescope
+        contains: "--nested-width"
+        reason: "Keep XWayland/RANDR game size aligned with the Dosplex side surface."
+      - kind: command-contains
+        command: gamescope
+        contains: "--nested-height"
+        reason: "Keep XWayland/RANDR game size aligned with the Dosplex side surface."
+      - kind: command-contains
+        command: gamescope
+        contains: "--borderless"
+        reason: "Avoid visible window chrome and focus quirks."
+      - kind: command-contains
+        command: steam
+        contains: "-gamepadui"
+        reason: "Keep Steam in Deck/Game Mode UI."
+      - kind: command-contains
+        command: steam
+        contains: "-steamos"
+        reason: "Preserve SteamOS behavior flags."
+
+  nested_session:
+    file: packaging/steamos/dosplex-nested-gamescope.sh
+    required:
+      - kind: absent
+        contains: "--force-windows-fullscreen"
+        reason: "Use the same fixed-size window policy in the packaged nested launcher."
+
+  gamepad_arbiter:
+    file: packaging/steamos/dosplex-gamepad-arbiter.py
+    required:
+      - kind: text
+        contains: "loop.add_reader(fd, self.dispatch_ready)"
+        reason: "Low-latency evdev fd forwarding; polling regressed gamepad latency."
+      - kind: text
+        contains: "await asyncio.to_thread(scan_external_gamepads)"
+        reason: "Device scanning must not block the event loop that forwards inputs."
+      - kind: text
+        contains: "vendor=0x045e"
+        reason: "Routed virtual pads should look like Xbox-compatible pads to Steam/games."
+      - kind: text
+        contains: "product=0x028e"
+        reason: "Routed virtual pads should look like Xbox-compatible pads to Steam/games."
+      - kind: text
+        contains: 'virtual_phys = "dosplex-gamepad-arbiter/" + uuid.uuid4().hex'
+        reason: "Virtual pads must be distinguishable from physical pads to avoid recursive routing."
+
+  gamepad_arbiter_service:
+    file: packaging/steamos/usr/lib/systemd/system/dosplex-gamepad-arbiter.service
+    required:
+      - kind: key-value
+        key: Nice
+        value: "-10"
+        reason: "Keep routed input latency low."
+      - kind: key-value
+        key: CPUSchedulingPolicy
+        value: fifo
+        reason: "Keep routed input latency low."
+      - kind: key-value
+        key: CPUSchedulingPriority
+        value: "20"
+        reason: "Keep routed input latency low."
+
+  single_screen_input_routes:
+    file: compositor/dosplex-compositor.c
+    required:
+      - kind: text
+        contains: "if (comp->layout == LAYOUT_SINGLE) {\n        return main_input_route_mode(comp);\n    }"
+        reason: "Single-screen mode must route every visible device to Main while preserving split-screen assignments for the next split."
+      - kind: text
+        contains: "return main_input_route_mode(comp);"
+        reason: "A single-screen device row must report Main ownership without destroying the saved per-account assignment."
+      - kind: text
+        contains: "if (comp->layout == LAYOUT_SINGLE) {\n        return primary_side(comp);\n    }"
+        reason: "Remote input must resolve to Main in single-screen mode."

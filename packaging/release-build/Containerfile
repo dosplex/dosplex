@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright 2026 RoyÅke (Roy-Åke Martinsson)
+# Dosplex release build image (T-007). Built and used by build.sh; README.md explains every choice.
+#
+# The payload has to run on SteamOS 3.8 and later (glibc 2.41), so it is built against the SteamOS 3.8 package
+# set. Valve's core-3.8 repository is, package for package and byte for byte, the Arch Linux Archive snapshot of
+# 2025-07-30 (README.md, "Why the Arch Linux Archive"), and the archive is immutable, dated and signed.
+#
+# Base: the official Arch Linux image base-20250727.0.390543, pinned by the digest of its manifest list. Nothing
+# in the image comes from anywhere else: every package is taken from the snapshot named below.
+ARG BASE_IMAGE=docker.io/library/archlinux@sha256:5b1b7713182110aee0829fa9cc0571c451b391f0ad2bbafcf7a4ba907ee72ec3
+ARG SNAPSHOT=2025/07/30
+
+FROM ${BASE_IMAGE}
+ARG BASE_IMAGE
+ARG SNAPSHOT
+# The SBOM records where the payload was built.
+ENV DOSPLEX_BASE_IMAGE=${BASE_IMAGE} DOSPLEX_PACKAGE_SNAPSHOT=${SNAPSHOT}
+
+# Signatures are still required and are checked against the Arch keyring. TrustAll is needed because the
+# snapshot's packager keys have expired by today's clock; it only waives the trust level of a key that is in
+# the keyring, not the signature. The multilib repository of the same snapshot is enabled for the 32-bit libraries
+# that the 32-bit Gamescope layer links (the base image has no multilib section).
+RUN printf 'Server = https://archive.archlinux.org/repos/%s/$repo/os/$arch\n' "${SNAPSHOT}" > /etc/pacman.d/mirrorlist \
+ && sed -i 's/^SigLevel[[:space:]]*=.*/SigLevel = Required DatabaseOptional TrustAll/' /etc/pacman.conf \
+ && grep -q '^SigLevel = Required DatabaseOptional TrustAll$' /etc/pacman.conf \
+ && printf '\n[multilib]\nInclude = /etc/pacman.d/mirrorlist\n' >> /etc/pacman.conf \
+ && pacman-key --init \
+ && pacman-key --populate archlinux \
+ && pacman -Syyuu --noconfirm
+
+# Build tools (patch applies the patches of sources.json to an unpacked source), the libraries the compositor and
+# wlroots compile against, and fuse3 so that the CUSE relay can be built here later (T-202). hwdata supplies the
+# PNP ID table that wlroots and libdisplay-info compile in;
+# xorg-xwayland supplies xwayland.pc. libei is named although xorg-xwayland pulls it in: the compositor links it
+# (libei.so.1, host-provided) to send the pointer to a nested Gamescope. glslang and vulkan-headers are for wlroots' Vulkan renderer.
+# The Gamescope WSI layer links libx11 (x11 and x11-xcb), libxcb and wayland, and builds against the vulkan
+# pkg-config module of vulkan-icd-loader and the headers of vulkan-headers; libx11 comes in with other packages
+# but the layer needs it, so it is named. The 32-bit layer (for 32-bit games, built with gcc -m32) needs the lib32
+# packages of the same libraries, glibc and the C++ runtime from the multilib repository: lib32-glibc,
+# lib32-gcc-libs, lib32-libx11, lib32-libxcb, lib32-wayland and lib32-vulkan-icd-loader, which bring lib32-libxau,
+# lib32-libxdmcp, lib32-libffi, lib32-expat, lib32-icu, lib32-xz, lib32-zlib and lib32-libxml2 with them.
+RUN pacman -S --needed --noconfirm \
+        gcc meson ninja pkgconf python patch glslang vulkan-headers hwdata wayland-protocols xorg-xwayland \
+        wayland libxkbcommon cairo libinput json-c pixman libdrm seatd libglvnd mesa vulkan-icd-loader \
+        libxcb xcb-util-wm xcb-util-renderutil systemd-libs fuse3 libx11 libei \
+        lib32-glibc lib32-gcc-libs lib32-libx11 lib32-libxcb lib32-wayland lib32-vulkan-icd-loader \
+ && rm -rf /var/cache/pacman/pkg/* /var/lib/pacman/sync/*
+
+# The pinned third-party sources: the one step that needs the network besides the packages. Each file is
+# checked against sources.json now and again before every payload build.
+COPY sources.json sources.py /opt/dosplex-release/
+RUN python3 /opt/dosplex-release/sources.py fetch --dest /opt/dosplex-release/sources
+
+COPY entrypoint.sh /usr/local/bin/dosplex-release-entrypoint
+RUN chmod 0755 /usr/local/bin/dosplex-release-entrypoint \
+ && useradd --create-home --uid 1000 --shell /bin/bash builder \
+ && install -d -o builder -g builder /build
+
+USER builder
+ENV HOME=/home/builder
+WORKDIR /build
+# The repository export arrives on stdin, the payload leaves on stdout as a tar stream, the log is stderr.
+ENTRYPOINT ["/usr/local/bin/dosplex-release-entrypoint"]

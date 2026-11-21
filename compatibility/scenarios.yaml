@@ -1,0 +1,1048 @@
+# Dosplex compatibility scenarios: the source of truth for what "compatible" means (ADR-008, ADR-009).
+#
+# This file defines scenarios. It never says that one passed. A scenario is pending until the project
+# owner locks it in accepted.lock, and a pass exists only as a result record on a named candidate. Result
+# records carry the ADR-009 metadata and the device baseline; they stay private, and so do raw logs and
+# controller identifiers. docs/compatibility.md is generated from this file, the lock and the reviewed
+# results. tests/compatibility-schema-test.py validates everything here.
+#
+# Workflow
+#   1. A game fails, or a setup needs coverage: add a scenario below before fixing anything. Its id is
+#      GAME-TOPIC-NNN and starts with the game's code. Prefer a general fix over a per-game profile.
+#   2. Run the scenario on a candidate and record the observation as a result, whether it passes or fails.
+#      Failures stay on record next to the reruns that passed.
+#   3. When the owner agrees that the scenario passed at its evidence level, one line goes into
+#      accepted.lock: id, hash of the definition, date, level. From then on the scenario is frozen and
+#      every later candidate has to pass it again (the cumulative rule).
+#   4. The release gate fails a candidate unless every locked scenario has a pass on it, or an ADR-backed
+#      waiver (the waivers list at the end of this file).
+#
+# What the lock freezes: the game, the setup, the profile and the pass criteria. Titles, notes, dates and
+# known issues describe a scenario and may change. To tighten a locked scenario, add a new one; the old
+# one keeps being checked, and it cannot be removed.
+#
+# Tiers (ADR-002): T1 is a TV or monitor driven by a Steam Machine or a docked Steam Deck, at 1080p or 4K.
+# T2 is the Steam Deck's built-in screen. A T2 result never satisfies a T1 scenario, or the reverse.
+#
+# Evidence levels (ADR-009), weakest first. A result satisfies a scenario at the scenario's level or above.
+#   synthetic  virtual devices on real hardware (did the device path work?)
+#   visual     frames captured after the action, with automated assertions (did it render?)
+#   human      a person plays it with real controllers and audio (is it good to play?)
+# A scenario at the human level lists human criteria, and the other levels list automated ones.
+#
+# Format notes
+#   - YAML reads an unquoted 1:1, 4:3 or 16:9 as a number. Quote the presets.
+#   - device and controller may be "any" in a scenario; a result always names what was used.
+#   - pass_criteria.automated entries are {kind: ..., <parameters>}; the kinds and their parameters are
+#     defined in schema.criteria_kinds. pass_criteria.human entries are short sentences.
+#   - profile is null, or {id, version, settings, reason}: a per-game setting that is part of the tested
+#     setup (ADR-008). Profiles are a last resort and have to be journaled and reversible.
+#   - A game may name window_class, the X11 class (one string, or a list) of its own window. A Proton game's window has
+#     the class steam_app_<id>, which needs no entry. A native build has a class of its own, for example
+#     crimsonland, and an entry lets a measurement find its window.
+#   - The configuration invariants that games rely on are in game-compatibility.yaml.
+#
+# Migrated on 2026-10-08 from the games list of the previous matrix. Every migrated scenario is pending:
+# the old free-text outcomes became notes and sources, and none was turned into a pass.
+
+version: 1
+
+acceptance_policy:
+  rule: new_compatibility_fixes_must_preserve_all_previously_accepted_scenarios
+  # The first mandatory pair: Valheim's native window and Alien Breed's fixed window.
+  first_window_sizing_pair: [VALHEIM-NATIVE-FILL-001, ALIENBREED-SPLIT-MAIN-169-001]
+  requirements:
+    - "Add each newly failing game scenario as a permanent regression case before fixing it."
+    - "Prefer a general runtime solution, validated on the new case and all existing accepted game scenarios on the same candidate."
+    - "General compatibility is the architectural goal; explicit per-game profiles are allowed when general behavior is insufficient. Record and test the profile with the accepted scenario."
+    - "Keep earlier acceptance cases and their pass criteria; do not silently weaken or remove them."
+    - "Unavailable games or hardware leave acceptance pending; source checks and synthetic fixtures do not substitute for real-game evidence."
+    - "Record exact game/runtime versions and modes; passing one scenario does not accept every mode or every game."
+    - "Record every result with its layout. Side by side (portrait half) is the default; top/bottom (landscape half) is supported and is measured at Native too. If top/bottom proves measurably more compatible, say so on the compatibility page and in the user guide, not in the overlay (ADR-013)."
+    - "A scenario is pending until it is listed in accepted.lock. Only the project owner adds a lock entry, after reviewing the recorded evidence."
+    - "A locked scenario is frozen: the lock stores a hash of its game, setup, profile and pass criteria, and any change fails the schema test. To tighten a scenario, add a new one; the old one keeps being checked."
+    - "A result satisfies a scenario only on the exact candidate, in the scenario's tier, on its device and in its setup, at its evidence level or a higher one. A T2 result never satisfies a T1 scenario and the reverse (ADR-002)."
+    - "A failure stays on record. A later pass on the same candidate counts only if it names the failure under reruns, with a reason."
+    - "The gate excuses a locked scenario only for an ADR-backed waiver."
+
+schema:
+  # Values for the setup of a scenario and of a result: {value: label}. The labels are the public wording.
+  vocabulary:
+    device:
+      steam_machine: Steam Machine
+      steam_deck: Steam Deck
+      any: Any device of the tier
+    backend:
+      x11_nested: Nested in the host session
+      drm: Direct display (development only)
+    tv_mode:
+      1080p60: 1080p display
+      2160p60: 4K display
+      panel: Steam Deck built-in screen
+    layout:
+      single: Full screen
+      side_by_side: Side by side
+      top_bottom: Top / bottom
+    side:
+      main: Main
+      guest: Guest
+    preset:
+      native: Native
+      "1:1": "1:1"
+      "4:3": "4:3"
+      "16:9": "16:9"
+    presentation:
+      fit: Keep proportions
+      stretch: Stretch to fill
+    window_mode:
+      default: The game's own setting
+      fullscreen: Fullscreen
+      borderless: Borderless window
+      windowed: Window
+    steam_input:
+      default: Steam's default for the game
+      enabled: Enabled
+      disabled: Disabled
+    steam_game_resolution:
+      default: Default
+      custom: Custom
+    controller:
+      any: Any supported controller
+      none: No controller
+      virtual: Virtual test controller
+      deck_builtin: Steam Deck built-in controls
+      steam_controller: Steam Controller
+      dualsense: DualSense
+      dualshock4: DualShock 4
+      xbox_pad: Xbox-compatible pad
+
+  # Automated criteria: kind -> parameters (all required). A parameter is int, number, str or a list of
+  # allowed values. New kinds are added here, in a reviewed change.
+  criteria_kinds:
+    # The game's processes are still running this long after launch.
+    process_alive: {min_seconds: int}
+    # The game window is as large as the side's region, or keeps the size the game asked for.
+    window_size: {expect: [region, client_requested]}
+    # The window geometry does not change across the samples.
+    geometry_stable: {samples: int, interval_s: number}
+    # On a frame captured after the action, the content box fills the region (Native, Stretch) or the
+    # centred box that Fit computes, to within the tolerance, and covers that much of it in each axis.
+    content_bbox: {expect: [fill_region, fitted_box], coverage_min_pct: number, tolerance_px: int}
+    # The game's own mode list offers the side's native mode.
+    mode_listed: {mode: [native]}
+    # The processes of this side or of the other side keep their ids across the scenario's actions.
+    pids_unchanged: {side: [same, other], what: [steam_pid, game_pid]}
+    # Input from a virtual or a physical device reaches the game's menu or gameplay.
+    input_delivered: {source: [virtual, physical], target: [menu, gameplay]}
+
+games:
+  - id: quake
+    code: QUAKE
+    name: "Quake"
+    steam_app_id: 2310
+    platform: steam
+    invariants:
+      - contract: steam_session
+        requirements: [PROTON_USE_WAYLAND, "gamescope:--xwayland-count 2", "steam:-gamepadui"]
+      - contract: gamepad_arbiter
+      - contract: gamepad_arbiter_service
+      - contract: single_screen_input_routes
+    notes:
+      - "2026-10-07: user confirms working at native side resolution, correcting the initial 1080p description. Main launch log identifies app 2310 rerelease/quake_x64_steam.exe through Proton 11.0; installed build 25148042, retained compositor daf29de8. Native refers to resolution, not a native Linux runtime. Full mode/input/audio matrix remains open."
+      - "Later 2026-10-07: automated relaunch crashes during SDL display setup in ucrtbase, also with the exact original launcher restored. Native/1080p, forced resizing on/off, old layer filter and a narrow WSI exclusion did not resolve it. Fixing the audio startup socket removed the XAudio initialization error but not the crash. This failure is retained as the baseline for the scoped mode-list workaround below."
+      - "Latest 2026-10-07: Win32 current mode 1920x2160 was absent from Proton 11.0-2 synthesized mode list (listed 2160x1920 instead). Main app 2310 only: HKCU Software/Wine/X11 Driver EmulateModelist REG_SZ Y exposes actual monitor modes. Two normal Steam launches pass 25s/45s; native exclusive config 1920x2160, borderless 0, windowed 0, dynamic resolution 0 and actual X window 1920x2160 verified. Side swap/return preserves game and both Steam PIDs. Workaround has scoped owned-value recovery; general deployment and renewed physical input/gameplay checks remain open."
+      - "Final 2026-10-07 candidate 0dc25682: ordinary native exclusive relaunch survives 25s and demo renders; both games feed Full mix and Gentle/Balanced/Strong alongside Guest native Crimsonland. Audio overlay/swaps/leave preserve both Steam PIDs. Physical listening and gameplay input remain separate."
+      - "Historical Deck regression; reproduce on the current Steam machine before treating it as current evidence."
+      - "Future Deck coverage: distinguish onboard controls from the external routed gamepad."
+      - "2026-05-09: Steam launched app 2310 through Proton 10.0 at 09:47:04 and removed all tracked game processes by 09:47:11."
+      - "2026-05-09: Dosplex compositor stayed alive; Steam console log only showed nested WSI env warnings and MangoHud 32-bit dependency warnings, so capture a Proton log next."
+      - "2026-05-09: Proton log from direct run crashed during SDL/video display setup after XWayland reported a 1280x720 Generic Non-PnP Monitor while Dosplex state was 1280x800."
+      - "2026-05-09: Deployed explicit gamescope --output-width/--output-height/--nested-width/--nested-height from DOSPLEX_OUTPUT_WIDTH/HEIGHT; XWayland now reports 1280x800 in single-screen mode."
+      - "Next run: Repeat native exclusive gameplay/input and other native regions; compare Win32 selectable modes with current monitor before applying any workaround."
+      - "Next run: Capture the Steam console and Proton logs for app 2310 if it still closes."
+
+  - id: crimsonland
+    code: CRIMSON
+    name: "Crimsonland"
+    steam_app_id: 262830
+    platform: steam
+    window_class: crimsonland
+    invariants:
+      - contract: gamepad_arbiter
+      - contract: gamepad_arbiter_service
+    notes:
+      - "2026-10-07 sweep: Guest native 1920x2160 title/menu rendered on compositor 550dcdf5, native Linux runtime. Real game audio passes Full mix/Positioned stereo mix shared output, swaps and Guest leave alongside Main Alien Breed. Prior setup-interrupted runs are retained; current gameplay/input and physical listening are separate."
+      - "Used as the initial controller compatibility test case."
+
+  - id: risk_of_rain
+    code: ROR
+    name: "Risk of Rain (2013)"
+    steam_app_id: 248820
+    platform: steam
+    invariants:
+      - contract: steam_session
+        requirements: [GAMESCOPE_WSI_PRESENT_WAIT, GAMESCOPE_WSI_XWAYLAND_WAIT]
+    notes:
+      - "2026-10-07: user confirms working at native side resolution, correcting the initial 1080p description. Main launch log identifies app 248820 Risk of Rain.exe through Proton 11.0; installed build 1134831, compositor daf29de8. Native refers to resolution. Do not inherit this result for Returns or Risk of Rain 2."
+      - "Later 2026-10-07: normal Steam launch on compositor 550dcdf5 and no forced window resizing survives 40s; capture shows complete title/menu at native 1920x2160. Guest Crimsonland remains running. This is launch/render evidence, not a new controller/gameplay pass."
+
+  - id: alien_breed
+    code: ALIENBREED
+    name: "Alien Breed: Impact"
+    steam_app_id: 22610
+    platform: steam
+    invariants:
+      - contract: steam_session
+      - contract: nested_session
+    notes:
+      - "Build 11311, Proton 11.0-2, compositor daf29de8. Native and 1080p Fit both flickered/clipped with forced resizing. Window hints requested 1024x768 but Gamescope forced 1920x1080. Disabling forcing and relaunching restored the full image; user confirms game works perfectly and flicker is gone."
+      - "Disabling Gamescope WSI alone did not fix clipping. Temporary per-game launch option was cleared via Steam UI; user also confirms the subsequent launch works. No game config, saves or prefix changes. Broader mode and game regressions remain under test."
+      - "Later 2026-10-07: compositor 550dcdf5 at native 1920x2160 reaches complete title/Continue, survives repeated audio overlays and swaps, and supplies real audio alongside Guest Crimsonland. The game chooses a fixed 480x768 window in this mode. Native monitor size does not force a game's internal resolution; 1080p remains the human-accepted presentation."
+      - "Do not inherit this result for Assault or Descent."
+      - "2026-10-24 Steam Machine, preview26: installed in Main's library on the SD card, the game exited after 4 s. The card was read-only in Main's side, so Steam could not write its files there and skipped the game's first-run setup; on stock SteamOS the same launch ran the setup and the game works. Permanent regression cases: ALIENBREED-SDCARD-MAIN-001 and ALIENBREED-SDCARD-SINGLE-001."
+
+  - id: left_4_dead_2
+    code: L4D2
+    name: "Left 4 Dead 2"
+    steam_app_id: 550
+    platform: steam
+    notes:
+      - "Candidate for simultaneous sessions, fullscreen and relative mouse input. Select and record the actual runtime before testing."
+
+  - id: dead_cells
+    code: DEADCELLS
+    name: "Dead Cells"
+    steam_app_id: 588650
+    platform: steam
+    notes:
+      - "Candidate for controller latency and fixed-aspect presentation."
+
+  - id: risk_of_rain_returns
+    code: RORR
+    name: "Risk of Rain Returns"
+    steam_app_id: 1337520
+    platform: steam
+    notes:
+      - "Separate title from the historical Risk of Rain entry; do not inherit its result."
+
+  - id: risk_of_rain_2
+    code: ROR2
+    name: "Risk of Rain 2"
+    steam_app_id: 632360
+    platform: steam
+    notes:
+      - "Candidate for 3D rendering, pointer lock and simultaneous GPU load."
+
+  - id: project_zomboid
+    code: ZOMBOID
+    name: "Project Zomboid"
+    steam_app_id: 108600
+    platform: steam
+    notes:
+      - "Candidate for desktop-style UI, keyboard/mouse and controller transitions."
+
+  - id: valheim
+    code: VALHEIM
+    name: "Valheim"
+    steam_app_id: 892970
+    platform: steam
+    window_class: valheim.x86_64
+    notes:
+      - "User confirmed native/720p, side changes, touch correction and two visible instances during development."
+      - "Current package/build metadata and multiplayer/session/audio acceptance are incomplete; this is not blanket compatibility."
+      - "2026-10-07: second receiver slot enrolled separately. Running game kept old gamepad mounts; repaired view did not make it reopen the new pad. Game restart opened both Main outputs; native Down/A/B navigated Settings and returned. Hot handoff remains unaccepted."
+      - "2026-10-07 machine build 25730771/native Linux: all queried X11 mode APIs and game log detect 1920x2160, but game picker omits it. Normal launch restores 2560x1440 window with proportional bars. Temporary window resize gives 1920x2160 and visibly correct full-height scene/UI; preferences unchanged at check end. Relaunch/gameplay acceptance pending."
+      - "Earlier native human pass d9cc2ef used forced window resizing; 265b47e removed it for Alien Breed. Selective sizing for flexible game windows remains open; do not restore global forcing."
+
+  - id: flatout2
+    code: FLATOUT2
+    name: "FlatOut 2"
+    steam_app_id: 2990
+    platform: steam
+    notes:
+      - "Guest build 21007166 with Proton 10 build 21617411 on retained Deck SteamOS 3.9.2, 4K vertical split."
+      - "Observed on pre-safety compositor 0904c17f; native failure root cause and complete runtime metadata remain unresolved."
+      - "Repeated Steam Controller onboarding interrupted input checks; gameplay and audio are not accepted."
+      - "Latest compositor 825ac715: user launched game from Steam; Wine holds Guest's Steam-created gamepad. Native A/D-pad output was observed, but menus did not respond. Game Controller setting was Keyboard; selected Controller 1 with backup, preserving Automatic transmission. Driving and controller-only menus still need acceptance."
+      - "Later candidate daf29de8, Proton 11.0, Guest native 1920x2160: title/Career render. Through Guest Steam UI, set app 2990 Start=Enter, Select=Escape and D-pad=arrows; analog controls unchanged. Human confirms Start now passes the title screen. Full menu/driving acceptance pending. Scoped profile backup and undo journal retained."
+      - "The publisher's original manual documents keyboard menus, but June 2025 updates added native controller support. This is a tested per-game workaround; the original native Start failure is not yet fully explained. Sources: https://store.steampowered.com/manual/2990 and https://steamcommunity.com/app/2990/allnews/ ."
+
+  - id: carrier_command_2
+    code: CC2
+    name: "Carrier Command 2"
+    steam_app_id: 1489630
+    platform: steam
+    notes:
+      - "User confirms working in full native side resolution. Installed build 23836745; compositor daf29de8. Runtime and full matrix not captured during the human run. Do not inherit this result for other Carrier Command titles."
+
+  - id: aliens_versus_predator_classic_2000
+    code: AVP
+    name: "Aliens versus Predator Classic 2000"
+    steam_app_id: 3730
+    platform: steam
+    notes:
+      - "2026-10-08 Steam machine, 4K TV, vertical split, Main, Proton 11.0, Direct3D 9 through DXVK, first launch (new prefix). Native 1920x2160 portrait virtual monitor shows the game's own dialog 'Direct3D Initialisation Failure'. With Main's virtual monitor at 1080p Fit (landscape) the game starts and plays its intro. Same root-cause family as Quake (portrait mode list), Alien Breed (odd window size) and Valheim (missing native mode): games are shown a portrait monitor. Permanent regression case for the general fix."
+      - "Later 2026-10-08: with Wine X11 Driver EmulateModelist=Y in this prefix (journaled, backup in /var/tmp/dosplex-review-20261008 on the Steam machine), the game runs at native 1920x2160 and reaches its profile menu. Same value fixed Quake. General fix: T-411 (ADR-004: Native stays the default)."
+
+  - id: magicka
+    code: MAGICKA
+    name: "Magicka"
+    steam_app_id: 42910
+    platform: steam
+    notes:
+      - "2026-10-08 Steam machine, Main, Native 1920x2160, Proton 11.0: the game's processes end within 40 s and Steam returns to the library page, both with and without Wine EmulateModelist. Not the portrait mode-list issue; cause not investigated (XNA prerequisites, launcher or other). New regression case."
+
+scenarios:
+  # ---- Quake ----
+  - id: QUAKE-SINGLE-MAIN-NATIVE-001
+    game: quake
+    title: Starts and plays
+    introduced: 2026-05-09
+    setup: {device: steam_machine, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: single, side: main,
+            preset: native, presentation: fit, window_mode: fullscreen, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: mode_listed, mode: native}
+        - {kind: window_size, expect: region}
+        - {kind: content_bbox, expect: fill_region, coverage_min_pct: 97, tolerance_px: 6}
+      human:
+        - "The game starts from Steam in exclusive fullscreen and reaches its main menu."
+        - "The picture fills the screen without clipping, flicker or unintended bars."
+        - "Menus and gameplay respond to the controls the game supports."
+    source: "Legacy mode single_main: display_size_fix_deployed_needs_retest. Observed on 2026-05-09 on the Deck panel at 1280x800; never repeated at Native on a TV."
+
+  - id: QUAKE-SPLIT-MAIN-NATIVE-001
+    game: quake
+    title: Starts and plays
+    introduced: 2026-10-07
+    setup: {device: steam_deck, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: main,
+            preset: native, presentation: fit, window_mode: fullscreen, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: mode_listed, mode: native}
+        - {kind: window_size, expect: region}
+        - {kind: content_bbox, expect: fill_region, coverage_min_pct: 97, tolerance_px: 6}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The game starts from Steam in exclusive fullscreen and reaches its main menu."
+        - "The picture fills the side without clipping, flicker or unintended bars."
+        - "Menus and gameplay respond to the controls the game supports."
+    known_issue: "At Native the game crashed during display setup until Wine's mode-list setting was applied to its prefix. The general fix, which applies that setting automatically, is still being verified."
+    source: "Legacy mode split_main: native_exclusive_launch_pass_scoped_modelist_workaround; game status human_partial_acceptance, last observed 2026-10-07."
+
+  - id: QUAKE-SPLIT-GUEST-NATIVE-001
+    game: quake
+    title: Starts and plays
+    introduced: 2026-10-08
+    setup: {device: steam_machine, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: guest,
+            preset: native, presentation: fit, window_mode: fullscreen, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: mode_listed, mode: native}
+        - {kind: window_size, expect: region}
+        - {kind: content_bbox, expect: fill_region, coverage_min_pct: 97, tolerance_px: 6}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The game starts from Steam in exclusive fullscreen and reaches its main menu."
+        - "The picture fills the side without clipping, flicker or unintended bars."
+        - "Menus and gameplay respond to the controls the game supports."
+    source: "Legacy mode split_guest: untested."
+
+  - id: QUAKE-CONTROLLER-SWITCH-001
+    game: quake
+    title: Keeps running when its controller moves to the other side
+    introduced: 2026-10-08
+    setup: {device: steam_machine, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: main,
+            preset: native, presentation: fit, window_mode: fullscreen, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: pids_unchanged, side: same, what: game_pid}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The running game keeps running when its controller is reassigned to the other side."
+        - "The new owner's controller drives the game without restarting it."
+        - "The previous owner's controller no longer drives it."
+    source: "Legacy mode controller_switch_running: untested."
+
+  # ---- Crimsonland ----
+  - id: CRIMSON-SINGLE-MAIN-NATIVE-001
+    game: crimsonland
+    title: Starts and plays
+    introduced: 2026-10-08
+    setup: {device: steam_deck, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: single, side: main,
+            preset: native, presentation: fit, window_mode: default, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: window_size, expect: region}
+        - {kind: content_bbox, expect: fill_region, coverage_min_pct: 97, tolerance_px: 6}
+      human:
+        - "The game starts from Steam on this side and reaches its main menu."
+        - "The picture fills the screen without clipping, flicker or unintended bars."
+        - "Menus and gameplay respond to the controls the game supports."
+    source: "Legacy mode single_main: working_after_gamepad_fix. The layout, device and date of that pass are not recorded; the game was the first controller compatibility case."
+
+  - id: CRIMSON-SPLIT-MAIN-NATIVE-001
+    game: crimsonland
+    title: Starts and plays
+    introduced: 2026-10-08
+    setup: {device: steam_machine, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: main,
+            preset: native, presentation: fit, window_mode: default, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: window_size, expect: region}
+        - {kind: content_bbox, expect: fill_region, coverage_min_pct: 97, tolerance_px: 6}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The game starts from Steam on this side and reaches its main menu."
+        - "The picture fills the side without clipping, flicker or unintended bars."
+        - "Menus and gameplay respond to the controls the game supports."
+    source: "Legacy mode split_main: untested."
+
+  - id: CRIMSON-SPLIT-GUEST-NATIVE-001
+    game: crimsonland
+    title: Starts and plays
+    introduced: 2026-10-07
+    setup: {device: steam_deck, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: guest,
+            preset: native, presentation: fit, window_mode: default, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: window_size, expect: region}
+        - {kind: content_bbox, expect: fill_region, coverage_min_pct: 97, tolerance_px: 6}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The game starts from Steam on this side and reaches its main menu."
+        - "The picture fills the side without clipping, flicker or unintended bars."
+        - "Menus and gameplay respond to the controls the game supports."
+        - "The game's audio plays through this side's output."
+    source: "Legacy mode split_guest: native_menu_and_shared_audio_observed (2026-10-07 sweep). Gameplay input and physical listening were not checked."
+
+  - id: CRIMSON-CONTROLLER-SWITCH-001
+    game: crimsonland
+    title: Keeps running when its controller moves to the other side
+    introduced: 2026-10-08
+    setup: {device: steam_machine, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: main,
+            preset: native, presentation: fit, window_mode: default, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: pids_unchanged, side: same, what: game_pid}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The running game keeps running when its controller is reassigned to the other side."
+        - "The new owner's controller drives the game without restarting it."
+        - "The previous owner's controller no longer drives it."
+    source: "Legacy mode controller_switch_running: untested."
+
+  # ---- Risk of Rain (2013) ----
+  - id: ROR-SINGLE-MAIN-NATIVE-001
+    game: risk_of_rain
+    title: Starts and plays
+    introduced: 2026-10-08
+    setup: {device: steam_machine, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: single, side: main,
+            preset: native, presentation: fit, window_mode: default, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: window_size, expect: region}
+        - {kind: content_bbox, expect: fill_region, coverage_min_pct: 97, tolerance_px: 6}
+      human:
+        - "The game starts from Steam on this side and reaches its main menu."
+        - "The picture fills the screen without clipping, flicker or unintended bars."
+        - "Menus and gameplay respond to the controls the game supports."
+    source: "Legacy mode single_main: unverified_current."
+
+  - id: ROR-SPLIT-MAIN-NATIVE-001
+    game: risk_of_rain
+    title: Starts and plays
+    introduced: 2026-10-07
+    setup: {device: steam_deck, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: main,
+            preset: native, presentation: fit, window_mode: default, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: window_size, expect: region}
+        - {kind: content_bbox, expect: fill_region, coverage_min_pct: 97, tolerance_px: 6}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The game starts from Steam on this side and reaches its main menu."
+        - "The picture fills the side without clipping, flicker or unintended bars."
+        - "Menus and gameplay respond to the controls the game supports."
+    source: "Legacy mode split_main: human_pass_native_resolution (2026-10-07); game status human_partial_acceptance."
+
+  # ---- Alien Breed: Impact ----
+  - id: ALIENBREED-SPLIT-MAIN-169-001
+    game: alien_breed
+    title: Keeps its fixed window size
+    introduced: 2026-10-07
+    setup: {device: steam_deck, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: main,
+            preset: "16:9", presentation: fit, window_mode: default, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: window_size, expect: client_requested}
+        - {kind: geometry_stable, samples: 5, interval_s: 1}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The game starts from Steam on this side and reaches its main menu."
+        - "The picture is complete, with no clipping or flicker."
+        - "Menus and gameplay respond to the controls the game supports."
+    source: "Legacy mode split_main_1080_fit: human_pass_after_respecting_fixed_window_size (2026-10-07). The old 1080p Fit choice is the same 1920x1080 monitor as today's 16:9 choice in a 4K side-by-side half. First half of the window-sizing pair."
+
+  - id: ALIENBREED-SPLIT-MAIN-NATIVE-001
+    game: alien_breed
+    title: Keeps its fixed window size
+    introduced: 2026-10-07
+    setup: {device: steam_deck, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: main,
+            preset: native, presentation: fit, window_mode: default, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: window_size, expect: client_requested}
+        - {kind: geometry_stable, samples: 5, interval_s: 1}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The game starts from Steam on this side and reaches its main menu."
+        - "The picture is complete, with no clipping or flicker."
+        - "Menus and gameplay respond to the controls the game supports."
+    source: "Legacy mode split_main_native: title_render_and_shared_audio_observed (2026-10-07). The game chooses a fixed 480x768 window at this size; 1080p remained the human-accepted presentation."
+
+  - id: ALIENBREED-SDCARD-MAIN-001
+    game: alien_breed
+    title: Runs from the SD card
+    introduced: 2026-10-24
+    setup: {device: steam_machine, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: main,
+            preset: "16:9", presentation: fit, window_mode: default, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: window_size, expect: client_requested}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The game is installed in Main's Steam library on the SD card, and Steam's Storage page lists that drive as a library. For a first run the game is freshly installed onto the card from Main's side, and no prefix or game file is deleted to make Steam run the setup again."
+        - "On a first run, Steam runs the game's first-run setup (the Unreal Engine 3 redistributables) without an error. On a rerun that setup has run already and is not expected again. Either way the game starts from Steam on this side and reaches its main menu."
+        - "On every run, Steam's logs for the launch hold no `Failed to write app state file` line and no `BFilesystemAllowsExecution: failed to write` line for the card, and the modification time of the game's `appmanifest` file on the card is later than the start of the launch."
+        - "The picture is complete, with no clipping or flicker."
+        - "Menus and gameplay respond to the controls the game supports."
+    known_issue: "With the game on the SD card, Steam could not write to the card in Main's side, so it skipped the game's first-run setup and the game closed after a few seconds. The fix, which keeps Main's own SD card writable in its side, is still being verified."
+    source: "2026-10-24, Steam Machine, preview26: Main's Steam library on the SD card was read-only in Main's side. Steam logged failed writes to its test file and to the game's app state file every 6 s and skipped the first-run install script, and the game exited after 4 s. On stock SteamOS the same launch ran the script and the game works. After that the game also ran from the read-only card, so on a rerun the setup alone does not show the card. The schema has no storage field and no kind for a log: the card is in the first human criterion, the log lines in the third."
+
+  - id: ALIENBREED-SDCARD-SINGLE-001
+    game: alien_breed
+    title: Runs from the SD card
+    introduced: 2026-10-24
+    setup: {device: steam_machine, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: single, side: main,
+            preset: "16:9", presentation: fit, window_mode: default, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: window_size, expect: client_requested}
+      human:
+        - "The game is installed in Main's Steam library on the SD card, and Steam's Storage page lists that drive as a library. For a first run the game is freshly installed onto the card from Main's side, and no prefix or game file is deleted to make Steam run the setup again."
+        - "On a first run, Steam runs the game's first-run setup (the Unreal Engine 3 redistributables) without an error. On a rerun that setup has run already and is not expected again. Either way the game starts from Steam and reaches its main menu."
+        - "On every run, Steam's logs for the launch hold no `Failed to write app state file` line and no `BFilesystemAllowsExecution: failed to write` line for the card, and the modification time of the game's `appmanifest` file on the card is later than the start of the launch."
+        - "The picture is complete, with no clipping or flicker."
+        - "Menus and gameplay respond to the controls the game supports."
+    known_issue: "With the game on the SD card, Steam could not write to the card in Main's side, so it skipped the game's first-run setup and the game closed after a few seconds. The fix, which keeps Main's own SD card writable in its side, is still being verified."
+    source: "2026-10-24, Steam Machine, preview26: the same failure in the full-screen layout as in ALIENBREED-SDCARD-MAIN-001, which this is the single-screen twin of. The card is recorded in the first human criterion and the log lines in the third, as there."
+
+  # ---- Titles that have not been tested ----
+  - id: L4D2-SPLIT-MAIN-NATIVE-001
+    game: left_4_dead_2
+    title: Starts and plays
+    introduced: 2026-10-08
+    setup: {device: steam_machine, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: main,
+            preset: native, presentation: fit, window_mode: fullscreen, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The game starts from Steam in fullscreen and reaches its main menu."
+        - "The picture is complete, with no clipping or flicker."
+        - "Mouse look works and the pointer stays inside this side."
+    source: "Legacy game status not_tested. Candidate for simultaneous sessions, fullscreen and relative mouse input; the runtime has to be recorded when it is tested."
+
+  - id: DEADCELLS-SPLIT-MAIN-NATIVE-001
+    game: dead_cells
+    title: Starts and plays
+    introduced: 2026-10-08
+    setup: {device: steam_machine, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: main,
+            preset: native, presentation: fit, window_mode: default, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The game starts from Steam on this side and reaches its main menu."
+        - "The picture is complete and keeps the game's proportions."
+        - "Controller input has no obvious lag or missed presses."
+    source: "Legacy game status not_tested. Candidate for controller latency and fixed-aspect presentation."
+
+  - id: RORR-SPLIT-MAIN-NATIVE-001
+    game: risk_of_rain_returns
+    title: Starts and plays
+    introduced: 2026-10-08
+    setup: {device: steam_machine, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: main,
+            preset: native, presentation: fit, window_mode: default, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The game starts from Steam on this side and reaches its main menu."
+        - "The picture is complete, with no clipping or flicker."
+        - "Menus and gameplay respond to the controls the game supports."
+    source: "Legacy game status not_tested. A separate title from Risk of Rain (2013); its results are not inherited."
+
+  - id: ROR2-SPLIT-MAIN-NATIVE-001
+    game: risk_of_rain_2
+    title: Starts and plays
+    introduced: 2026-10-08
+    setup: {device: steam_machine, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: main,
+            preset: native, presentation: fit, window_mode: default, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The game starts from Steam on this side and reaches its main menu."
+        - "The 3D picture is complete, without corruption, clipping or flicker."
+        - "Mouse look works and the pointer stays inside this side."
+        - "The frame rate stays playable while the other side runs a game."
+    source: "Legacy game status not_tested. Candidate for 3D rendering, pointer lock and simultaneous GPU load."
+
+  - id: ZOMBOID-SPLIT-MAIN-NATIVE-001
+    game: project_zomboid
+    title: Starts and plays
+    introduced: 2026-10-08
+    setup: {device: steam_machine, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: main,
+            preset: native, presentation: fit, window_mode: default, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The game starts from Steam on this side and reaches its main menu."
+        - "The picture is complete and its interface is readable."
+        - "Keyboard, mouse and controller can be used one after the other without a restart."
+    source: "Legacy game status not_tested. Candidate for desktop-style UI, keyboard and mouse, and controller transitions."
+
+  # ---- Valheim ----
+  - id: VALHEIM-SPLIT-MAIN-NATIVE-001
+    game: valheim
+    title: Starts and plays
+    introduced: 2026-10-08
+    setup: {device: steam_deck, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: main,
+            preset: native, presentation: fit, window_mode: default, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: window_size, expect: region}
+        - {kind: content_bbox, expect: fill_region, coverage_min_pct: 97, tolerance_px: 6}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The game starts from Steam on this side and reaches its main menu."
+        - "The picture fills the side without clipping, flicker or unintended bars."
+        - "Menus and gameplay respond to the controls the game supports."
+    source: "Legacy mode split_main: historical_human_pass_native_and_720. The pass is undated (during development), and the 720p choice it also covered no longer exists."
+
+  - id: VALHEIM-SPLIT-GUEST-NATIVE-001
+    game: valheim
+    title: Starts and plays
+    introduced: 2026-10-08
+    setup: {device: steam_deck, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: guest,
+            preset: native, presentation: fit, window_mode: default, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: window_size, expect: region}
+        - {kind: content_bbox, expect: fill_region, coverage_min_pct: 97, tolerance_px: 6}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The game starts from Steam on this side and reaches its main menu."
+        - "The picture fills the side without clipping, flicker or unintended bars."
+        - "Menus and gameplay respond to the controls the game supports."
+    source: "Legacy mode split_guest: historical_human_pass (undated, during development)."
+
+  - id: VALHEIM-CONTROLLER-SWITCH-001
+    game: valheim
+    title: Keeps running when its controller moves to the other side
+    introduced: 2026-10-07
+    setup: {device: steam_deck, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: main,
+            preset: native, presentation: fit, window_mode: default, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: pids_unchanged, side: same, what: game_pid}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The running game keeps running when its controller is reassigned to the other side."
+        - "The new owner's controller drives the game without restarting it."
+        - "The previous owner's controller no longer drives it."
+    known_issue: "A running game keeps the gamepad handles it had before a controller moved to the other side, so the game has to be restarted after a move."
+    source: "Legacy mode controller_switch_running: required_game_restart_in_latest_trial (2026-10-07). Hot handoff remains unaccepted."
+
+  - id: VALHEIM-SECOND-WIRELESS-MENU-001
+    game: valheim
+    title: A second wireless controller navigates the game's menu
+    introduced: 2026-10-07
+    setup: {device: steam_deck, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: main,
+            preset: native, presentation: fit, window_mode: default, steam_input: default,
+            steam_game_resolution: default, controller: virtual}
+    profile: null
+    level_required: synthetic
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: input_delivered, source: virtual, target: menu}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human: []
+    source: "Legacy mode second_wireless_main_menu: native_synthetic_pass_after_game_restart (2026-10-07). Native Down, A and B navigated Settings and returned after a game restart."
+
+  - id: VALHEIM-NATIVE-FILL-001
+    game: valheim
+    title: Fills the half after a normal launch
+    introduced: 2026-10-07
+    setup: {device: steam_machine, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: main,
+            preset: native, presentation: fit, window_mode: default, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: mode_listed, mode: native}
+        - {kind: window_size, expect: region}
+        - {kind: geometry_stable, samples: 5, interval_s: 1}
+        - {kind: content_bbox, expect: fill_region, coverage_min_pct: 97, tolerance_px: 6}
+      human:
+        - "After a normal launch from the game's saved settings, the scene and menus fill the half without bars."
+        - "Menus are navigable with the controller."
+        - "Opening and closing the Dosplex overlay returns to the game."
+    known_issue: "A normal launch restores the game's saved window size and leaves bars; resizing the window by hand fills the half. Automatic sizing is not implemented yet."
+    source: "Legacy mode machine_native_window: temporary_resize_pass_automatic_sizing_regression_open (2026-10-07, Steam Machine, game build 25730771). Second half of the window-sizing pair."
+
+  # ---- FlatOut 2 ----
+  - id: FLATOUT2-SPLIT-GUEST-NATIVE-001
+    game: flatout2
+    title: Starts and plays
+    introduced: 2026-10-07
+    setup: {device: steam_deck, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: guest,
+            preset: native, presentation: fit, window_mode: default, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: window_size, expect: region}
+        - {kind: content_bbox, expect: fill_region, coverage_min_pct: 97, tolerance_px: 6}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The game starts from Steam on this side and reaches its main menu."
+        - "The picture fills the side without clipping, flicker or unintended bars."
+        - "Menus and gameplay respond to the controls the game supports."
+    source: "Legacy mode split_guest_native: title_and_career_rendered_on_latest_candidate. Only the title and career screens were seen; gameplay and audio are not accepted."
+
+  - id: FLATOUT2-SPLIT-GUEST-169-001
+    game: flatout2
+    title: Starts and plays
+    introduced: 2026-10-07
+    setup: {device: steam_deck, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: guest,
+            preset: "16:9", presentation: fit, window_mode: default, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: content_bbox, expect: fitted_box, coverage_min_pct: 97, tolerance_px: 6}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The game starts from Steam on this side and reaches its main menu."
+        - "The picture is complete, centred and keeps its proportions."
+        - "Menus and gameplay respond to the controls the game supports."
+    source: "Legacy mode split_guest_720_fit: title_and_attract_video_rendered. The old 720p Fit choice (1280x720) is not today's 16:9 choice (1920x1080 in this half), so that evidence does not carry over."
+
+  - id: FLATOUT2-CONTROLLER-SWITCH-001
+    game: flatout2
+    title: Keeps running when its controller moves to the other side
+    introduced: 2026-10-08
+    setup: {device: steam_machine, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: guest,
+            preset: native, presentation: fit, window_mode: default, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: pids_unchanged, side: same, what: game_pid}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The running game keeps running when its controller is reassigned to the other side."
+        - "The new owner's controller drives the game without restarting it."
+        - "The previous owner's controller no longer drives it."
+    source: "Legacy mode controller_switch_running: not_tested."
+
+  - id: FLATOUT2-GAMEPAD-OUTPUT-001
+    game: flatout2
+    title: Steam's gamepad output reaches the game's menu
+    introduced: 2026-10-07
+    setup: {device: steam_deck, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: guest,
+            preset: native, presentation: fit, window_mode: default, steam_input: enabled,
+            steam_game_resolution: default, controller: virtual}
+    profile: null
+    level_required: synthetic
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: input_delivered, source: virtual, target: menu}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human: []
+    source: "Legacy mode steam_gamepad_output: native_synthetic_events_observed_in_guest. The events arrived but the game's menus did not respond while its Game Controller setting was Keyboard."
+
+  - id: FLATOUT2-START-BUTTON-001
+    game: flatout2
+    title: The title screen accepts Start with the per-game binding
+    introduced: 2026-10-07
+    setup: {device: steam_deck, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: guest,
+            preset: native, presentation: fit, window_mode: default, steam_input: enabled,
+            steam_game_resolution: default, controller: steam_controller}
+    profile:
+      id: flatout2-keyboard-menu-bindings
+      version: 1
+      settings: {start: Enter, select: Escape, dpad: arrows, analog: unchanged}
+      reason: "The game's title screen did not accept the native Start press; the original cause is not explained. Set through the Guest Steam UI for app 2990, with a scoped backup and undo journal."
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: input_delivered, source: physical, target: menu}
+      human:
+        - "Pressing Start on the controller passes the title screen."
+    known_issue: "The title screen did not accept the controller's Start button until Start was bound to Enter in Steam's controller settings for this game."
+    source: "Legacy mode start_button: human_pass_with_per_game_enter_binding. The human confirmed that Start passes the title screen; full menu and driving acceptance is still open."
+
+  - id: FLATOUT2-MENUS-CONTROLLER-001
+    game: flatout2
+    title: Every menu works with the controller alone
+    introduced: 2026-10-07
+    setup: {device: steam_deck, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: guest,
+            preset: native, presentation: fit, window_mode: default, steam_input: enabled,
+            steam_game_resolution: default, controller: steam_controller}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: input_delivered, source: physical, target: menu}
+      human:
+        - "Every menu can be navigated and confirmed with the controller alone."
+    source: "Legacy mode controller_only_menus: awaiting_followup_after_keyboard_menu_bindings."
+
+  - id: FLATOUT2-GAMEPAD-GAMEPLAY-001
+    game: flatout2
+    title: A race can be driven with the controller
+    introduced: 2026-10-07
+    setup: {device: steam_deck, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: guest,
+            preset: native, presentation: fit, window_mode: default, steam_input: enabled,
+            steam_game_resolution: default, controller: steam_controller}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: input_delivered, source: physical, target: gameplay}
+      human:
+        - "A race can be driven with the controller from start to finish."
+        - "Controller input keeps working after the controller goes to sleep and wakes."
+    source: "Legacy mode gamepad_gameplay: incomplete_after_controller_sleep."
+
+  # ---- Carrier Command 2 ----
+  - id: CC2-SPLIT-MAIN-NATIVE-001
+    game: carrier_command_2
+    title: Starts and plays
+    introduced: 2026-10-07
+    setup: {device: steam_deck, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: main,
+            preset: native, presentation: fit, window_mode: default, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: window_size, expect: region}
+        - {kind: content_bbox, expect: fill_region, coverage_min_pct: 97, tolerance_px: 6}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The game starts from Steam on this side and reaches its main menu."
+        - "The picture fills the side without clipping, flicker or unintended bars."
+        - "Menus and gameplay respond to the controls the game supports."
+    source: "Legacy mode split_main: human_pass_native_resolution (2026-10-07); game status human_partial_acceptance. The runtime and full matrix were not captured during the human run."
+
+  # ---- Aliens versus Predator Classic 2000 ----
+  - id: AVP-SPLIT-MAIN-NATIVE-001
+    game: aliens_versus_predator_classic_2000
+    title: Starts and plays
+    introduced: 2026-10-08
+    setup: {device: steam_machine, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: main,
+            preset: native, presentation: fit, window_mode: fullscreen, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: mode_listed, mode: native}
+        - {kind: window_size, expect: region}
+        - {kind: content_bbox, expect: fill_region, coverage_min_pct: 97, tolerance_px: 6}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The game starts from Steam in fullscreen and reaches its menu without a Direct3D error."
+        - "The picture fills the side without clipping, flicker or unintended bars."
+        - "Menus and gameplay respond to the controls the game supports."
+    known_issue: "At Native the game stopped with a Direct3D initialisation error until Wine's mode-list setting was applied to its prefix. The general fix, which applies that setting automatically, is still being verified."
+    source: "Legacy mode split_main_native: fail_without_modelist_pass_with_emulate_modelist (2026-10-08, Steam Machine); game status native_needs_general_fix. Permanent regression case for the general fix (ADR-004, T-411)."
+
+  - id: AVP-SPLIT-MAIN-169-001
+    game: aliens_versus_predator_classic_2000
+    title: Starts and plays
+    introduced: 2026-10-08
+    setup: {device: steam_machine, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: main,
+            preset: "16:9", presentation: fit, window_mode: fullscreen, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: content_bbox, expect: fitted_box, coverage_min_pct: 97, tolerance_px: 6}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The game starts from Steam in fullscreen and reaches its menu."
+        - "The picture is complete, centred and keeps its proportions."
+        - "Menus and gameplay respond to the controls the game supports."
+    source: "Legacy mode split_main_1080p_fit: launches_intro_plays (2026-10-08, Steam Machine). The old 1080p Fit choice is the same 1920x1080 monitor as today's 16:9 choice in a 4K side-by-side half."
+
+  - id: AVP-SPLIT-GUEST-NATIVE-001
+    game: aliens_versus_predator_classic_2000
+    title: Starts and plays
+    introduced: 2026-10-08
+    setup: {device: steam_machine, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: guest,
+            preset: native, presentation: fit, window_mode: fullscreen, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: mode_listed, mode: native}
+        - {kind: window_size, expect: region}
+        - {kind: content_bbox, expect: fill_region, coverage_min_pct: 97, tolerance_px: 6}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The game starts from Steam in fullscreen and reaches its menu without a Direct3D error."
+        - "The picture fills the side without clipping, flicker or unintended bars."
+        - "Menus and gameplay respond to the controls the game supports."
+    source: "Legacy mode split_guest: untested."
+
+  # ---- Magicka ----
+  - id: MAGICKA-SPLIT-MAIN-NATIVE-001
+    game: magicka
+    title: Stays running
+    introduced: 2026-10-08
+    setup: {device: steam_machine, backend: x11_nested, tier: T1, tv_mode: 2160p60, layout: side_by_side, side: main,
+            preset: native, presentation: fit, window_mode: default, steam_input: default,
+            steam_game_resolution: default, controller: any}
+    profile: null
+    level_required: human
+    pass_criteria:
+      automated:
+        - {kind: process_alive, min_seconds: 40}
+        - {kind: window_size, expect: region}
+        - {kind: content_bbox, expect: fill_region, coverage_min_pct: 97, tolerance_px: 6}
+        - {kind: pids_unchanged, side: other, what: steam_pid}
+      human:
+        - "The game starts from Steam on this side and reaches its main menu."
+        - "The picture fills the side without clipping, flicker or unintended bars."
+        - "Menus and gameplay respond to the controls the game supports."
+    known_issue: "The game exits within 40 seconds of launch at Native, with and without Wine's mode-list setting. The cause is not yet investigated."
+    source: "Legacy mode split_main_native: exits_within_40s_with_and_without_emulate_modelist (2026-10-08, Steam Machine); game status fail_exits_at_start. New regression case; not the portrait mode-list issue."
+
+# Skipping a locked scenario takes an entry here and an accepted decision to cite: {scenario, adr, reason,
+# date} plus optionally candidates (hex revisions; leave it out to waive every candidate). The gate shows
+# the waiver in its table.
+waivers: []

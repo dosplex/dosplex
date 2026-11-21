@@ -1,0 +1,45 @@
+name: Game report
+description: How a game runs with Dosplex, good or bad.
+labels: [game-report]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One report per game, side and display setting. The full checklist is in docs/game-test-notes.md.
+        A game that reaches its menu is a launch pass; say separately whether you played it.
+  - type: input
+    id: game
+    attributes:
+      label: Game and Steam app ID
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options:
+        - Plays well on both sides
+        - Plays with problems
+        - Launches, not playable
+        - Does not launch
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Dosplex version
+      description: The version line of `sudo dosplex status`.
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: Paste the result block from docs/game-test-notes.md and fill in what you tested.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: What went wrong or what you had to change

@@ -1,0 +1,13 @@
+# Reviewed exceptions to the secret scan in tools/check-publication.py.
+#
+# One entry per line: <path or glob> <rule> <reason>
+#   - The path is relative to the repository root. * and ? are wildcards.
+#   - The rule is one of: private-key, access-token, credential-url, secret-assignment,
+#     bearer-token, high-entropy-literal.
+#   - An entry exempts one file from one rule. It never names a value, so it also exempts
+#     anything else that file later gains for that rule; keep entries narrow and give a reason.
+#   - Blank lines and lines starting with # are ignored. A malformed entry fails the check.
+#
+# Entries are added only after the flagged line has been read and found harmless.
+# None are needed at the moment.
+private/compat/results/*.jsonl high-entropy-literal compatibility result records carry run ids, manifest and criteria hashes; the store is private and reviewed on commit

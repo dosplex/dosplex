@@ -1,0 +1,17 @@
+# Dosplex accepted compatibility scenarios (ADR-008). Append-only.
+#
+# One line per scenario that the project owner has accepted at its evidence level:
+#
+#   <scenario id> <sha256 of the definition> <date accepted> <evidence level>
+#
+# The hash covers the scenario's game, setup, profile and pass criteria as written in scenarios.yaml,
+# canonicalised so that key order and line wrapping do not matter. A locked scenario is frozen: a line
+# here may not be edited or removed, and the scenario it names may not be removed, weakened or changed.
+# tests/compatibility-schema-test.py checks this against the hash and, where a git history exists,
+# against every earlier version of this file. To tighten a scenario, add a new scenario and lock that.
+#
+# The release gate fails a candidate unless every scenario listed here has a pass on that candidate at
+# its required evidence level, or an ADR-backed waiver. Evidence levels are synthetic, visual and human.
+#
+# Only the project owner adds lines. Nothing is locked yet: every scenario in scenarios.yaml is pending,
+# and the gate has nothing to check until the owner has confirmed the first entries.

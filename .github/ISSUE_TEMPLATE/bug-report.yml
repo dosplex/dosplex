@@ -1,0 +1,59 @@
+name: Bug report
+description: Something in Dosplex does not work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting. Never paste account passwords, Steam Guard codes or QR screenshots.
+        A security problem goes to the private address in SECURITY.md, not here.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Split the screen side by side
+        2. Start a game on Guest
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Dosplex version
+      description: The version line of `sudo dosplex status`.
+    validations:
+      required: true
+  - type: dropdown
+    id: device
+    attributes:
+      label: Device
+      options:
+        - Steam Deck (docked)
+        - Steam Deck (own screen)
+        - Steam Machine
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: steamos
+    attributes:
+      label: SteamOS version and Steam client version
+  - type: textarea
+    id: setup
+    attributes:
+      label: Setup
+      description: Layout, which side (Main or Guest), controllers and how they connect, display and resolution.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant lines from the journal, if you have them. Remove account names you do not want to share.
+      render: text

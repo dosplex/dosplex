@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright 2026 RoyÅke (Roy-Åke Martinsson)
+option('release_version', type: 'string', value: '',
+    description: 'Release name stamped into dosplex-version.h. Empty: <project version>-<git revision>.')
+option('git_revision', type: 'string', value: '',
+    description: 'Git revision stamped into dosplex-version.h. Empty: `git describe` in the source tree, else "unknown".')
+option('libei', type: 'feature', value: 'auto',
+    description: 'Deliver the host pointer to a nested Gamescope through its EIS socket (needs libei-1.0).')
+option('wlroots', type: 'combo', choices: ['auto', 'subproject', 'system'], value: 'auto',
+    description: 'Which wlroots to build against: the patched 0.17.4 subproject the release bundles (subprojects/wlroots.wrap), the system library, or the subproject when its archive is cached and the system library otherwise.')

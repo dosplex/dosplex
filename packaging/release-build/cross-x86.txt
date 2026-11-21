@@ -1,0 +1,23 @@
+# Meson cross file for the 32-bit (x86) build of the Gamescope layer, which payload-build.sh makes in the release
+# build image for 32-bit games. The compilers are the image's own, with -m32; the libraries are the lib32 packages of
+# the Arch Linux Archive snapshot's multilib repository (Containerfile), in /usr/lib32. README.md has the context.
+[binaries]
+c = ['gcc', '-m32']
+cpp = ['g++', '-m32']
+ar = 'ar'
+strip = 'strip'
+pkg-config = 'pkg-config'
+
+[built-in options]
+c_link_args = ['-Wl,--as-needed', '-Wl,--build-id=none', '-Wl,--enable-new-dtags']
+cpp_link_args = ['-Wl,--as-needed', '-Wl,--build-id=none', '-Wl,--enable-new-dtags']
+
+[properties]
+needs_exe_wrapper = false
+pkg_config_libdir = ['/usr/lib32/pkgconfig', '/usr/share/pkgconfig']
+
+[host_machine]
+system = 'linux'
+cpu_family = 'x86'
+cpu = 'i686'
+endian = 'little'

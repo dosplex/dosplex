@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright 2026 RoyÅke (Roy-Åke Martinsson)
+[Unit]
+Description=Dosplex Steam Deck Hardware Shortcut Watcher
+After=dosplex-compositor.service
+Requires=dosplex-compositor.service
+PartOf=dosplex-compositor.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/dosplex-deck-control-shortcut.py
+Restart=on-failure
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=dosplex-compositor.service

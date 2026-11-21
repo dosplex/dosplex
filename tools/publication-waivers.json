@@ -1,0 +1,214 @@
+{
+  "references": [
+    {
+      "file": "THIRD-PARTY-NOTICES.md",
+      "target": "compositor/build*/",
+      "reason": "Generated build output directory; deliberately not published."
+    },
+    {
+      "file": "THIRD-PARTY-NOTICES.md",
+      "target": "tools/build/",
+      "reason": "Generated build output directory; deliberately not published."
+    },
+    {
+      "file": "docs/testing.md",
+      "target": "tests/auth-policy-test.py",
+      "reason": "Development-only test of the legacy guest installer's sudo policy; excluded from the source publication."
+    },
+    {
+      "file": "docs/testing.md",
+      "target": "tests/controller-shortcut-test.py",
+      "reason": "Development-only test; it also loads a development-only Deck gate, so it is not published."
+    },
+    {
+      "file": "packaging/steamos/dosplex-hybrid-left-x11.sh",
+      "target": "launch-left-session.sh",
+      "reason": "Generated at run time into the session log directory by this script."
+    },
+    {
+      "file": "packaging/steamos/dosplex-hybrid-left-x11.sh",
+      "target": "input-leap-dosplex-client.sh",
+      "reason": "Optional: the launcher runs the legacy Input Leap client only if it is installed and executable. The client is not published."
+    },
+    {
+      "file": "packaging/steamos/dosplex-virtio-gpu-args.sh",
+      "target": "vm/run-dev-vm.sh",
+      "reason": "Printed hint that names the development VM launcher, which is not published."
+    },
+    {
+      "target": "dosplex-compositor.service",
+      "reason": "The owning compositor unit is created at install time by tooling that is not published (trial units are named dosplex-compositor-<id>.service). The published units and the supervisor only refer to it by name; the legacy unit file that aliases the display manager is deliberately not published."
+    },
+    {
+      "file": "packaging/steamos/session/dosplex-device-view-session.py",
+      "target": "packaging/steamos/session/dosplex-user-side-session.sh",
+      "reason": "A sibling in the installed layout (both are in libexec/); in the source tree the file is guest/dosplex-user-side-session.sh."
+    },
+    {
+      "file": "packaging/steamos/session/root-session-trial.py",
+      "target": "dosplex-retained-dev-awake.service",
+      "reason": "A user unit that development tooling may have started on an engineering device; the recovery stops it when it is there and ignores that it is not."
+    },
+    {
+      "file": "packaging/steamos/session/update-retained-session.py",
+      "target": "start-controller-trial.py",
+      "reason": "The layout of trials from before the native controller relay; the branch is taken only for a transaction that names that old broker unit, which no release starts."
+    },
+    {
+      "target": "dosplex-game-library.service",
+      "reason": "A unit the installer writes on the device when the shared game library is turned on; its text is in the installer, there is no unit file in the repository."
+    },
+    {
+      "target": "dosplex-game-library-auto.service",
+      "reason": "A unit the installer writes on the device when the shared game library is turned on; its text is in the installer, there is no unit file in the repository."
+    },
+    {
+      "target": "dosplex-autostart.service",
+      "reason": "A unit the installer writes on the device when the start at boot is turned on; its text is in the installer, there is no unit file in the repository."
+    },
+    {
+      "target": "dosplex-start.service",
+      "reason": "A unit the installer writes on the device when it is installed, for the entry in Steam's library; its text is in the installer, there is no unit file in the repository."
+    },
+    {
+      "file": "packaging/release-build/README.md",
+      "target": "docs/shared-paths.md",
+      "reason": "A page of the Steam Runtime's own source tree (pressure-vessel), named as the place where that behaviour is documented."
+    },
+    {
+      "file": "packaging/release-build/README.md",
+      "target": "tests/pre-deploy.sh",
+      "reason": "Names the development-only gate that runs the SBOM check; the gate is not part of the source publication."
+    },
+    {
+      "file": "tests/notices-test.py",
+      "target": "docs/images/",
+      "reason": "The test asserts that the README names no picture folder; the folder is not there."
+    },
+    {
+      "file": "tests/dosplex-cli-test.py",
+      "target": "tools/extra.py",
+      "reason": "A made-up name inside the stand-in system the installer's tests build; nothing of the repository is meant."
+    },
+    {
+      "file": "tests/dosplex-cli-test.py",
+      "target": "tools/empty-dir",
+      "reason": "A made-up name inside the stand-in system the installer's tests build; nothing of the repository is meant."
+    },
+    {
+      "file": "tests/dosplex-cli-test.py",
+      "target": "tools/empty-dir/",
+      "reason": "A made-up name inside the stand-in system the installer's tests build; nothing of the repository is meant."
+    },
+    {
+      "file": "tests/dosplex-cli-test.py",
+      "target": "tools/__pycache__",
+      "reason": "A made-up name inside the stand-in system the installer's tests build; nothing of the repository is meant."
+    },
+    {
+      "file": "tests/dosplex-cli-test.py",
+      "target": "tools/__pycache__/",
+      "reason": "A made-up name inside the stand-in system the installer's tests build; nothing of the repository is meant."
+    },
+    {
+      "file": "tests/dosplex-cli-test.py",
+      "target": "dosplex-x.service",
+      "reason": "A made-up name inside the stand-in system the installer's tests build; nothing of the repository is meant."
+    },
+    {
+      "file": "tests/dosplex-cli-test.py",
+      "target": "dosplex-compositor-x.service",
+      "reason": "A made-up name inside the stand-in system the installer's tests build; nothing of the repository is meant."
+    },
+    {
+      "file": "tests/dosplex-cli-test.py",
+      "target": "x.py",
+      "reason": "A made-up name inside the stand-in system the installer's tests build; nothing of the repository is meant."
+    },
+    {
+      "file": "tests/dosplex-cli-test.py",
+      "target": "other.py",
+      "reason": "A made-up name inside the stand-in system the installer's tests build; nothing of the repository is meant."
+    },
+    {
+      "file": "tests/dosplex-update-test.py",
+      "target": "extra.py",
+      "reason": "A made-up file name in a stand-in release the update tests build; nothing of the repository is meant."
+    },
+    {
+      "file": "tests/make-bundle-test.py",
+      "target": "tools/extra",
+      "reason": "A made-up name for an extra file in the bundle builder's tests; nothing of the repository is meant."
+    },
+    {
+      "file": "tests/sbom-check-test.py",
+      "target": "helper.py",
+      "reason": "A made-up file name in the stand-in payloads the SBOM check's tests build; nothing of the repository is meant."
+    },
+    {
+      "file": "tests/sbom-check-test.py",
+      "target": "guest/helper.py",
+      "reason": "A made-up file name in the stand-in payloads the SBOM check's tests build; nothing of the repository is meant."
+    },
+    {
+      "file": "tests/sbom-check-test.py",
+      "target": "packaging/release-build/patches/x.patch",
+      "reason": "A made-up file name in the stand-in payloads the SBOM check's tests build; nothing of the repository is meant."
+    },
+    {
+      "file": "tests/sbom-check-test.py",
+      "target": "a.py",
+      "reason": "A made-up file name in the stand-in payloads the SBOM check's tests build; nothing of the repository is meant."
+    },
+    {
+      "file": "tests/sbom-check-test.py",
+      "target": "b.py",
+      "reason": "A made-up file name in the stand-in payloads the SBOM check's tests build; nothing of the repository is meant."
+    },
+    {
+      "file": "tests/sbom-check-test.py",
+      "target": "c.py",
+      "reason": "A made-up file name in the stand-in payloads the SBOM check's tests build; nothing of the repository is meant."
+    },
+    {
+      "file": "tests/sbom-check-test.py",
+      "target": "d.sh",
+      "reason": "A made-up file name in the stand-in payloads the SBOM check's tests build; nothing of the repository is meant."
+    },
+    {
+      "file": "legal/spdx-exclusions.txt",
+      "target": "tools/steam/*.template.vdf",
+      "reason": "The exclusion list covers the whole development tree; this entry names files that are not part of the source publication."
+    },
+    {
+      "file": "legal/spdx-exclusions.txt",
+      "target": "tools/build/",
+      "reason": "The exclusion list covers the whole development tree; this entry names files that are not part of the source publication."
+    },
+    {
+      "file": "legal/spdx-exclusions.txt",
+      "target": "compositor/dosplex-compositor.c_revert",
+      "reason": "The exclusion list covers the whole development tree; this entry names files that are not part of the source publication."
+    },
+    {
+      "file": "legal/spdx-exclusions.txt",
+      "target": "packaging/steamos/usr/local/bin/dosplex-compositor",
+      "reason": "The exclusion list covers the whole development tree; this entry names files that are not part of the source publication."
+    },
+    {
+      "file": "legal/spdx-exclusions.txt",
+      "target": "tools/build/dosplex-keyprobe",
+      "reason": "The exclusion list covers the whole development tree; this entry names files that are not part of the source publication."
+    }
+  ],
+  "third_party_modules": {
+    "PAM": "PyPAM binding for the sign-in helper; optional import, installed from distribution packages.",
+    "dbus": "dbus-python for the per-side session manager; installed from distribution packages.",
+    "evdev": "python-evdev for the controller menu, arbiter and shortcut watcher; installed from distribution packages.",
+    "gi": "PyGObject (GLib, GTK) for the session manager and the VM prototype helpers; installed from distribution packages.",
+    "pam": "python-pam binding for the sign-in helper; optional import, installed from distribution packages.",
+    "PyQt5": "Qt binding for the Deck HUD; the HUD accepts either PySide6 or PyQt5.",
+    "PySide6": "Qt binding for the Deck HUD; the HUD accepts either PySide6 or PyQt5.",
+    "yaml": "PyYAML for the compatibility tests and tools; docs/testing.md lists it as a test requirement."
+  }
+}

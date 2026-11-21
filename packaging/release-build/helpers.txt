@@ -1,0 +1,11 @@
+# C programs the release payload builds with the image's compiler: where each goes in the payload, its source in
+# the repository, then the pkg-config modules it needs (compiled and linked dynamically, so they show up as
+# host-provided libraries in the SBOM).
+#
+#   libexec/NAME   path/to/NAME.c   fuse3
+#
+# The CUSE relay carries the controllers of a Steam Controller receiver to each player's own Steam. It was built
+# by hand against a static libfuse until 2026-11-19 (REL-02). libfuse's library, cuse_lowlevel.c and its header
+# included, is LGPL-2.1 by the files' own headers (read in fuse-3.17.1, the version of this image); SteamOS ships
+# the same libfuse3.so.4.
+libexec/native-hid-relay   packaging/steamos/session/native-hid-relay.c   fuse3

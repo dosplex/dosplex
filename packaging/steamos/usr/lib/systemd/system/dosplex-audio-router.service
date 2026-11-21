@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright 2026 RoyÅke (Roy-Åke Martinsson)
+[Unit]
+Description=Dosplex Audio Router
+After=multi-user.target
+Wants=dosplex-compositor.service
+
+[Service]
+Type=simple
+# Guest's restricted audio endpoint; dosplex-side-supervisor.py points Guest here.
+Environment=DOSPLEX_GUEST_AUDIO_DIR=/run/dosplex/audio/guest
+ExecStart=/usr/local/bin/dosplex-audio-router.py monitor-shared
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

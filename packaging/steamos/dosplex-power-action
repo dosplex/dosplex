@@ -1,0 +1,703 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright 2026 RoyÅke (Roy-Åke Martinsson)
+"""Sleep, Restart, Shut down and Turn off Dosplex for the Dosplex management overlay.
+
+The compositor runs this helper from $DOSPLEX_ROOT/libexec/dosplex-power-action when Main confirms a
+power action and the compositor was started with --allow-power.
+
+    dosplex-power-action [--power-command PATH] suspend|reboot|poweroff|stop
+
+suspend runs `systemctl suspend` and nothing else: both sessions stay open and resume. Before that it checks
+that the trial's sleep guard unit (the one transaction.json names) is active, because without the guard the
+sides are not frozen and Steam crashes on wake. A guard that is not active refuses the suspend with a plain
+message; the helper cannot start it, since only the trial tool knows its command.
+
+reboot and poweroff first leave the compositor's service. The trial unit stops with
+KillMode=control-group, so a forked child would die with it; the helper starts itself again under
+systemd-run with a unit name of its own and waits for it (--wait), so that this first stage ends with the
+escaped copy's exit status: a copy that fails, at any point while the compositor still runs, fails the first
+stage, and the compositor takes its progress panel down and says so. That copy then
+  a) asks each side's Steam client to quit (`steam -shutdown`, run as the side's user inside the side's own
+     namespaces, with the side's HOME and runtime environment), both sides at once, and waits up to 45 s per
+     side for the client to exit, so that Steam can finish its cloud sync and write its configuration. A side
+     whose Steam is not there is not asked: `steam -shutdown` can start a Steam when none runs,
+  b) asks that side's supervisor for its orderly stop (request-stop) as soon as its Steam is gone or the wait
+     is over, Guest's side first when both are ready (a supervisor starts a side again whose Steam exited,
+     unless it was asked to stop), which stops whatever is left of the side's unit,
+  c) waits for each side's session.json to say it stopped (45 s per side),
+  d) stops Dosplex: `dosplex stop` when the installed state names this trial, otherwise the trial's own
+     `root-session-trial.py recover --root`, at most 600 s (recover alone may take 300 s inside dosplex
+     stop, which then restores the display and the session mode). When that says a recovery already runs
+     (the trial's watcher or its deadline timer holds the lock), it waits up to 300 s for the trial
+     directory to disappear: rebooting under a recovery would lose the records it needs to undo the changes,
+  e) runs `systemctl reboot|poweroff`, even when d) failed: the next `dosplex start` clears a stale run.
+
+stop (Turn off Dosplex) is steps a) to d) and nothing after them: both players' Steam clients quit cleanly,
+Dosplex stops, the stock Steam comes back and the machine stays on. It runs no power command, so
+--power-command plays no part in it. When step d) fails the helper exits with status 1, so that the
+compositor, which then still runs, takes its progress panel down and says so.
+Every step is logged (journalctl -u 'dosplex-power-*'); a Steam that was asked to quit says one of
+'Steam shutdown requested', 'Steam exited after N s' or 'did not exit; stopping the unit'.
+
+The sides' state directory is $DOSPLEX_SIDE_ROOT, else the trial's own sides/ directory, else
+/var/lib/dosplex/sides, which is where a supervisor keeps it without DOSPLEX_SIDE_ROOT (the display-manager
+installation sets none).
+
+--power-command (the compositor passes it only with --test-hooks) names a program that runs instead of
+systemctl, with the action as its only argument. It is used only when the file exists, and then only
+when it is a regular executable file that root (or the user running this helper) owns and that nobody
+else can write. Otherwise the action is refused rather than really run.
+
+The trial's power command is <trial>/control/power-command, and step d) deletes the trial directory. So
+the first stage tells the escaped copy that a command was found (--power-command-required), and the
+escaped copy opens the command before step a) and keeps it open: step e) runs that open file even after
+it was deleted, and a required command that is gone or no longer trusted refuses the action instead of
+falling back to systemctl. A recorder put there must write its record outside the trial directory.
+"""
+import argparse
+import json
+import os
+from pathlib import Path
+import pwd
+import re
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+import uuid
+
+ACTIONS = ('suspend', 'reboot', 'poweroff', 'stop', 'close')
+TRIAL_NAME = re.compile(r'dosplex-trial-[0-9a-f]{32}')
+UNIT_NAME = re.compile(r'dosplex-session-(?:left|right)-[0-9a-f]{32}\.service')
+USER_NAME = re.compile(r'[a-z_][a-z0-9_-]{0,31}')
+# A supervisor that wrote one of these has left its side's loop for good.
+FINISHED = ('stopped', 'cleanup_failed', 'exited')
+STATE_FILE = '/var/lib/dosplex/state.json'
+# Where a supervisor keeps its side directories without DOSPLEX_SIDE_ROOT (side_state_root() in the supervisor).
+SIDE_ROOT = '/var/lib/dosplex/sides'
+DOSPLEX = '/opt/dosplex/bin/dosplex'
+STEAM = '/usr/bin/steam'
+PROC = '/proc'
+SIDE_TIMEOUT = 45.0
+STEAM_TIMEOUT = 45.0
+# A Steam that started less than this long ago is still starting and does not act on a request to quit (seen on
+# a Steam Deck: asked at about a minute it was still there after 45 s, asked after three minutes it was gone in
+# 3 s). Waiting the full time for it only makes every stop soon after a start slow, so it gets a short wait.
+YOUNG_STEAM = 90.0
+YOUNG_STEAM_TIMEOUT = 12.0
+STOP_TIMEOUT = 600
+RECOVERY_WAIT = 300.0
+ACTION_TIMEOUT = 120
+# The escaped unit's limit. At its worst the sequence takes the Steam wait (45 s), two request-stops (30 s
+# each), two waits for a stop (45 s each), the stop (600 s) and the action (120 s): 915 s. The wait for a
+# recovery that already runs shares the stop's budget (SEQUENCE_BUDGET): it never leaves the action without
+# its time. The compositor takes its progress panel down 60 s after this (POWER_PANEL_DEADLINE_MS).
+UNIT_RUNTIME = 1020
+SEQUENCE_BUDGET = UNIT_RUNTIME - ACTION_TIMEOUT - 30
+# What the stop step prints when another recovery holds the trial's lock (root-session-trial.py recover).
+RECOVERY_BUSY = 'recovery already running'
+POLL_SECONDS = .25
+# The variables of a side's Steam that `steam -shutdown` is given: its HOME finds ~/.steam/steam.pipe, the
+# runtime directory and the display the rest of the client's environment (the same set the game scenario
+# probe hands `steam -applaunch`).
+STEAM_ENVIRONMENT = ('HOME', 'XDG_RUNTIME_DIR', 'DISPLAY', 'XAUTHORITY', 'DBUS_SESSION_BUS_ADDRESS',
+                     'WAYLAND_DISPLAY', 'PULSE_SERVER')
+
+
+class Refused(Exception):
+    pass
+
+
+def log(message):
+    print('dosplex-power-action: ' + message, file=sys.stderr, flush=True)
+
+
+def trusted_file(path, what):
+    """lstat() checks for a program this root helper runs: a regular file that root (or this user) owns
+    and that neither group nor others can write. Raises Refused."""
+    try:
+        info = os.lstat(path)
+    except FileNotFoundError:
+        raise Refused('%s %s is missing' % (what, path)) from None
+    if not stat.S_ISREG(info.st_mode):
+        raise Refused('%s %s is not a regular file' % (what, path))
+    if info.st_uid not in (0, os.geteuid()):
+        raise Refused('%s %s is not owned by root' % (what, path))
+    if info.st_mode & 0o022:
+        raise Refused('%s %s is writable by others' % (what, path))
+    return path
+
+
+def open_power_command(path):
+    """An O_PATH descriptor of the power command, None when there is no such file. Checked through the
+    descriptor that is then executed, so the file cannot be swapped between the check and the run."""
+    if not path:
+        return None
+    try:
+        fd = os.open(path, os.O_PATH | os.O_NOFOLLOW | os.O_CLOEXEC)
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        raise Refused('power command %s cannot be opened: %s' % (path, os.strerror(error.errno))) from None
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode):
+            raise Refused('power command %s is not a regular file' % path)
+        if info.st_uid not in (0, os.geteuid()):
+            raise Refused('power command %s is not owned by root' % path)
+        if info.st_mode & 0o022:
+            raise Refused('power command %s is writable by others' % path)
+        if not info.st_mode & 0o111:
+            raise Refused('power command %s is not executable' % path)
+    except BaseException:
+        os.close(fd)
+        raise
+    return fd
+
+
+def run_captured(argv, what, timeout, tail=40, **options):
+    """Run one step; its output goes to the log. Returns (exit status, output); the status is None on a
+    timeout or start error."""
+    log('%s: %s' % (what, ' '.join(str(a) for a in argv)))
+    started = time.monotonic()
+    try:
+        result = subprocess.run([str(a) for a in argv], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True, timeout=timeout, cwd='/', **options)
+    except subprocess.TimeoutExpired:
+        log('%s: no result after %d s' % (what, timeout))
+        return None, ''
+    except OSError as error:
+        log('%s: could not start: %s' % (what, error))
+        return None, ''
+    for line in (result.stdout or '').splitlines()[-tail:]:
+        log('%s | %s' % (what, line))
+    log('%s: exit status %d after %.1f s' % (what, result.returncode, time.monotonic() - started))
+    return result.returncode, result.stdout or ''
+
+
+def run_logged(argv, what, timeout, tail=40, **options):
+    """run_captured() without the output: the exit status (None on a timeout or start error)."""
+    return run_captured(argv, what, timeout, tail, **options)[0]
+
+
+def power(action, power_command, fd):
+    """The last step: the power command opened as `fd` (open_power_command), else systemctl. Closes fd.
+    Returns an exit status."""
+    if fd is None:
+        if power_command:
+            log('power command %s is not installed; using systemctl' % power_command)
+        return _status(run_logged(['systemctl', action], 'action', ACTION_TIMEOUT))
+    try:
+        log('power command %s runs instead of systemctl' % power_command)
+        return _status(run_logged(['/proc/self/fd/%d' % fd, action], 'action', ACTION_TIMEOUT, pass_fds=(fd,)))
+    finally:
+        os.close(fd)
+
+
+def sleep_guard_problem(here):
+    """Why a suspend must not go ahead: the trial names a sleep guard unit and it is not active. None when the
+    guard is active, or when there is no trial that names one (nothing then says a guard should be there)."""
+    bundle = here.parent.parent
+    transaction = bundle.parent / 'transaction.json'
+    if not (TRIAL_NAME.fullmatch(bundle.parent.name) and transaction.is_file()):
+        return None
+    try:
+        unit = json.loads(transaction.read_text()).get('sleep_guard_unit')
+    except (OSError, ValueError, AttributeError):
+        return None
+    if not isinstance(unit, str) or not re.fullmatch(r'dosplex-sleep-guard-[0-9a-f]{32}\.service', unit):
+        return None
+    code = run_logged(['systemctl', 'is-active', '--quiet', unit], 'sleep guard', 20)
+    if code == 0:
+        return None
+    return 'the sleep guard (%s) is not running, so the sides would not be paused for the sleep' % unit
+
+
+def open_for_action(action, power_command, required=False):
+    """open_power_command(), logged. Returns (fd or None, refused)."""
+    try:
+        fd = open_power_command(power_command)
+    except Refused as error:
+        log('refused %s: %s' % (action, error))
+        return None, True
+    if fd is None and required:
+        log('refused %s: power command %s was there when the action started and is gone now; '
+            'not falling back to systemctl' % (action, power_command))
+        return None, True
+    return fd, False
+
+
+def _status(code):
+    return 1 if code is None else code
+
+
+def read_session(path):
+    try:
+        return json.loads(path.read_text())
+    except (OSError, ValueError):
+        return None
+
+
+def alive(pid):
+    if not isinstance(pid, int) or pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def finished(session):
+    return (session is None or not isinstance(session, dict) or session.get('lifecycle') in FINISHED or
+            not alive(session.get('pid')))
+
+
+# -- a side's Steam client ---------------------------------------------------------------------------------
+
+def read_process(proc, pid):
+    """(name, uid, state, start time, cgroup text) of a process; None when it is gone or unreadable."""
+    base = Path(proc) / str(pid)
+    try:
+        name = (base / 'comm').read_text().strip()
+        fields = (base / 'stat').read_text().rsplit(')', 1)[1].split()
+        uid = int(next(line for line in (base / 'status').read_text().splitlines()
+                       if line.startswith('Uid:')).split()[1])
+        cgroup = (base / 'cgroup').read_text()
+        return name, uid, fields[0], fields[19], cgroup
+    except (OSError, IndexError, StopIteration, ValueError):
+        return None
+
+
+def process_age(proc, start):
+    """Seconds since a process with this start time (clock ticks after boot) started; None when not known."""
+    try:
+        uptime = float((Path(proc) / 'uptime').read_text().split()[0])
+        return max(0.0, uptime - int(start) / os.sysconf('SC_CLK_TCK'))
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def in_unit(cgroup, unit):
+    """Whether a /proc/PID/cgroup text puts the process in the cgroup of `unit`."""
+    return any(line.split(':', 2)[-1].endswith('/' + unit) for line in cgroup.splitlines())
+
+
+def steam_clients(proc, unit, uid):
+    """(pid, start time) of every process called steam that `uid` runs in `unit`'s cgroup, oldest first. Steam's
+    64-bit client is two of them, a launcher and the client proper below it."""
+    found = []
+    try:
+        names = os.listdir(proc)
+    except OSError:
+        return found
+    for name in names:
+        if not name.isdigit():
+            continue
+        info = read_process(proc, name)
+        if info and info[0] == 'steam' and info[1] == uid and info[2] not in ('Z', 'X') and in_unit(info[4], unit):
+            found.append((int(info[3]), int(name)))
+    return [(pid, start) for start, pid in sorted(found)]
+
+
+def same_process(proc, pid, start):
+    """Whether the process `pid` that started at `start` is still there (a zombie is not)."""
+    info = read_process(proc, pid)
+    return info is not None and info[3] == str(start) and info[2] not in ('Z', 'X')
+
+
+def process_environment(proc, pid, owner):
+    """The STEAM_ENVIRONMENT variables of a process (its HOME from the account when it has none)."""
+    try:
+        raw = (Path(proc) / str(pid) / 'environ').read_bytes()
+    except OSError:
+        raw = b''
+    found = {}
+    for item in raw.split(b'\0'):
+        key, _, value = item.decode(errors='replace').partition('=')
+        if key in STEAM_ENVIRONMENT:
+            found[key] = value
+    if not found.get('HOME'):
+        try:
+            found['HOME'] = pwd.getpwnam(owner).pw_dir
+        except KeyError:
+            pass
+    return found
+
+
+class SteamQuit:
+    """One side's `steam -shutdown` and the wait for its Steam to be gone.
+
+    The side's Steam runs in the session unit of the side (dosplex-session-<side>-<id>.service), in the side's
+    own mount, PID and IPC namespaces in a retained trial. Steam's client is found by what it is (a process
+    called steam of the side's user in the unit's cgroup) and the command runs in that process's mount, PID
+    and network namespaces, as that user, with the client's HOME and runtime environment: there the client's
+    PID is the one in ~/.steam/steam.pid, so the command reaches the running client through its pipe
+    (~/.steam/steam.pipe) instead of starting another Steam. It is never run when no client was found.
+    done() is polled; it says in the log why the wait ended.
+    """
+
+    def __init__(self, side, session, options):
+        self.side, self.session, self.options = side, session, options
+        self.clients = []         # (pid, start time) of the Steam processes that were asked to quit
+        self.process = None       # the `steam -shutdown` command
+        self.output = None
+        self.started = time.monotonic()
+        self.limit = options.steam_timeout
+        self.outcome = None       # 'nothing', 'exited', 'failed' or 'timeout' once the wait is over
+
+    def begin(self):
+        side, session, options = self.side, self.session, self.options
+        unit, owner = session.get('unit'), session.get('owner')
+        if not isinstance(unit, str) or not UNIT_NAME.fullmatch(unit) or \
+                not isinstance(owner, str) or not USER_NAME.fullmatch(owner):
+            log('%s: session.json names no usable session unit or owner; Steam is not asked to quit' % side)
+            self.outcome = 'nothing'
+            return self
+        try:
+            uid = pwd.getpwnam(owner).pw_uid
+        except KeyError:
+            log('%s: there is no account %s; Steam is not asked to quit' % (side, owner))
+            self.outcome = 'nothing'
+            return self
+        self.clients = steam_clients(options.proc_root, unit, uid)
+        if not self.clients:
+            log('%s: no Steam process in %s; nothing to quit' % (side, unit))
+            self.outcome = 'nothing'
+            return self
+        pid = self.clients[0][0]
+        age = process_age(options.proc_root, self.clients[0][1])
+        young_limit = getattr(options, 'young_steam_timeout', YOUNG_STEAM_TIMEOUT)
+        if age is not None and age < YOUNG_STEAM and young_limit < self.limit:
+            self.limit = young_limit
+            log('%s: Steam started %.0f s ago and may not answer yet; waiting at most %.0f s for it'
+                % (side, age, self.limit))
+        if session.get('lifecycle') == 'standby':
+            self.thaw(unit)
+        environment = process_environment(options.proc_root, pid, owner)
+        argv = ['nsenter', '-t', str(pid), '-m', '-p', '-n', '--', 'runuser', '-u', owner, '--', 'env', '-i',
+                'PATH=/usr/bin:/bin', *('%s=%s' % pair for pair in sorted(environment.items())),
+                options.steam, '-shutdown']
+        log('%s: Steam shutdown requested (steam pid %d in %s): %s' % (side, pid, unit, ' '.join(argv)))
+        self.started = time.monotonic()
+        try:
+            self.output = tempfile.TemporaryFile()
+            self.process = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=self.output,
+                                            stderr=subprocess.STDOUT, cwd='/')
+        except OSError as error:
+            self.outcome = 'failed'
+            self.say_failure('steam -shutdown could not start: %s' % error)
+            self.finish()
+        return self
+
+    def thaw(self, unit):
+        """A frozen side (Guest on standby in Full screen) cannot act on a request; the supervisor thaws
+        a unit before it stops it, and so does this."""
+        try:
+            shown = subprocess.run(['systemctl', 'show', '-p', 'FreezerState', '--value', unit],
+                                   stdin=subprocess.DEVNULL, capture_output=True, text=True, cwd='/', timeout=10)
+        except (OSError, subprocess.SubprocessError):
+            return
+        if shown.stdout.strip() == 'frozen':
+            log('%s: %s is frozen (standby); thawing it so that Steam can quit' % (self.side, unit))
+            run_logged(['systemctl', 'thaw', unit], self.side + ' thaw', 20)
+
+    def say_failure(self, why):
+        log('%s: Steam did not exit; stopping the unit (%s)' % (self.side, why))
+
+    def done(self):
+        """Whether the wait for this side's Steam is over. Polled; never blocks."""
+        if self.outcome:
+            return True
+        elapsed = time.monotonic() - self.started
+        if not any(same_process(self.options.proc_root, pid, start) for pid, start in self.clients):
+            self.outcome = 'exited'
+            log('%s: Steam exited after %.1f s' % (self.side, elapsed))
+        elif self.process.poll() not in (None, 0):
+            self.outcome = 'failed'
+            self.say_failure('steam -shutdown exited with status %d' % self.process.returncode)
+        elif elapsed >= self.limit:
+            self.outcome = 'timeout'
+            self.say_failure('still running after %.0f s' % self.limit)
+        else:
+            return False
+        self.finish()
+        return True
+
+    def finish(self):
+        """Reap the command and put what it printed in the log."""
+        if self.process is not None:
+            if self.process.poll() is None:
+                self.process.kill()
+            self.process.wait()
+            self.process = None
+        if self.output is not None:
+            self.output.seek(0)
+            for line in self.output.read().decode(errors='replace').splitlines()[-20:]:
+                log('%s steam | %s' % (self.side, line))
+            self.output.close()
+            self.output = None
+
+
+def request_stop(side, supervisor, environment):
+    """The supervisor's orderly stop of one side. True when the request was written."""
+    return run_logged([sys.executable, supervisor, 'request-stop', side], side + ' request-stop', 30,
+                      env=environment) == 0
+
+
+def close_sides(side_root, args):
+    """Steps a and b. Returns the sides whose supervisor was asked to stop."""
+    asked = []
+    if side_root is None:
+        log('sides: no side state directory; nothing to stop')
+        return asked
+    environment = dict(os.environ, DOSPLEX_SIDE_ROOT=str(side_root))
+    environment.pop('SUDO_UID', None)  # root asks for both sides; the supervisor limits a sudo caller to one
+    waiting = {}
+    for side in (getattr(args, 'side', None) or ('right', 'left')):
+        session = read_session(side_root / side / 'session.json')
+        if finished(session):
+            log('%s: no running supervisor (%s)' % (side, (session or {}).get('lifecycle', 'no session.json')))
+            continue
+        waiting[side] = SteamQuit(side, session, args).begin()
+    # Both sides' Steam quit at the same time. A side is handed to its supervisor the moment its Steam is
+    # gone (or the wait for it is over): the supervisor starts a side again whose Steam exited, a little
+    # after the exit, so the stop must not wait for the other side.
+    while waiting:
+        for side in list(waiting):
+            if waiting[side].done():
+                del waiting[side]
+                if request_stop(side, args.supervisor, environment):
+                    asked.append(side)
+        if waiting:
+            time.sleep(POLL_SECONDS)
+    return asked
+
+
+def wait_stopped(side_root, sides, timeout):
+    """Step c: at most `timeout` seconds for each side."""
+    for side in sides:
+        path = side_root / side / 'session.json'
+        started = time.monotonic()
+        while True:
+            session = read_session(path)
+            if finished(session):
+                log('%s: stopped after %.1f s (%s)' % (side, time.monotonic() - started,
+                                                       (session or {}).get('lifecycle', 'no session.json')))
+                break
+            if time.monotonic() - started >= timeout:
+                log('%s: still %s after %.0f s; continuing' % (side, session.get('lifecycle'), timeout))
+                break
+            time.sleep(.25)
+
+
+def wait_for_recovery(trial_root, wait):
+    """Another recovery of the trial runs: wait (at most `wait` seconds) until it has removed the trial's
+    directory. Returns whether it has."""
+    log('stop: a recovery of %s already runs; waiting up to %.0f s for it to finish' % (trial_root, wait))
+    started = time.monotonic()
+    while trial_root.exists():
+        if time.monotonic() - started >= wait:
+            log('stop: %s still exists after %.0f s; going on without it' % (trial_root, wait))
+            return False
+        time.sleep(.25)
+    log('stop: %s is gone after %.1f s; the other recovery finished' % (trial_root, time.monotonic() - started))
+    return True
+
+
+def stop_dosplex(trial_root, state_file, dosplex, recovery_wait=RECOVERY_WAIT, deadline=None):
+    """Step d. Returns True when Dosplex stopped (or there was nothing to stop). `deadline` is a time.monotonic()
+    value that the wait for another recovery must not pass."""
+    if trial_root is None:
+        log('stop: no trial root; nothing to stop')
+        return True
+    try:
+        state = json.loads(Path(state_file).read_text())
+    except (OSError, ValueError):
+        state = None
+    named = isinstance(state, dict) and isinstance(state.get('trial'), dict) and \
+        state['trial'].get('root') == str(trial_root)
+    try:
+        if named:
+            argv = [trusted_file(dosplex, 'dosplex'), 'stop']
+        else:
+            log('stop: %s does not name %s; recovering the trial directly' % (state_file, trial_root))
+            argv = [sys.executable, trusted_file(trial_root / 'root-session-trial.py', 'trial tool'),
+                    'recover', '--root', trial_root]
+    except Refused as error:
+        log('stop: refused: %s' % error)
+        return False
+    status, output = run_captured(argv, 'stop', STOP_TIMEOUT)
+    if status == 0:
+        return True
+    if status is not None and RECOVERY_BUSY in output:
+        # The trial's watcher or its deadline timer holds the recovery lock, so this attempt did nothing.
+        # Rebooting now would cut that recovery short and lose the records it needs to undo the changes.
+        if deadline is not None:
+            recovery_wait = max(0.0, min(recovery_wait, deadline - time.monotonic()))
+        return wait_for_recovery(trial_root, recovery_wait)
+    return False
+
+
+def sequence(args):
+    trial_root = Path(args.trial_root) if args.trial_root else None
+    side_root = Path(args.side_root) if args.side_root else None
+    # Opened before anything stops and kept open: step d) deletes the trial directory, which holds the
+    # trial's power command, and a dry run must never turn into the real systemctl.
+    leaving = args.action == 'stop'        # Turn off Dosplex: no power step follows, so no power command is opened
+    fd, refused = (None, False) if leaving else \
+        open_for_action(args.action, args.power_command, args.power_command_required)
+    if refused:
+        return 1
+    log('%s: closing both sides, then stopping Dosplex (trial %s)' % (args.action, trial_root or 'none'))
+    started = time.monotonic()
+    try:
+        asked = close_sides(side_root, args)
+        if asked:
+            wait_stopped(side_root, asked, args.side_timeout)
+        stopped = stop_dosplex(trial_root, args.state_file, args.dosplex, args.recovery_wait,
+                               started + SEQUENCE_BUDGET)
+        if leaving:
+            log('stop: %s' % ('done; the stock Steam is back' if stopped else
+                              'Dosplex did not stop; see the lines above'))
+            return 0 if stopped else 1
+        if not stopped:
+            log('stop failed; running %s anyway (the next dosplex start clears the stale run)' % args.action)
+    except BaseException:
+        if fd is not None:
+            os.close(fd)
+        raise
+    code = power(args.action, args.power_command, fd)
+    log('%s: done (exit status %d)' % (args.action, code))
+    return code
+
+
+def close_only(args, here):
+    """`close`: ask both sides' Steam to quit and their supervisors to stop, and nothing more. `dosplex stop`
+    runs it before it takes the session down (and with it an update, a rollback and an uninstall), so that a
+    Steam there is not killed with saves it has not uploaded (TRL-04). Nothing is escaped into a unit: the
+    caller is not part of the session that stops. Always 0: what follows takes the session down either way."""
+    bundle = here.parent.parent
+    trial_root = Path(args.trial_root) if args.trial_root else (
+        bundle.parent if TRIAL_NAME.fullmatch(bundle.parent.name) and (bundle.parent / 'transaction.json').is_file()
+        else None)
+    side_root = args.side_root or os.environ.get('DOSPLEX_SIDE_ROOT') or \
+        (str(trial_root / 'sides') if trial_root else SIDE_ROOT)
+    if not args.supervisor:
+        args.supervisor = str(bundle / 'bin/dosplex-side-supervisor.py')
+    sides = args.side if args.side else ['right', 'left']
+    if args.steam_only:
+        log('close: steam only, sides %s' % ', '.join(sides))
+        waiting = {}
+        for side in sides:
+            session = read_session(Path(side_root) / side / 'session.json')
+            unit = session.get('unit') if isinstance(session, dict) else None
+            owner = session.get('owner') if isinstance(session, dict) else None
+            if not (isinstance(unit, str) and UNIT_NAME.fullmatch(unit) and
+                    isinstance(owner, str) and USER_NAME.fullmatch(owner)):
+                log('close: %s: no usable session (%s)' % (side,
+                    session.get('lifecycle', 'no session.json') if isinstance(session, dict) else 'no session.json'))
+                continue
+            log('close: asked %s Steam to quit (steam only)' % side)
+            waiting[side] = SteamQuit(side, session, args).begin()
+        while waiting:
+            for side in list(waiting):
+                if waiting[side].done():
+                    del waiting[side]
+            if waiting:
+                time.sleep(POLL_SECONDS)
+        log('close: done')
+        return 0
+    log('close: asking %s to close (sides %s)' % ('one side' if args.side else 'both sides', side_root))
+    asked = close_sides(Path(side_root), args)
+    if asked:
+        wait_stopped(Path(side_root), asked, args.side_timeout)
+    log('close: done')
+    return 0
+
+
+def escape(args, here, required):
+    """Start this helper again in a unit of its own, so that stopping the trial unit does not stop it, and wait
+    for it: the exit status is the copy's, so the compositor learns of a copy that fails."""
+    bundle = here.parent.parent
+    trial_root = bundle.parent if TRIAL_NAME.fullmatch(bundle.parent.name) and \
+        (bundle.parent / 'transaction.json').is_file() else None
+    side_root = os.environ.get('DOSPLEX_SIDE_ROOT') or (str(trial_root / 'sides') if trial_root else SIDE_ROOT)
+    unit = 'dosplex-power-%s-%s' % (args.action, uuid.uuid4().hex[:8])
+    argv = ['systemd-run', '--quiet', '--collect', '--wait', '--service-type=exec', '--expand-environment=no',
+            '--unit=' + unit, '--description=Dosplex ' + args.action, '--property=RuntimeMaxSec=%d' % UNIT_RUNTIME,
+            '--', sys.executable, str(here), '--escaped', '--trial-root', str(trial_root or ''),
+            '--side-root', side_root, '--supervisor', str(bundle / 'bin/dosplex-side-supervisor.py'),
+            '--state-file', args.state_file, '--dosplex', args.dosplex, '--steam', args.steam,
+            '--proc-root', args.proc_root, '--steam-timeout', str(args.steam_timeout),
+            '--young-steam-timeout', str(args.young_steam_timeout),
+            '--side-timeout', str(args.side_timeout), '--recovery-wait', str(args.recovery_wait),
+            '--power-command', args.power_command or '',
+            *(['--power-command-required'] if required else []), args.action]
+    # The unit ends at RuntimeMaxSec at the latest, and systemd-run with it.
+    code = run_logged(argv, 'escape into ' + unit, UNIT_RUNTIME + 30, tail=400)
+    return _status(code)
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description='Dosplex machine power for the management overlay.')
+    parser.add_argument('action', choices=ACTIONS)
+    parser.add_argument('--power-command', default='')
+    parser.add_argument('--state-file', default=STATE_FILE)
+    parser.add_argument('--dosplex', default=DOSPLEX)
+    parser.add_argument('--steam', default=STEAM, help='the steam command that is run as `steam -shutdown`')
+    parser.add_argument('--proc-root', default=PROC, help=argparse.SUPPRESS)
+    parser.add_argument('--side-timeout', type=float, default=SIDE_TIMEOUT)
+    parser.add_argument('--steam-timeout', type=float, default=STEAM_TIMEOUT)
+    parser.add_argument('--young-steam-timeout', type=float, default=YOUNG_STEAM_TIMEOUT, help=argparse.SUPPRESS)
+    parser.add_argument('--recovery-wait', type=float, default=RECOVERY_WAIT)
+    # The escaped copy is told everything; it does not depend on the environment systemd-run gives it.
+    parser.add_argument('--escaped', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--trial-root', default='', help=argparse.SUPPRESS)
+    parser.add_argument('--side-root', default='', help=argparse.SUPPRESS)
+    parser.add_argument('--supervisor', default='', help=argparse.SUPPRESS)
+    parser.add_argument('--side', choices=['left', 'right'], action='append', default=[],
+                        help='handle only this side (repeatable)')
+    parser.add_argument('--steam-only', action='store_true',
+                        help='ask Steam to quit and wait; do nothing else')
+    parser.add_argument('--power-command-required', action='store_true', help=argparse.SUPPRESS)
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as error:
+        return 64 if error.code else 0
+    for option, value in (('--side-timeout', args.side_timeout), ('--steam-timeout', args.steam_timeout)):
+        if not 0 < value <= 600:
+            log('%s must be 1 to 600 seconds' % option)
+            return 64
+    if not 0 <= args.recovery_wait <= 600:
+        log('--recovery-wait must be 0 to 600 seconds')
+        return 64
+    if args.action == 'suspend':
+        problem = sleep_guard_problem(Path(__file__).resolve())
+        if problem:
+            log('refused suspend: ' + problem)
+            return 1
+        log('suspend: both sessions stay open')
+        fd, refused = open_for_action('suspend', args.power_command)
+        return 1 if refused else power('suspend', args.power_command, fd)
+    if args.action == 'close':
+        return close_only(args, Path(__file__).resolve())
+    if args.escaped:
+        return sequence(args)
+    if args.action == 'stop':
+        return escape(args, Path(__file__).resolve(), False)
+    # Refuse a power command that would be refused at the end before anything is stopped.
+    fd, refused = open_for_action(args.action, args.power_command)
+    if refused:
+        return 1
+    if fd is not None:
+        os.close(fd)
+    return escape(args, Path(__file__).resolve(), fd is not None)
+
+
+if __name__ == '__main__':
+    sys.exit(main())

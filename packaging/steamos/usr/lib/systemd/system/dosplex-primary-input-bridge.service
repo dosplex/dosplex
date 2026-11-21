@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright 2026 RoyÅke (Roy-Åke Martinsson)
+[Unit]
+ConditionPathExists=/etc/dosplex/remote-input.token
+Description=Dosplex Primary Input Bridge
+After=dosplex-compositor.service network-online.target
+PartOf=dosplex-compositor.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/dosplex-primary-input-bridge.py
+Restart=on-failure
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=dosplex-compositor.service

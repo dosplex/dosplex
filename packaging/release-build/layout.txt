@@ -1,0 +1,81 @@
+# The product files in the release payload: where each goes in the payload, then where it comes from in the
+# repository. assemble.py copies them; the SBOM records the source of each.
+#
+# The bin/ and libexec/ names are the ones these files have always had in a bundle
+# (the retained trial's tools load them by these names). tests/release-payload-test.py keeps the two lists equal.
+# Development tooling that a development bundle adds on top is not part of the payload.
+bin/dosplex-gamepad-arbiter.py           packaging/steamos/dosplex-gamepad-arbiter.py
+bin/dosplex-controller-registry.py       packaging/steamos/dosplex-controller-registry.py
+bin/dosplex-controller-menu.py           packaging/steamos/dosplex-controller-menu.py
+libexec/dosplex-desktop-environment.py   packaging/steamos/dosplex-desktop-environment.py
+libexec/dosplex-session-manager.py       packaging/steamos/dosplex-session-manager.py
+libexec/dosplex-controller-menu.py       packaging/steamos/dosplex-controller-menu.py
+libexec/dosplex-controller-registry.py   packaging/steamos/dosplex-controller-registry.py
+libexec/dosplex-audio-router.py          packaging/steamos/dosplex-audio-router.py
+bin/dosplex-side-supervisor.sh           packaging/steamos/dosplex-side-supervisor.sh
+bin/dosplex-side-supervisor.py           packaging/steamos/dosplex-side-supervisor.py
+bin/dosplex-display-state.py             packaging/steamos/dosplex-display-state.py
+bin/dosplex-wine-modelist.py             packaging/steamos/dosplex-wine-modelist.py
+bin/dosplex-side-loopback.py             packaging/steamos/dosplex-side-loopback.py
+bin/dosplex-game-store.py                packaging/steamos/dosplex-game-store.py
+bin/dosplex-game-store-tidy.py           packaging/steamos/dosplex-game-store-tidy.py
+bin/dosplex-depot.py                     packaging/steamos/dosplex-depot.py
+bin/dosplex-audio-router.py              packaging/steamos/dosplex-audio-router.py
+libexec/dosplex-side-auth.py             guest/dosplex-side-auth.py
+libexec/dosplex-user-side-session.sh     guest/dosplex-user-side-session.sh
+libexec/dosplex-side-display-follower.py guest/dosplex-side-display-follower.py
+libexec/dosplex-steam-resolution-default.py guest/dosplex-steam-resolution-default.py
+libexec/steamos-session-select-shim.sh  packaging/steamos/steamos-session-select-shim.sh
+libexec/dosplex-power-action             packaging/steamos/dosplex-power-action
+libexec/dosplex-start-service.py         packaging/steamos/dosplex-start-service.py
+libexec/dosplex-start-client.py          packaging/steamos/dosplex-start-client.py
+libexec/dosplex-sleep-guard.py           packaging/steamos/dosplex-sleep-guard.py
+# The session's own programs (T-812): what starts, runs and stops a session, and what carries each player's
+# controllers to their own Steam. They lived in the development tree until 2026-11-19.
+libexec/dosplex-device-view-session.py   packaging/steamos/session/dosplex-device-view-session.py
+libexec/native-capture-router.py         packaging/steamos/session/native-capture-router.py
+libexec/native-controller-health.py      packaging/steamos/session/native-controller-health.py
+libexec/native-controller-relay.py       packaging/steamos/session/native-controller-relay.py
+libexec/native-deck-gate.py              packaging/steamos/session/native-deck-gate.py
+libexec/native-deck-plan.py              packaging/steamos/session/native-deck-plan.py
+libexec/native-deck-relay.py             packaging/steamos/session/native-deck-relay.py
+libexec/native-hid-delivery.py           packaging/steamos/session/native-hid-delivery.py
+libexec/native-ibex-gate.py              packaging/steamos/session/native-ibex-gate.py
+libexec/native-neptune-gate.py           packaging/steamos/session/native-neptune-gate.py
+libexec/native-output-delivery.py        packaging/steamos/session/native-output-delivery.py
+libexec/native-output-watch.py           packaging/steamos/session/native-output-watch.py
+libexec/native-ownership.py              packaging/steamos/session/native-ownership.py
+libexec/native-pads.py                   packaging/steamos/session/native-pads.py
+libexec/native-routing.py                packaging/steamos/session/native-routing.py
+libexec/native-slot-guard.py             packaging/steamos/session/native-slot-guard.py
+libexec/native-steam-controller-gate.py  packaging/steamos/session/native-steam-controller-gate.py
+libexec/session-control-proxy.py         packaging/steamos/session/session-control-proxy.py
+sources/native-hid-relay.c               packaging/steamos/session/native-hid-relay.c
+tools/enroll-native-controller.py        packaging/steamos/session/enroll-native-controller.py
+tools/machine-preflight.py               packaging/steamos/session/machine-preflight.py
+tools/restore-wine-modelist.py           packaging/steamos/session/restore-wine-modelist.py
+tools/retained-audio-trial.py            packaging/steamos/session/retained-audio-trial.py
+tools/root-session-trial.py              packaging/steamos/session/root-session-trial.py
+tools/session-bundle-integrity.py        packaging/steamos/session/session-bundle-integrity.py
+tools/start-external-native-trial.py     packaging/steamos/session/start-external-native-trial.py
+tools/update-retained-session.py         packaging/steamos/session/update-retained-session.py
+# The panel (Help): its launcher, and the QML that SteamOS's own qml6 runs. The manual it shows is not
+# listed here: assemble.py builds it from docs/manual with tools/build-manual.py into share/dosplex/manual/.
+# The feedback form (packaging/steamos/panel/Feedback.qml) is NOT part of a release: without that file the menu has
+# no Feedback button and the launcher refuses the mode, so a release sends nothing. Adding the line
+# share/dosplex/panel/Feedback.qml back to this list puts the form in.
+libexec/dosplex-panel-launch.py          packaging/steamos/dosplex-panel-launch.py
+share/dosplex/panel/Panel.qml            packaging/steamos/panel/Panel.qml
+share/dosplex/panel/Help.qml             packaging/steamos/panel/Help.qml
+share/dosplex/panel/KeyGrid.qml          packaging/steamos/panel/KeyGrid.qml
+share/dosplex/panel/logic.mjs            packaging/steamos/panel/logic.mjs
+
+# Not listed here, because they are not files of the repository: the compositor, the private libraries and what is
+# built from Gamescope (lib/libVkLayer_FROG_gamescope_wsi_x86_64.so and its manifest, share/vulkan/implicit_layer.d/).
+# sources.json says where they come from, payload-build.sh builds them and assemble.py places them.
+
+# The project's own license texts, named by every SBOM record of a Dosplex file.
+licenses/dosplex-LICENSE                 LICENSE
+licenses/dosplex-NOTICE                  NOTICE
+# licenses/dosplex-THIRD-PARTY-NOTICES.md is not copied from the repository: assemble.py generates it from the SBOM
+# with tools/generate-notices.py, so that it lists what this payload actually holds.
