@@ -22,7 +22,7 @@ import time
 
 
 def fit_16_9(width, height):
-    """The largest 16:9 size that fits a region: the default picture of a side in either split."""
+    """The largest 16:9 size that fits a region: the picture of a side that chose 16:9."""
     scale = min(width // 16, height // 9)
     return 16 * scale, 9 * scale
 
@@ -132,11 +132,11 @@ def main():
                             break
                         assert time.monotonic() < deadline, state
                         time.sleep(.05)
-                    # A split's default is the largest 16:9 that fits the region, so an output change
-                    # moves each side's game monitor and advances its display revision.
+                    # The default is Native, the region itself, so an output change moves each side's game
+                    # monitor and advances its display revision.
                     for name in ('left', 'right'):
-                        assert (state[name]['game_aspect'], state[name]['native_resolution']) == ('16:9', False), state
-                        assert (state[name]['game_width'], state[name]['game_height']) == fit_16_9(width // 2, height), state
+                        assert (state[name]['game_aspect'], state[name]['native_resolution']) == ('native', True), state
+                        assert (state[name]['game_width'], state[name]['game_height']) == (width // 2, height), state
                         assert state[name]['display_revision'] > previous[name]['display_revision'], (previous, state)
                 with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as control:
                     control.sendto(b'OVERLAY close', str(root / 'hud-ipc.sock'))
@@ -637,8 +637,8 @@ def main():
                             assert time.monotonic() < deadline, f'the client never got {needle}'
                             time.sleep(.02)
 
-                    # A layout change moves both game monitors, once (Native in Full screen, the
-                    # default 16:9 in the split), and resizes the mapped client's toplevel to the new
+                    # A layout change moves both game monitors, once (Native, the default, in
+                    # every layout), and resizes the mapped client's toplevel to the new
                     # region.
                     since = len((root / 'probe.log').read_text())
                     ipc('LAYOUT single')
@@ -651,7 +651,7 @@ def main():
                     ipc('LAYOUT vertical')
                     state = wait_state(lambda s: s['layout'] == 'vertical' and s[side]['width'] == 640, 'vertical layout')
                     for name in (side, other):
-                        assert (state[name]['game_width'], state[name]['game_height']) == fit_16_9(640, 720), state
+                        assert (state[name]['game_width'], state[name]['game_height']) == (640, 720), state
                     expect(state, 1, 1, 'single to vertical')
                     wait_configure(since, 640, 720)
                     # Swapping places keeps both regions the size they were: no change.
@@ -668,11 +668,11 @@ def main():
                     ipc(f'RESOLUTION {side} 720p')
                     state = wait_state(lambda s: s[side]['pending_game_width'] == 1280, 'pending 720p')
                     assert state[side]['display_pending'] is True and state[other]['display_pending'] is False, state
-                    assert (state[side]['game_width'], state[side]['game_height']) == fit_16_9(640, 720), state
+                    assert (state[side]['game_width'], state[side]['game_height']) == (640, 720), state
                     expect(state, 0, 0, 'pending choice')
                     ipc(f'DISPLAY_CANCEL {side}')
                     state = wait_state(lambda s: not s[side]['display_pending'], 'Cancel')
-                    assert (state[side]['pending_game_width'], state[side]['pending_game_height']) == fit_16_9(640, 720), state
+                    assert (state[side]['pending_game_width'], state[side]['pending_game_height']) == (640, 720), state
                     time.sleep(.15)
                     expect(read_state(), 0, 0, 'Cancel')
                     # Apply advances the revision once and moves only this side.
@@ -709,15 +709,19 @@ def main():
                     assert (state[side]['game_width'], state[side]['game_height']) == (640, 720), state
                     assert state[side]['native_resolution'] is True, state
                     expect(state, 1, 0, 'size and scaler in one Apply')
-                    # A choice that the player applied stays through a layout change, Native included, which
-                    # is not the split's default; the side that made none follows the default, and the same
-                    # 16:9 monitor fits both splits, so it moves nothing.
+                    # A choice that the player applied stays through a layout change, Native included. The other
+                    # side chooses 16:9 and keeps it: the 16:9 monitor fits both splits, so it moves nothing.
+                    ipc(f'ASPECT {other} 16:9')
+                    wait_state(lambda s: s[other]['pending_game_aspect'] == '16:9', 'pending 16:9')
+                    ipc(f'DISPLAY_APPLY {other}')
+                    state = wait_state(lambda s: not s[other]['display_pending'] and s[other]['game_aspect'] == '16:9', '16:9 applied')
+                    expect(state, 0, 1, 'the other side chooses 16:9')
                     ipc('LAYOUT horizontal')
                     state = wait_state(lambda s: s['layout'] == 'horizontal' and s[side]['width'] == 1280, 'top/bottom layout')
                     assert (state[side]['game_aspect'], state[side]['game_width'], state[side]['game_height']) == ('native', 1280, 360), state
                     assert (state[other]['game_aspect'], state[other]['game_width'], state[other]['game_height']) == \
                         ('16:9',) + fit_16_9(1280, 360), state
-                    expect(state, 1, 0, 'Native follows its region, the default 16:9 stays')
+                    expect(state, 1, 0, 'Native follows its region, the chosen 16:9 stays')
                     ipc('LAYOUT vertical')
                     state = wait_state(lambda s: s['layout'] == 'vertical' and s[side]['width'] == 640, 'side by side once more')
                     assert (state[side]['game_aspect'], state[side]['game_width'], state[side]['game_height']) == ('native', 640, 720), state

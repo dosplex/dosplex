@@ -24,13 +24,15 @@ Once Dosplex is installed, a later update of the Steam client does not stop it f
 
 ## Add Dosplex to Steam's library
 
-The installer leaves an application called **Dosplex** in your account. Add it to Steam once, and from then on you start Dosplex with a controller.
+The installer leaves an application called **Dosplex** in your account and, while Steam is running, adds it to Steam's library by itself. You then find it in Gaming mode under **Non-Steam**, and you start Dosplex with a controller. The installer says "Dosplex is in Steam's library" when it worked.
+
+If it says it could not add Dosplex (Steam was not running, for example), start Steam and run `sudo /opt/dosplex/bin/dosplex entry on`: it tries again. Or add it by hand, once:
 
 1. Stay in Desktop mode and open Steam.
 2. In Steam's window choose **Games**, then **Add a Non-Steam Game to My Library**.
 3. Tick **Dosplex** in the list and choose **Add Selected Programs**.
 4. Go back to Gaming mode. Dosplex is in your library under **Non-Steam**.
 
-You can check that the entry is ready with `sudo /opt/dosplex/bin/dosplex entry status`. If you do not want it, `sudo /opt/dosplex/bin/dosplex entry off` removes the application and the small service behind it; remove the shortcut from Steam yourself.
+You can check that the entry is ready, and whether Steam's library has it, with `sudo /opt/dosplex/bin/dosplex entry status`. If you do not want it, `sudo /opt/dosplex/bin/dosplex entry off` removes the application and the small service behind it; remove the shortcut from Steam yourself.
 
 The installer records what it changes in a journal under `/var/lib/dosplex/journal/`. It keeps one earlier release alongside the current one, so you can roll back.

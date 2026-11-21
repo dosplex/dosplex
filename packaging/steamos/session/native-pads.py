@@ -30,6 +30,12 @@ What the nodes of one pad go through:
 A pad that has no saved owner belongs to Main (ADR-014, amended 2026-11-16); the user can release it or give it to Guest, and
 that is kept by stable id, with the pad's number, in the controller directory (/var/lib/dosplex/controllers, outside the trial)
 that the Devices tab and `dosplex control devices/assign` read.
+
+Experimental: a pad that belongs to Main or Guest can open and drive its player's menu (the same chord as every controller).
+Nothing filters these pads, so the chord also reaches the game, and so would every press made in the menu. The side is
+therefore frozen (its systemd unit, as Standby does) while the menu is open because of such a pad. A reader thread of the
+router process reads the pad's evdev node (never grabbed), feeds the shared menu helper and keeps that hold; see MenuHolds.
+`/var/lib/dosplex/gamepad-menu-off` switches it off.
 """
 import contextlib
 import dataclasses
@@ -41,9 +47,12 @@ from pathlib import Path
 import pwd
 import re
 import select
+import socket
 import stat
+import struct
 import subprocess
 import sys
+import threading
 import time
 import importlib.util
 from xml.sax.saxutils import quoteattr
@@ -386,6 +395,25 @@ def trigger_change(names, udevadm='udevadm'):
 
 # --- the namespaces of the side's Steam ----------------------------------------------------------------------------------
 
+LAUNCHER_WAIT_SECONDS = 120.0              # how long the launcher of Steam's 64-bit client is waited for to start its client
+CLIENT_FOLDERS = ('.local/share/Steam', '.steam/steam', '.steam/root')   # where an account's Steam is, below its home
+
+
+def has_64bit_client(home):
+    """Whether the Steam of the account whose home this is has the 64-bit client (a program steamrt64/steam)."""
+    return any(os.path.exists(os.path.join(home, folder, 'steamrt64', 'steam')) for folder in CLIENT_FOLDERS)
+
+
+def launcher_alone(members, has_client):
+    """Whether what was found of a side's Steam is the launcher of the 64-bit client with no client below it yet.
+
+    members: [(pid, (start, mount namespace))] of the family; has_client: the account's Steam has the 64-bit client.
+    That client is complete when it runs in two mount namespaces: the launcher in the side's, the client proper in its
+    container. Before that there is the launcher alone, or the launcher and a child it has forked and that is still
+    named steam: one namespace either way. An older client is one process in one namespace, and complete."""
+    return bool(has_client) and len({identity[1] for _, identity in members}) < 2
+
+
 class NamespaceDelivery:
     """Mount real nodes at their own paths in the mount namespaces of a side's Steam.
 
@@ -396,10 +424,13 @@ class NamespaceDelivery:
     This is the part that only a real side proves (private /dev, bwrap).
     """
 
-    def __init__(self, root, delivery=None, output=None):
+    def __init__(self, root, delivery=None, output=None, clock=time.monotonic, has_client=None):
         self.root = Path(root)
         self.delivery = delivery or module('hid_delivery', 'native-hid-delivery.py')
         self.output = output or module('output_delivery', 'native-output-delivery.py')
+        self.clock = clock
+        self.has_client = has_client or (lambda uid: has_64bit_client(pwd.getpwuid(uid).pw_dir))
+        self.alone = {}                       # side -> (the launcher that was found alone, when it was first)
 
     def steam(self, side):
         return self.delivery.steam(self.root, side)
@@ -407,6 +438,7 @@ class NamespaceDelivery:
     def deliver(self, side, nodes):
         """nodes: [(path, identity)]. Returns the Steam family; raises if a namespace refuses a node."""
         process = self.steam(side)
+        self.wait_for_client(side, process)
         # Innermost first. The namespaces of one Steam share one /dev folder (the launcher's tmpfs, which the client's
         # container takes over), and the client inside watches it: the empty file a node is mounted over shows up
         # in every namespace the moment it is made, and Steam's controller list (SDL) looks at once. Made in the
@@ -418,6 +450,31 @@ class NamespaceDelivery:
             for path, node_id in nodes:
                 self.serve(process, pid, identity, str(path), node_id)
         return process
+
+    def wait_for_client(self, side, process):
+        """Raise while the 64-bit client of the side's Steam has not started below its launcher, for
+        LAUNCHER_WAIT_SECONDS at most.
+
+        A node mounted in the launcher's namespace before the client's container exists is copied into that container
+        when it is made, and a copied mount is locked there: nothing can take it away again. It works until the pad's
+        node is removed (the pad reconnects, or goes to the other player and comes back); then the replacement fails
+        with EINVAL and the pad never reaches that Steam again until Dosplex is started again. Seen on a Steam Deck: a
+        DualShock 4 that was connected when Dosplex started could be given to Guest and not back to Main; and, with a
+        first form of this wait that looked for one process, three of its nodes were mounted in the half second in
+        which the launcher and a child it had just forked were the family. The pad is tried again with the next pass.
+        After LAUNCHER_WAIT_SECONDS the pad is delivered anyway: a Steam that stays in one namespace must not be left
+        without controllers. A client that Steam starts again later in the same session still gets copies; that is
+        written down in docs/limitations.md.
+        """
+        members = list(self.delivery.family_members(process))
+        if not launcher_alone(members, self.has_client(process[3])):
+            self.alone.pop(side, None)
+            return
+        first = self.alone.get(side)
+        if first is None or first[0] != members[0]:
+            first = self.alone[side] = (members[0], self.clock())
+        if self.clock() - first[1] < LAUNCHER_WAIT_SECONDS:
+            raise RuntimeError("Steam's client has not started yet: only its launcher runs")
 
     def opened(self, side, nodes):
         """Whether a process of the side's Steam holds one of these nodes open. nodes: [(path, identity)]."""
@@ -524,6 +581,466 @@ class UdevMonitor:
 
 # --- the manager ---------------------------------------------------------------------------------------------------------
 
+# --- the menu for pads that are not mediated (experimental) --------------------------------------------------------------
+
+MENU_OFF_FILE = Path('/var/lib/dosplex/gamepad-menu-off')
+HAT_X, HAT_Y, ABS_X, ABS_Y = 16, 17, 0, 1
+DPAD_KEYS = (544, 545, 546, 547)           # BTN_DPAD_UP, DOWN, LEFT, RIGHT
+NEUTRAL_SECONDS = 0.3                      # no button, hat or stick for this long before a side is thawed
+OPEN_WAIT_SECONDS = 3.0                    # how long the menu may take to show after its open action
+LEFT_WAIT_SECONDS = 2.0                    # how long the menu may take to close after the pads of its hold left the side
+LEFT_GRACE_SECONDS = 0.3                   # the pads have to be gone this long before the menu is looked at for a question
+QUESTION_WAIT_SECONDS = 20.0               # how long a question in the menu is waited for (a move expires after 15 s)
+STICK_DEAD_ZONE = 0.3                      # of the half range
+EVENT = struct.Struct('llHHi')             # struct input_event
+LEFT_RIGHT = ('left', 'right')
+
+
+def evdev_ioc(direction, number, size):
+    return direction << 30 | size << 16 | ord('E') << 8 | number
+
+
+def menu_module():
+    """The shared menu helper: beside this file in a release, one folder up in the source tree."""
+    for folder in (Path(__file__).resolve().parent, Path(__file__).resolve().parent.parent):
+        if (folder / 'dosplex-controller-menu.py').is_file():
+            spec = importlib.util.spec_from_file_location('menu', folder / 'dosplex-controller-menu.py')
+            value = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(value)
+            return value
+    raise FileNotFoundError('dosplex-controller-menu.py')
+
+
+class EvdevSource:
+    """One evdev node, read-only and non-blocking, never grabbed. wait() and read() raise OSError when the pad is gone."""
+
+    def __init__(self, path):
+        import fcntl
+        self.path = str(path)
+        self.fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC | os.O_NOFOLLOW)
+        try:
+            def bits(kind, size):
+                buffer = bytearray(size)
+                fcntl.ioctl(self.fd, evdev_ioc(2, 0x20 + kind, size), buffer)
+                return int.from_bytes(buffer, 'little')
+            keys, absolute = bits(EV_KEY, 96), bits(EV_ABS, 8)
+            self.gamepad = bool(keys >> BTN_GAMEPAD & 1) and bool(absolute & 1)
+            self.hat = bool(absolute >> HAT_X & 1 and absolute >> HAT_Y & 1)
+            self.dpad_keys = all(keys >> code & 1 for code in DPAD_KEYS)
+            self.ranges = {}
+            for code in (ABS_X, ABS_Y):
+                if absolute >> code & 1:
+                    buffer = bytearray(24)
+                    fcntl.ioctl(self.fd, evdev_ioc(2, 0x40 + code, 24), buffer)
+                    _, low, high, _, _, _ = struct.unpack('6i', buffer)
+                    self.ranges[code] = (low, high)
+        except BaseException:
+            os.close(self.fd)
+            raise
+
+    def wait(self, timeout):
+        return bool(select.select([self.fd], [], [], timeout)[0])
+
+    def read(self):
+        try:
+            data = os.read(self.fd, EVENT.size * 64)
+        except BlockingIOError:
+            return []
+        return [EVENT.unpack_from(data, at)[2:] for at in range(0, len(data) - EVENT.size + 1, EVENT.size)]
+
+    def close(self):
+        with contextlib.suppress(OSError):
+            os.close(self.fd)
+
+
+def open_pad_source(pad):
+    """The evdev node of a pad that carries its buttons (a DualSense has three nodes: pad, touchpad, motion)."""
+    problem = 'the pad has no evdev node'
+    for node in sorted(pad.events, key=natural):
+        try:
+            source = EvdevSource(node)
+        except OSError as error:
+            problem = '%s: %s' % (node, error.strerror or error)
+            continue
+        if source.gamepad:
+            return source
+        source.close()
+        problem = 'no evdev node of the pad has gamepad buttons and axes'
+    raise RuntimeError(problem)
+
+
+class SystemdFreezer:
+    """Freeze and thaw the session unit of a side, the way the side supervisor does for Standby (set_standby).
+
+    The unit name is in <trial>/sides/<side>/session.json, which the supervisor writes and the delivery code of this process
+    reads the same way (native-hid-delivery.py steam()). The sides are system units (no --user)."""
+
+    def __init__(self, root, run=subprocess.run, check_output=subprocess.check_output):
+        self.root, self.run, self.check_output = Path(root), run, check_output
+
+    def unit(self, side):
+        path = self.root / 'sides' / side / 'session.json'
+        for item in (path, *path.parents):
+            info = item.lstat()
+            if info.st_uid or info.st_mode & 0o022 or stat.S_ISLNK(info.st_mode):
+                raise PermissionError('untrusted session metadata')
+            if item == self.root:
+                break
+        unit = json.loads(path.read_text()).get('unit', '')
+        if not re.fullmatch('dosplex-session-' + side + r'-[a-f0-9]{32}\.service', str(unit)):
+            raise ValueError('the side has no session unit')
+        return unit
+
+    def change(self, side, verb, wanted):
+        unit = self.unit(side)
+        self.run(['systemctl', verb, unit], check=True, capture_output=True, timeout=10)
+        seen = self.check_output(['systemctl', 'show', unit, '-p', 'FreezerState', '--value'], text=True, timeout=5).strip()
+        if seen != wanted:
+            raise RuntimeError('the freezer state was %r, not %r' % (seen, wanted))
+
+    def freeze(self, side):
+        self.change(side, 'freeze', 'frozen')
+
+    def thaw(self, side):
+        self.change(side, 'thaw', 'running')
+
+
+def read_state_file(runtime):
+    """state.json of the compositor as a dict, or None when it cannot be read."""
+    try:
+        data = json.loads((Path(runtime) / 'state.json').read_text())
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+class MenuHolds:
+    """The pauses that keep a side still while its menu is open because of a pad that nobody filters.
+
+    One hold per side. It starts when a reader's chord completes (the side is frozen and the menu opened), lasts while the
+    menu is open and until the pads of the hold have been neutral for NEUTRAL_SECONDS (a queue of reports holds only the
+    last ones: nothing of the last press may be replayed to the game), and ends with a thaw. A side that is in Standby for
+    its own reasons is never thawed here. Every operation that the tests have to fake is passed in.
+
+    A hold whose pads have all left the side (given to the other player from the Devices page, switched off, out of
+    range) has nobody to close its menu, and no pad whose presses could reach the game: the menu is closed once, and the
+    side is thawed when it has closed, or LEFT_WAIT_SECONDS later with the menu still open. Seen on a Steam Deck: a
+    DualShock 4 opened Main's menu and was given to Guest in it, and Main stayed frozen for seven minutes.
+
+    Not while the menu asks a question, though. Giving a pad to the other player is a move that Main keeps or undoes
+    within 15 seconds, with the controls Main has left, and closing the menu undoes it: the pad would come straight
+    back (seen on a Steam Deck with the first form of this rule). So the menu is left alone while its question is open
+    (state.json's overlay_confirmation), for QUESTION_WAIT_SECONDS at most, and closed after the answer."""
+
+    def __init__(self, root, *, freezer=None, state=None, sender=None, clock=time.monotonic, wall=time.time, log=None):
+        self.root = Path(root)
+        self.runtime = self.root / 'runtime'
+        self.freezer = freezer or SystemdFreezer(self.root)
+        self.read_state = state or (lambda: read_state_file(self.runtime))
+        self.sender = sender or self.send_to_compositor
+        self.clock, self.wall = clock, wall
+        self.log = log or (lambda record: print(json.dumps(record), flush=True))
+        self.locks = {side: threading.RLock() for side in LEFT_RIGHT}
+        self.holds = {}                       # side -> dict(pad, pads, opened_at, seen, ending)
+        self.data = None                      # the last state.json that was read
+        self.socket = None
+
+    def hold_file(self, side):
+        return self.runtime / ('pad-menu-hold-%s.json' % side)
+
+    def send_to_compositor(self, side, action):
+        if self.socket is None:
+            self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+        self.socket.sendto(('MENU %s %s' % (side, action)).encode(), str(self.runtime / 'hud-ipc.sock'))
+
+    # -- what state.json says
+
+    def refresh(self):
+        self.data = self.read_state()
+        return self.data
+
+    def activity(self, side):
+        return self.data.get(side, {}).get('activity', 'active') if self.data else None
+
+    def shown(self, side):
+        """The side is active and, on a single screen, the one that is shown (the relays' app_active)."""
+        data = self.data
+        if not data:
+            return False
+        return (data.get(side, {}).get('activity', 'active') == 'active'
+                and (data.get('layout') != 'single' or data.get('primary_side') == side))
+
+    def target(self, side):
+        """The side whose menu a pad of `side` drives: the shown one on a single screen (the relays' overlay_target)."""
+        data = self.data or {}
+        if data.get('layout') == 'single' and data.get('primary_side') in LEFT_RIGHT:
+            return data['primary_side']
+        return side
+
+    def menu_open(self, side):
+        data = self.data or {}
+        return data.get('overlay_visible') is True and data.get('overlay_owner') == self.target(side)
+
+    # -- the hold
+
+    def driving(self, side):
+        """Whether the pads of the hold of `side` may move in the menu now: a hold of theirs is there and the menu shows."""
+        hold = self.holds.get(side)
+        return bool(hold) and not hold['ending'] and self.menu_open(side)
+
+    def refuse(self, reader, reason):
+        self.log({'native_pad_menu_refused': reader.pad.name, 'id': reader.pad.id, 'side': reader.side, 'reason': reason})
+
+    def chord(self, reader):
+        """The chord of a pad completed. With a hold of the side there: the pad joins it, and the chord closes the menu.
+        Without one and with the menu open (something else opened it): the chord closes the menu. Otherwise: freeze, and
+        only when that is confirmed, open."""
+        side = reader.side
+        with self.locks[side]:
+            self.refresh()
+            hold = self.holds.get(side)
+            if hold:
+                hold['pads'][reader.pad.id] = reader       # (also a pad that had left and is back)
+                if self.menu_open(side) and not hold['ending']:
+                    self.send(side, 'toggle')
+                return
+            if self.data is None:
+                return self.refuse(reader, 'state.json cannot be read')
+            if not self.shown(side):
+                return self.refuse(reader, 'the side is not active and shown (activity %s)' % self.activity(side))
+            if self.menu_open(side):
+                # Opened by something else (a Steam Controller, the Deck's controls, a keyboard, a touch): the chord
+                # closes it, as every controller's chord does. No hold: this pad pressed nothing in the menu.
+                with contextlib.suppress(OSError):
+                    self.send(side, 'toggle')
+                self.log({'native_pad_menu_closed': reader.pad.name, 'id': reader.pad.id, 'side': side})
+                return
+            try:
+                self.freezer.freeze(side)
+            except Exception as error:
+                with contextlib.suppress(Exception):
+                    self.freezer.thaw(side)        # (a freeze that was made but not confirmed)
+                return self.refuse(reader, 'the side could not be frozen: ' + str(error)[:160])
+            now = self.clock()
+            record = dict(pad=reader.pad.name, pad_id=reader.pad.id, side=side, since=self.wall())
+            try:
+                self.runtime.mkdir(parents=True, exist_ok=True)
+                temporary = self.hold_file(side).with_suffix('.new')
+                temporary.write_text(json.dumps(record))
+                temporary.chmod(0o600)
+                os.replace(temporary, self.hold_file(side))
+                self.send(side, 'toggle')
+            except Exception as error:
+                self.thaw(side)
+                return self.refuse(reader, 'the menu could not be opened: ' + str(error)[:160])
+            self.holds[side] = dict(pad=reader.pad.name, pads={reader.pad.id: reader}, opened_at=now, seen=False, ending=False)
+            self.log({'native_pad_menu_hold': reader.pad.name, 'id': reader.pad.id, 'side': side})
+
+    def send(self, side, action):
+        self.sender(self.target(side), action)
+
+    def watching(self, side):
+        """Whether a pad of `side` has a menu to act on: one its hold drives, or one that something else opened."""
+        return self.driving(side) or (side not in self.holds and self.menu_open(side))
+
+    def drive(self, reader, action):
+        """A press of a pad. In the menu of its hold every action goes through. In a menu that something else opened
+        (no hold: the side runs, and the game gets the same press) only `back` does: the pad can close that menu or
+        leave its page, and does not move in it."""
+        with self.locks[reader.side]:
+            hold = self.holds.get(reader.side)
+            if hold:
+                allowed = reader.pad.id in hold['pads'] and self.driving(reader.side)
+            else:
+                allowed = action == 'back' and self.menu_open(reader.side)
+            if allowed:
+                with contextlib.suppress(OSError):
+                    self.send(reader.side, action)
+
+    def thaw(self, side):
+        """Thaw `side` if its activity is active, and remove the hold file. False when the thaw failed (the file stays)."""
+        if self.activity(side) == 'active':
+            try:
+                self.freezer.thaw(side)
+            except Exception as error:
+                self.log({'native_pad_menu_error': side, 'reason': 'the side could not be thawed: ' + str(error)[:160]})
+                return False
+        else:
+            self.log({'native_pad_menu_not_thawed': side, 'reason': 'the side is not active (%s): it is left as it is' % self.activity(side)})
+        with contextlib.suppress(OSError):
+            self.hold_file(side).unlink()
+        return True
+
+    def service(self, now):
+        """Look at every hold: end the ones whose menu is closed and whose pads are still, or that cannot go on."""
+        self.refresh()
+        for side in LEFT_RIGHT:
+            with self.locks[side]:
+                hold = self.holds.get(side)
+                if not hold or self.data is None:
+                    continue
+                if self.activity(side) != 'active':
+                    self.end(side, hold, 'the side went to Standby')
+                elif hold['ending']:
+                    self.end(side, hold, 'the thaw is tried again')
+                elif self.menu_open(side):
+                    hold['seen'] = True
+                    gone = self.gone_since(hold)
+                    if gone is None:
+                        hold.pop('left_at', None)             # (a pad of the hold is back: it joined with its chord)
+                    elif 'left_at' not in hold:
+                        if now - gone < LEFT_GRACE_SECONDS:
+                            continue
+                        if self.question_open() and now - gone < QUESTION_WAIT_SECONDS:
+                            continue                          # (closing the menu now would answer its question)
+                        hold['left_at'] = now
+                        with contextlib.suppress(OSError):
+                            self.send(side, 'toggle')         # once: a second one would open it again
+                    elif now - hold['left_at'] >= LEFT_WAIT_SECONDS:
+                        self.end(side, hold, 'the pads of the menu left the side and the menu stayed open')
+                elif not hold['seen']:
+                    if now - hold['opened_at'] >= OPEN_WAIT_SECONDS:
+                        self.end(side, hold, 'the menu did not show')
+                elif self.neutral(hold, now):
+                    self.end(side, hold, 'the menu closed')
+
+    @staticmethod
+    def gone_since(hold):
+        """When the last pad of the hold left the side (its reader ended), or None while one of them is still there."""
+        times = list(hold['pads'].values())
+        return max(times) if all(isinstance(item, float) for item in times) else None
+
+    def question_open(self):
+        """Whether the menu asks a question now (keep a device move, a change for both players)."""
+        return (self.data or {}).get('overlay_confirmation') is True
+
+    def neutral(self, hold, now):
+        for item in hold['pads'].values():
+            since = item if isinstance(item, float) else item.neutral_since
+            if since is None or now - since < NEUTRAL_SECONDS:
+                return False
+        return True
+
+    def end(self, side, hold, why):
+        hold['ending'] = True
+        if self.thaw(side):
+            self.holds.pop(side, None)
+            self.log({'native_pad_menu_released': hold['pad'], 'side': side, 'reason': why})
+
+    def reader_ended(self, reader, now):
+        """A reader is gone (the pad went away): it counts as still from now on."""
+        with self.locks[reader.side]:
+            hold = self.holds.get(reader.side)
+            if hold and hold['pads'].get(reader.pad.id) is reader:
+                hold['pads'][reader.pad.id] = float(now)
+
+    def release_all(self, why):
+        """Every side that has a hold file (a router that died, or this one closing) is thawed if it is active, and the file
+        goes. A file whose thaw failed stays."""
+        self.refresh()
+        for side in LEFT_RIGHT:
+            with self.locks[side]:
+                if not self.hold_file(side).exists() and side not in self.holds:
+                    continue
+                if self.thaw(side):
+                    self.holds.pop(side, None)
+                    self.log({'native_pad_menu_released': side, 'side': side, 'reason': why})
+
+
+class PadReader:
+    """Reads one pad's evdev node in a thread and feeds the menu helper like a relay does. Its logic is in feed() and step(),
+    which the tests call with their own events and clock."""
+
+    def __init__(self, pad, side, source, holds, menu, clock=time.monotonic, log=None):
+        self.pad, self.side, self.source, self.holds, self.clock = pad, side, source, holds, clock
+        self.log = log or (lambda record: print(json.dumps(record), flush=True))
+        self.down, self.axes = set(), {}
+        self.dpad_keys = source.dpad_keys and not source.hat      # a pad that has a hat keeps it; its keys are only noted
+        self.ranges = dict(source.ranges)
+        self.neutral_since = clock()
+        self.stopping = threading.Event()
+        self.thread = None
+        self.menu = menu.ControllerMenu(self.action, lambda: self.holds.watching(self.side), self.ranges)
+
+    def action(self, action):
+        if action == 'toggle':
+            self.holds.chord(self)
+        else:
+            self.holds.drive(self, action)
+
+    def feed(self, events, now):
+        for kind, code, value in events:
+            if kind == EV_KEY:
+                if value:
+                    self.down.add(code)
+                else:
+                    self.down.discard(code)
+                if code in DPAD_KEYS:
+                    if self.dpad_keys:      # the menu helper reads a hat: tell it one
+                        pressed = lambda key: int(key in self.down)
+                        self.menu.event(EV_ABS, HAT_Y, pressed(545) - pressed(544), now)
+                        self.menu.event(EV_ABS, HAT_X, pressed(547) - pressed(546), now)
+                    continue
+            elif kind == EV_ABS and code in (HAT_X, HAT_Y, ABS_X, ABS_Y):
+                self.axes[code] = value
+            elif kind != 0:
+                continue
+            self.menu.event(kind, code, value, now)
+
+    def centred(self):
+        for code in (HAT_X, HAT_Y):
+            if self.axes.get(code, 0):
+                return False
+        for code in (ABS_X, ABS_Y):
+            if code in self.axes and code in self.ranges:
+                low, high = self.ranges[code]
+                extent = (high - low) / 2
+                if extent > 0 and abs((self.axes[code] - (low + high) / 2) / extent) > STICK_DEAD_ZONE:
+                    return False
+        return True
+
+    def step(self, now):
+        """After events (or none): time-driven menu actions, the neutral clock, and a look at the holds."""
+        self.menu.tick(now)
+        if self.down or not self.centred():
+            self.neutral_since = None
+        elif self.neutral_since is None:
+            self.neutral_since = now
+        self.holds.service(now)
+
+    def start(self):
+        self.thread = threading.Thread(target=self.run, name='pad-menu-' + self.pad.id[:8], daemon=True)
+        self.thread.start()
+        self.log({'native_pad_menu_reader': self.pad.name, 'id': self.pad.id, 'side': self.side, 'event': 'started'})
+
+    def alive(self):
+        return bool(self.thread and self.thread.is_alive())
+
+    def stop(self):
+        self.stopping.set()
+        if self.thread and self.thread is not threading.current_thread():
+            self.thread.join(1.0)
+
+    def run(self):
+        reason = 'stopped'
+        try:
+            while not self.stopping.is_set():
+                ready = self.source.wait(0.05)
+                now = self.clock()
+                if ready:
+                    self.feed(self.source.read(), now)
+                self.step(now)
+        except OSError as error:
+            reason = 'the pad went away' if error.errno in (errno.ENODEV, errno.EIO, errno.ENOENT, errno.EBADF) else str(error)
+        except Exception as error:
+            reason = 'error: ' + str(error)[:160]
+        finally:
+            self.source.close()
+            self.holds.reader_ended(self, self.clock())
+            self.log({'native_pad_menu_reader': self.pad.name, 'id': self.pad.id, 'side': self.side, 'event': 'ended',
+                      'reason': reason})
+
+
 class PadManager:
     """Keeps the generic pads where their preferences say. The router calls tick() and rows() with its own state."""
 
@@ -538,7 +1055,8 @@ class PadManager:
     UNOPENED = 'Steam has not opened this controller'
 
     def __init__(self, root, registry, registry_module, owners, effective_side, *, sys_root=SYS, dev_root=DEV, host=None,
-                 delivery=None, monitor=None, clock=time.monotonic, log=None):
+                 delivery=None, monitor=None, clock=time.monotonic, log=None, holds=None, source_factory=open_pad_source,
+                 menu_factory=menu_module, menu_off=MENU_OFF_FILE):
         self.root, self.registry, self.reg = Path(root), registry, registry_module
         self.owners = dict(owners)                         # side ('left'/'right') -> uid
         self.effective_side, self.sys_root, self.dev_root = effective_side, sys_root, dev_root
@@ -555,6 +1073,13 @@ class PadManager:
         self.watch, self.cures = {}, {}      # id -> when to look whether Steam opened it; id -> cures made and when
         self.scan_due = self.delivery_due = 0.0
         self.active = {}
+        # The menu for pads nobody mediates (experimental): one reader thread per pad that has an owner.
+        self.readers, self.reader_failed = {}, {}   # id -> PadReader; id -> node signature that could not be read
+        self.holds = holds or MenuHolds(self.root, clock=clock, log=self.log)
+        self.source_factory, self.menu_factory, self.menu = source_factory, menu_factory, None
+        self.menu_on = not Path(menu_off).exists()
+        self.log({'native_pad_menu': 'on (experimental)' if self.menu_on else 'off: ' + str(menu_off) + ' exists'})
+        self.holds.release_all('a hold was left behind by an earlier run')
         for path in sorted(Path(self.registry.directory).glob('*.json'))[:64]:
             if not re.fullmatch('[a-f0-9]{32}', path.stem):
                 continue
@@ -625,8 +1150,41 @@ class PadManager:
             self.new_pads()
             for key, pad in sorted(self.pads.items()):
                 self.settle(key, pad, state, now)
+            if self.menu_on:
+                self.sync_readers(now)
+                self.holds.service(now)
         except Exception as error:
             self.log({'native_pads_wait': str(error)[:250]})
+
+    def sync_readers(self, now):
+        """A reader for every pad that belongs to Main or Guest (as applied); none for a pad that left, moved or whose node
+        was made again (a reader whose thread ended is replaced, from the node that is there now)."""
+        for key in sorted(self.readers):
+            reader, pad = self.readers[key], self.pads.get(key)
+            if reader.alive() and pad and self.applied.get(key) == reader.side and pad.signature() == reader.signature:
+                continue
+            reader.stop()
+            self.readers.pop(key)
+        for key, pad in sorted(self.pads.items()):
+            side = self.applied.get(key)
+            if key in self.readers or side not in self.owners or self.delivered.get(key) != pad.signature():
+                continue
+            if self.reader_failed.get(key) == pad.signature():
+                continue
+            try:
+                if self.menu is None:
+                    self.menu = self.menu_factory()
+                source = self.source_factory(pad)
+            except Exception as error:
+                self.reader_failed[key] = pad.signature()
+                self.log({'native_pad_menu_refused': pad.name, 'id': key, 'side': side,
+                          'reason': 'no reader: ' + str(error)[:160]})
+                continue
+            reader = PadReader(pad, side, source, self.holds, self.menu, self.clock, self.log)
+            reader.signature = pad.signature()
+            self.readers[key] = reader
+            self.reader_failed.pop(key, None)
+            reader.start()
 
     def lock_down(self, key, pad):
         signature = pad.signature()
@@ -797,11 +1355,16 @@ class PadManager:
                              index=self.registry.devices.get(key, {}).get('index'), connected=bool(pad), target=target,
                              requested=requested, active=False, node='', backend='generic-pad',
                              transport=pad.transport if pad else '',
-                             input_status=dict(shortcut_ready=False, captured=False),
+                             input_status=dict(shortcut_ready=bool(key in self.readers and self.readers[key].alive()),
+                                               captured=False),
                              routing_error=self.errors.get(key, '') if pad else ''))
         return rows
 
     def close(self):
+        for reader in list(self.readers.values()):
+            reader.stop()
+        self.readers.clear()
+        self.holds.release_all('the router is closing')       # no side is left frozen
         self.bind_due()                      # no pad is left without its driver
         if self.monitor:
             self.monitor.close()

@@ -115,6 +115,9 @@ export GAMESCOPE_WSI_XWAYLAND_WAIT=0
 # Resolution and a game's own resolution to the game's server (Deck, 2026-11-18: Valheim at 640x360 when its
 # properties said so; with one server Steam left the game at the side's size).
 export STEAM_MULTIPLE_XWAYLANDS=1
+# Volume keys (a Steam Deck's own volume buttons, a keyboard's volume keys) are handled by Steam in SteamOS's own
+# session, and that Steam is paused while Dosplex runs. Each side's Steam handles them for the keyboard it has.
+export STEAM_ENABLE_VOLUME_HANDLER=1
 
 # Suppress Gamescope WSI error dialogs to prevent blocking the game
 export GAMESCOPE_ZENITY_DISABLE=1

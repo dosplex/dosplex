@@ -92,6 +92,34 @@ X server with `xdotool key Escape` (WAKE_KEY) and logs "woke Steam for app N".
   * xdotool runs through the same tool runner as the other X tools. A missing xdotool, or a key press that
     fails, is logged once and is all that happens.
 
+Holding Steam's idle sleep. Each side's Steam keeps its own idle clock. After five minutes without input it shows
+its screensaver, and after its sleep time (an hour on mains power, and this client has no setting for it) it asks
+the system to sleep. That does not fit two players on one screen: Main's Steam would put the machine to sleep under
+a Guest who is playing, and Guest's Steam may not put the machine to sleep at all, and Steam does not take that
+answer: it stays on its sleep picture until the side is started again (seen on a Steam Deck with client
+1795048523: "Issuing Suspend Command" after 3600 s, InteractiveAuthorizationRequired, the picture for six hours).
+So while the layout shows two players, or Guest alone, the follower tells Steam every KEEP_AWAKE_SECONDS (3000 s,
+fifty minutes) that somebody is there, the way the nested Gamescope does when it sees input: it writes
+GAMESCOPE_INPUT_COUNTER on the nested root, one more than the value it reads. Steam took that as input when
+measured (a screensaver that an Escape key and org.freedesktop.ScreenSaver.SimulateUserActivity left up went
+away in 3 s).
+
+  * The screensaver is Steam's own and is left to it: it comes after five minutes and goes with the player's next
+    input. The price of the hold is that the picture of a side nobody uses comes back for five minutes after each
+    write, so for five minutes in every fifty.
+  * Steam's own lock (org.freedesktop.ScreenSaver.Inhibit, which Steam owns on the side's session bus) was tried
+    first and does not do it: with the lock held for 70 minutes both sides still asked for sleep at 3600 s.
+  * With Main alone on the screen (layout ALONE_LAYOUT, `single`) nothing is written: Main's Steam idles and
+    sleeps the machine as it does without Dosplex. Guest's follower is frozen with its side then.
+  * The first write goes out with the first cycle, and with the first cycle after Main was alone, so a Steam that
+    was close to its sleep time when the second player came does not ask a moment later.
+  * A layout the supervisor does not name counts as two players: holding is the safe side.
+  * Gamescope only ever writes the property and never reads it, so a value written here is at worst written
+    again by Gamescope after one more input, which costs that one input in Steam's idle clock.
+  * A read or write that fails is logged once and tried again KEEP_AWAKE_RETRY_SECONDS (60 s) later.
+  * The cost: with two players on the screen the machine does not go to sleep by itself. Sleep from Main's menu
+    and the power button are untouched.
+
 Focus refresh. Under Gamescope 3.16.23 Steam's gamepad UI (a Chromium window) never counts itself active: Gamescope
 gives the window the X input focus once, at map time, before Chromium is ready, so the UI has no DOM focus, its Play
 button stays grey and the footer shows only "MENU". Gamescope 3.16.30 does not have the problem. One X focus cycle
@@ -269,6 +297,10 @@ WAKE_AFTER_SECONDS = 3.0     # Steam has to stay in front this long after a game
 WAKE_KEY = 'Escape'          # the key press that wakes an idle Steam; it closes nothing on Steam's home page
 FOCUS_SETTLE_SECONDS = 0.75  # a window has to stay the focus this long before Steam's window gets its focus cycle
 FOCUS_REFRESH_SECONDS = 1.0  # two focus cycles are at least this far apart
+KEEP_AWAKE_SECONDS = 3000.0  # Steam is told that somebody is there this often; it asks for sleep after 3600 s idle
+KEEP_AWAKE_RETRY_SECONDS = 60.0   # a telling that failed is tried again this much later
+INPUT_COUNTER_PROPERTY = 'GAMESCOPE_INPUT_COUNTER'   # the nested Gamescope's count of inputs, which Steam watches
+ALONE_LAYOUT = 'single'      # Main alone on the screen: the one layout in which Steam's idle sleep is not held
 # GamescopeUpscaleScaler in Gamescope 3.16.30, src/main.hpp: AUTO 0, INTEGER 1, FIT 2, FILL 3, STRETCH 4.
 FILTER_PROPERTY = 'GAMESCOPE_NEW_SCALING_FILTER'
 FILTER_LINEAR, FILTER_NEAREST = 0, 1
@@ -500,6 +532,14 @@ def parse_cardinals(text, name):
     return values if all(value <= MAX_CARDINAL for value in values) else None
 
 
+def next_input_counter(text):
+    """The value to write to INPUT_COUNTER_PROPERTY after reading `xprop -root` output for it: one more than the
+    value there, 1 when the property is not set or not understood, and 1 after the largest cardinal."""
+    values = parse_cardinals(text, INPUT_COUNTER_PROPERTY)
+    current = values[0] if values else 0
+    return current + 1 if current < MAX_CARDINAL else 1
+
+
 def running_games(text):
     """The app ids of the games in `xprop -root GAMESCOPE_FOCUSABLE_APPS` output, as a sorted list.
 
@@ -651,6 +691,8 @@ class Follower:
         self.refresh_since = 0.0     # when refresh_window was first seen as the focus
         self.refresh_done = False    # refresh_window has had its focus cycle (or its attempt)
         self.refresh_last = None     # when the last focus cycle ran
+        self.layout = None           # the layout the supervisor last named, or None when it named none
+        self.awake_next = None       # when Steam is next told that somebody is there; None: with the next cycle
         self.pending_report = None   # the latest report the supervisor has not acknowledged
         self.errors = {}             # kind -> last logged text, so a persistent error is logged once
         self.control_failed = False  # a control exchange of the cycle just run failed; a new revision may be behind it
@@ -679,6 +721,8 @@ class Follower:
             if reply.get('ok') is not True:
                 raise ControlRefused('the control server refused display get')
             contract = parse_live(reply.get('live'))
+            layout = reply['live'].get('layout')
+            self.layout = layout if isinstance(layout, str) else None
         except (OSError, ValueError, ControlRefused) as error:
             self.control_failed = True
             self.note_error('control', describe(error))
@@ -1223,6 +1267,27 @@ class Follower:
         else:
             self.clear_error('focus refresh')
 
+    def keep_awake(self, now):
+        """Tell Steam that somebody is there, every KEEP_AWAKE_SECONDS, unless Main is alone on the screen.
+
+        The first one goes out with the first cycle, and one that failed is tried again KEEP_AWAKE_RETRY_SECONDS
+        later. See "Holding Steam's idle sleep" at the top of this file.
+        """
+        if self.layout == ALONE_LAYOUT:
+            self.awake_next = None           # the next layout with two players starts with one at once
+            return
+        if self.awake_next is not None and now < self.awake_next:
+            return
+        try:
+            value = next_input_counter(self.fit_tool(xprop_get_argv(INPUT_COUNTER_PROPERTY)))
+            self.fit_tool(xprop_set_argv(INPUT_COUNTER_PROPERTY, [value]))
+        except ToolError as error:
+            self.awake_next = now + KEEP_AWAKE_RETRY_SECONDS
+            self.note_error('keep awake', describe(error))
+        else:
+            self.awake_next = now + KEEP_AWAKE_SECONDS
+            self.clear_error('keep awake')
+
     def probe_display(self):
         try:
             self.mode_request_absent()
@@ -1251,6 +1316,7 @@ class Follower:
         if not self.display_lost:
             self.fit_windows()
             self.refresh_focus()
+            self.keep_awake(time.monotonic())
 
     def retry_soon(self):
         """Whether the cycle just run is followed by a quick retry instead of by the normal poll.

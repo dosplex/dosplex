@@ -31,9 +31,10 @@ Each person needs their own Steam account and access to the game they want to
 play. Dosplex does not change Steam's game-ownership or online-play requirements.
 
 To start Dosplex with a controller, open **Dosplex** in Steam's library and
-press **Play**. You add it to Steam once after installing: in Desktop mode, in
-Steam, choose **Games**, then **Add a Non-Steam Game to My Library**, and tick
-**Dosplex**.
+press **Play**. The installer adds it to Steam's library by itself while Steam is
+running. If it says it could not, run `sudo /opt/dosplex/bin/dosplex entry on`
+with Steam running, or add it once by hand: in Desktop mode, in Steam, choose
+**Games**, then **Add a Non-Steam Game to My Library**, and tick **Dosplex**.
 
 ## Open your menu
 
@@ -51,8 +52,14 @@ Menu there. A hold that ends sooner than the configured time (one second by
 default) does not open the menu.
 
 Other gamepads, such as a DualShock 4, a DualSense, an Xbox or a Switch Pro
-controller, play games on the side they belong to but cannot open the menu. Open
-it from a Steam Controller, from the Steam Deck's own controls or from a keyboard.
+controller, can open and drive the menu of the player they belong to with the
+same chord. This is experimental. Dosplex cannot filter these controllers, so
+the chord also reaches the game, and the player's side is paused while the menu
+is open because of one of them (picture and sound stand still, an online game
+may drop its connection). It continues when the menu closes.
+`sudo touch /var/lib/dosplex/gamepad-menu-off` and a restart of Dosplex switch
+this off. A Steam Controller, the Deck's own controls and a keyboard open the
+menu without any of that.
 
 Your game always gets **Select / Back / View** straight away, exactly as you press
 it, so a game that uses it for its own menu works as usual. Dosplex holds back
@@ -152,6 +159,12 @@ new area, change its resolution in its own video settings, or close it and start
 it again. When no game is running any more, Dosplex applies your latest choice to
 the game monitor by itself.
 
+**Dosplex holds Steam's idle sleep while two players share the screen.** The machine
+then does not go to sleep by itself; use **Sleep** on Main's **Session** page or the
+power button. Steam's screensaver still comes on a side nobody uses, and about once
+an hour that side's picture comes back for five minutes. With Main alone
+on the screen Steam idles and sleeps the machine as usual.
+
 **Dosplex wakes an idle Steam when a game starts.** If nobody has used your
 session for a while, Steam shows its screensaver, and a game that starts then can
 stay behind Steam's window, so you see nothing. If Steam is still in front of the
@@ -165,18 +178,15 @@ your half-screen resolution if it is listed, and check the game's fullscreen
 mode. Some games omit unusual resolutions even when they detect the monitor
 correctly. Report this in your game-test notes. Some games need a relaunch.
 
-**The default is 16:9 in the two split layouts and Native in full screen.** A
-game then sees your TV's ratio in every layout. On 4K, each part of a split is
-1920×1080 in both Side by side and Top / bottom, exactly half of full screen's
-3840×2160 in each direction, so a game does not turn into a narrow portrait
-picture with bars at the sides when you change the layout. Until you choose,
-your part follows these defaults when the layout changes. A choice that you
-**Apply** for your part stays in every layout, Native included. **Native** gives
-your game every pixel of your part of the screen, but in Side by side that part
-is a portrait shape, and a game that starts there remembers a portrait size.
-Steam's own interface is not scaled by Gamescope, so with the 16:9 monitor in a
-portrait part it sits in the middle of your part with bars above and below. That
-is accepted; choose Native if you want Steam's interface to fill your part.
+**The default is Native in every layout.** A game gets every pixel of your part
+of the screen: 1920×2160 in Side by side on a 4K TV. That part is a portrait
+shape, and a game that does not cope with it (it does not start, shows bars or
+looks wrong) needs **16:9**, **4:3** or **1:1** from the menu. A game saves the
+size it ran at, so after you play in a tall half it may need its resolution set
+again in Full screen. A choice that you **Apply** for your part stays in every
+layout. Steam's own interface is not scaled by Gamescope, so with a 16:9 monitor
+in a portrait part it sits in the middle of your part with bars above and below.
+That is accepted; Native lets Steam's interface fill your part.
 
 If a game will not start with the default (for example, it shows a Direct3D or
 display error), try the other choices with **Keep ratio**: Native, and the
@@ -450,6 +460,7 @@ files. Each recording is one file named
 `perf-<date>-<time>-<main|guest>.csv`, and Dosplex keeps the newest 20.
 `fps-counter.conf` in the same folder holds the counter settings. To take the
 files off a Deck, use `scp` as a normal user.
+An uninstall never deletes this folder while it holds recordings.
 
 **Columns.** One row a second:
 

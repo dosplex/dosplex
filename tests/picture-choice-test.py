@@ -220,23 +220,25 @@ class PictureChoiceTests(unittest.TestCase):
             # 1:1 is the largest square.
             self.assertEqual(found['sizes']['1:1'][1:], (min(region),) * 2, region)
 
-    def test_the_default_is_native_in_full_screen_and_16_9_in_either_split(self):
-        self.assertEqual(self.defaults(), {'single': 'native', 'vertical': '16:9', 'horizontal': '16:9'})
+    def test_the_default_is_native_in_every_layout(self):
+        self.assertEqual(self.defaults(), {'single': 'native', 'vertical': 'native', 'horizontal': 'native'})
 
     def test_the_default_monitor_per_layout_on_the_tv_and_the_headless_output(self):
-        # A game sees the TV's ratio in every layout: on 4K a split gives each player the 1920x1080 that the
-        # other split gives, and Full screen is Native, which is 3840x2160 and so also the largest 16:9.
+        # Native gives a game every pixel of the region in every layout: the monitor is the region itself
+        # (advertised as 0x0). A side that chose 16:9 gets the largest 16:9 that fits, which on 4K is
+        # 1920x1080 in either split and the whole screen in Full screen.
         names = self.defaults()
         for split, full in ((((1920, 2160), (3840, 1080)), (3840, 2160)),
                             (((960, 1080), (1920, 540)), (1920, 1080)),
                             (((640, 720), (1280, 360)), (1280, 720))):
             _, _, results = self.probe([*split, full])
-            vertical = results[split[0]]['sizes'][names['vertical']]
-            horizontal = results[split[1]]['sizes'][names['horizontal']]
-            self.assertEqual((vertical[0], horizontal[0]), (1, 1), split)
-            self.assertEqual(vertical[1:], horizontal[1:], f'one default monitor for both splits of {full}')
-            self.assertEqual(vertical[1] * 9, vertical[2] * 16, 'the TV ratio')
+            self.assertEqual(results[split[0]]['sizes'][names['vertical']], (1, 0, 0), 'Native: the region itself')
+            self.assertEqual(results[split[1]]['sizes'][names['horizontal']], (1, 0, 0), 'Native: the region itself')
             self.assertEqual(results[full]['sizes'][names['single']], (1, 0, 0), 'Native: the region itself')
+            vertical = results[split[0]]['sizes']['16:9']
+            horizontal = results[split[1]]['sizes']['16:9']
+            self.assertEqual(vertical[1:], horizontal[1:], f'one 16:9 monitor for both splits of {full}')
+            self.assertEqual(vertical[1] * 9, vertical[2] * 16, 'the TV ratio')
             self.assertEqual(results[full]['sizes']['16:9'][1:], full, 'Native and 16:9 coincide on a 16:9 screen')
         _, _, results = self.probe([(1920, 2160), (3840, 1080)])
         self.assertEqual(results[(1920, 2160)]['sizes']['16:9'], (1, 1920, 1080))

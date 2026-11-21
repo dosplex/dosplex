@@ -12,6 +12,6 @@
 
 **Dosplex does not start from Steam's library.** A window says why. If nothing is shown, switch to Desktop mode and run `sudo /opt/dosplex/bin/dosplex start` in a terminal: it prints the reason. The usual ones are a TV that is off, and a SteamOS update that the installed release was not tested on (see the end of [Install](03-install.md)).
 
-If a command stops because of a wrong hash, an untested version, or a missing display, it has changed nothing. If the power went out during an install, update, or uninstall, run `sudo /opt/dosplex/bin/dosplex repair` to complete or roll back the operation.
+If a command stops because of a wrong hash, an untested version, or a missing display, it has changed nothing. If the power went out during an install, update, or uninstall, run `sudo /opt/dosplex/bin/dosplex repair` to complete or roll back the operation. An uninstall that stopped because Guest still had processes is finished by the same command, and Guest is kept.
 
 A restart of the machine always returns to plain SteamOS.

@@ -131,16 +131,16 @@ def run(binary, client_side="left"):
                 assert re.search(r"width: 1280 px, height: 720 px", info), info
                 assert "width: 1280 px, height: 800 px" not in info, info
 
-                # A side whose player has chosen nothing uses the layout's default: Native in Full screen and
-                # the largest 16:9 in either split, so a game sees the TV's ratio in every layout. The same
-                # 16:9 monitor fits both splits, so moving between them changes nothing and costs no revision.
+                # A side whose player has chosen nothing is Native in every layout: Full screen, side by side
+                # and top/bottom. Its monitor is the region itself, so each layout change moves it by one
+                # revision.
                 for name in ("left", "right"):
                     assert (first[name]["game_aspect"], first[name]["pending_game_aspect"]) == ("native", "native"), first
                     assert first[name]["native_resolution"] and not first[name]["display_pending"], first
                     assert (first[name]["game_width"], first[name]["game_height"]) == (1280, 720), first
                 previous = first
-                for layout, aspect, game_size, step in [("vertical", "16:9", (640, 360), 1),
-                                                       ("horizontal", "16:9", (640, 360), 0),
+                for layout, aspect, game_size, step in [("vertical", "native", (640, 720), 1),
+                                                       ("horizontal", "native", (1280, 360), 1),
                                                        ("single", "native", (1280, 720), 1)]:
                     current = send(f"LAYOUT {layout}", lambda s: s["layout"] == layout)
                     for name in ("left", "right"):
@@ -155,7 +155,7 @@ def run(binary, client_side="left"):
                     before_layout = state()
                     current = send(f"LAYOUT {layout}", lambda s: s["layout"] == layout)
                     # Each side's game monitor is the size of its choice in the new region (Native: the
-                    # region; the default 16:9 and the ratio choices: the largest one that fits): one
+                    # region; the ratio choices: the largest one that fits): one
                     # revision step for a side whose monitor changed size and none for one that did not.
                     for side in ("left", "right"):
                         expected = fitting_aspect(size[0], size[1], current[side]["game_aspect"])
@@ -259,7 +259,7 @@ def run(binary, client_side="left"):
                 assert restored["input_leap_route"] == "right"
                 assert restored["guest_physical_side"] == "left"
                 # The square choice is recalculated by a layout change like the
-                # other ratios, and the other side keeps following the layout's default.
+                # other ratios, and the other side keeps its default, Native.
                 send("ASPECT right 1:1", lambda s: s["right"]["pending_game_aspect"] == "1:1")
                 send("DISPLAY_APPLY right", lambda s: not s["right"]["display_pending"])
                 for layout in ("single", "horizontal", "vertical"):
@@ -269,8 +269,8 @@ def run(binary, client_side="left"):
                     assert (changed["right"]["game_width"], changed["right"]["game_height"]) == (min(region),) * 2, changed
                     assert (changed["right"]["pending_game_width"], changed["right"]["pending_game_height"]) == (min(region),) * 2, changed
                     assert not changed["right"]["display_pending"], changed
-                    # The other side made no choice, so it follows the layout's default.
-                    assert changed["left"]["game_aspect"] == ("native" if layout == "single" else "16:9"), changed
+                    # The other side made no choice, so it is Native in every layout.
+                    assert changed["left"]["game_aspect"] == "native", changed
                 assert state()["input_leap_route"] == "right"
                 assert state()["guest_physical_side"] == "left"
                 send("GUEST right", lambda s: s["guest_physical_side"] == "right")
@@ -279,33 +279,38 @@ def run(binary, client_side="left"):
                 # Left has applied no choice yet. A selection that is not applied does not move with the layout
                 # (the applied choice does follow the default), and Cancel returns to the default.
                 send("ASPECT left 4:3", lambda s: s["left"]["pending_game_aspect"] == "4:3")
-                assert state()["left"]["display_pending"] and state()["left"]["game_aspect"] == "16:9", state()
+                assert state()["left"]["display_pending"] and state()["left"]["game_aspect"] == "native", state()
                 selected = send("LAYOUT horizontal", lambda s: s["layout"] == "horizontal")
-                assert (selected["left"]["game_aspect"], selected["left"]["pending_game_aspect"]) == ("16:9", "4:3"), selected
+                assert (selected["left"]["game_aspect"], selected["left"]["pending_game_aspect"]) == ("native", "4:3"), selected
                 assert (selected["left"]["pending_game_width"], selected["left"]["pending_game_height"]) == (480, 360), selected
-                assert (selected["left"]["game_width"], selected["left"]["game_height"]) == (640, 360), selected
+                assert (selected["left"]["game_width"], selected["left"]["game_height"]) == (1280, 360), selected
                 assert selected["left"]["display_pending"], selected
                 cancelled = send("DISPLAY_CANCEL left", lambda s: not s["left"]["display_pending"])
-                assert (cancelled["left"]["game_aspect"], cancelled["left"]["pending_game_aspect"]) == ("16:9", "16:9"), cancelled
+                assert (cancelled["left"]["game_aspect"], cancelled["left"]["pending_game_aspect"]) == ("native", "native"), cancelled
                 send("LAYOUT single", lambda s: s["layout"] == "single")
                 assert state()["left"]["game_aspect"] == "native", "Cancel kept a choice"
-                # Choosing what a side already has is no choice: Native is the default in Full screen, so there
-                # is nothing to Apply, and the split still gets its own default.
+                # Choosing what a side already has is no choice: Native is the default in every layout, so there
+                # is nothing to Apply.
                 control.sendto(b"ASPECT left native", str(root / "hud-ipc.sock"))
                 time.sleep(.15)
                 assert not state()["left"]["display_pending"], state()
-                assert send("LAYOUT vertical", lambda s: s["layout"] == "vertical")["left"]["game_aspect"] == "16:9"
-                # A choice that is applied is the player's own, Native included, which is not the split's default,
-                # and no layout change moves it.
-                chosen = send("ASPECT left native", lambda s: s["left"]["display_pending"])
+                assert send("LAYOUT vertical", lambda s: s["layout"] == "vertical")["left"]["game_aspect"] == "native"
+                # A choice that is applied is the player's own, and no layout change moves it: a side that chose
+                # 16:9 keeps 16:9 in every layout, while its neighbour that chose nothing stays Native.
+                chosen = send("ASPECT left 16:9", lambda s: s["left"]["display_pending"])
                 applied = send("DISPLAY_APPLY left", lambda s: not s["left"]["display_pending"])
-                assert (applied["left"]["game_width"], applied["left"]["game_height"]) == (640, 720), applied
+                assert (applied["left"]["game_width"], applied["left"]["game_height"]) == (640, 360), applied
                 assert applied["left"]["display_revision"] == chosen["left"]["display_revision"] + 1, applied
                 for layout, region in (("horizontal", (1280, 360)), ("single", (1280, 720)), ("vertical", (640, 720))):
                     current = send(f"LAYOUT {layout}", lambda s: s["layout"] == layout)
-                    assert (current["left"]["game_aspect"], current["left"]["native_resolution"]) == ("native", True), current
-                    assert (current["left"]["game_width"], current["left"]["game_height"]) == region, current
+                    assert (current["left"]["game_aspect"], current["left"]["native_resolution"]) == ("16:9", False), current
+                    assert (current["left"]["game_width"], current["left"]["game_height"]) == fitting_aspect(*region, "16:9"), current
                     assert not current["left"]["display_pending"], current
+                    assert current["right"]["game_aspect"] != "native" or current["right"]["native_resolution"], current
+                # Back to Native, now as the player's own choice: the checks below follow what a layout change does
+                # to an applied Native monitor.
+                send("ASPECT left native", lambda s: s["left"]["display_pending"])
+                send("DISPLAY_APPLY left", lambda s: not s["left"]["display_pending"])
 
                 # The side supervisor's report on applying the display reaches state.json: the monitor in effect,
                 # whether the picture is scaled (the report for the current revision says deferred, or the monitor is

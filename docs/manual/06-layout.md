@@ -23,7 +23,7 @@ You can come back at any time: open your overlay with your usual keys or control
 
 ## Standby
 
-Standby is experimental. It keeps using memory, does not survive power loss, and online games can disconnect. Save normally before relying on it.
+Standby is experimental. It keeps using memory, does not survive power loss, and online games can disconnect. Save normally before relying on it. A session that was in Standby for more than an hour comes back with a Steam that believes nobody used it for that long, and that Steam asks for sleep at once. When it is Guest's, Guest's part of the screen turns black and stays so: choose **Reset my side** in Guest's menu. When it is Main's, the machine goes to sleep: press the power button and both players continue.
 
 ## Who may change the layout
 

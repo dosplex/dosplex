@@ -42,7 +42,7 @@ Read [the manual](docs/manual/README.md) first; it is short. In brief, in Deskto
    `tar -xzf dosplex-VERSION.tar.gz dosplex-VERSION/dosplex && sha256sum dosplex-VERSION/dosplex`.
 3. Check your device: `sudo ./dosplex-VERSION/dosplex preflight --release dosplex-VERSION.tar.gz`.
 4. Install: `sudo ./dosplex-VERSION/dosplex install --release dosplex-VERSION.tar.gz`.
-5. Add **Dosplex** to Steam's library once, then start it from there with a controller.
+5. The installer adds **Dosplex** to Steam's library while Steam is running (if it says it could not, `sudo /opt/dosplex/bin/dosplex entry on` tries again). Start it from there with a controller.
 
 [Install](docs/manual/03-install.md) has every step, and
 [Update, roll back, uninstall](docs/manual/13-update-roll-back-uninstall.md) has the way back.

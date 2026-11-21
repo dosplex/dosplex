@@ -961,7 +961,7 @@ struct side_ctx {
     int pending_game_width, pending_game_height;
     enum game_resolution_choice game_resolution_choice;
     enum game_resolution_choice pending_game_resolution_choice;
-    /* The player applied a picture choice for this side. Until then the layout's default decides (see
+    /* The player applied a picture choice for this side. Until then the default decides (Native, see
      * default_game_resolution_choice); after it the choice stays through every layout change. */
     bool game_resolution_explicit;
     /* Counts changes of the live display contract; see side_note_display_contract. */
@@ -2085,11 +2085,11 @@ static const struct game_ratio game_ratios[] = {
 };
 enum { GAME_RATIO_COUNT = sizeof(game_ratios) / sizeof(game_ratios[0]) };
 
-/* The choice a side uses until its player makes one: Native in Full screen, the largest 16:9 that fits in
- * either split. A game then sees the TV's ratio in every layout, so going between layouts is a scale or a
- * relaunch at the new size, never a narrow portrait picture with bars. */
+/* The choice a side uses until its player makes one: Native in every layout. Native shows what a side can
+ * do, and a game gets all of its pixels. A player whose game does not cope with a tall monitor picks 16:9. */
 static enum game_resolution_choice default_game_resolution_choice(enum layout_mode layout) {
-    return layout == LAYOUT_SINGLE || layout == LAYOUT_SINGLE_GUEST ? GAME_RESOLUTION_NATIVE : GAME_RESOLUTION_16_9;
+    (void)layout;
+    return GAME_RESOLUTION_NATIVE;
 }
 
 /* The largest size of the choice's ratio that fits the region; 1:1 is the

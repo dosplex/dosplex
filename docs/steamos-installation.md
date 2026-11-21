@@ -187,7 +187,12 @@ To type less, add `alias dosplex='/opt/dosplex/bin/dosplex'` and
 ## Start from the Steam library
 
 You do not need a terminal to start Dosplex. An install leaves an application
-called **Dosplex** in the main user's account. Add it to Steam once:
+called **Dosplex** in the main user's account and, while Steam is running in the
+main user's session, asks Steam to add it to the library. It says "Dosplex is in
+Steam's library" when that worked. If it says it could not (Steam was not
+running, there is no `steamos-add-to-steam` on the system, or Dosplex itself was
+running), start Steam and run `sudo /opt/dosplex/bin/dosplex entry on` to try
+again, or add it by hand once:
 
 1. In Desktop mode, open Steam.
 2. Choose **Games**, then **Add a Non-Steam Game to My Library**.
@@ -208,7 +213,7 @@ Gamescope version still stops it, with a window that says so; see
 [Start at boot](#start-at-boot) for what to do then. A start typed in a terminal
 stops for all three, because there you can add `--allow-untested`.
 
-`sudo /opt/dosplex/bin/dosplex entry status` says whether the entry is ready.
+`sudo /opt/dosplex/bin/dosplex entry status` says whether the entry is ready and whether Steam's library has it; `entry on` adds it to the library again if it is missing.
 `sudo /opt/dosplex/bin/dosplex entry off` removes the application and the
 service (remove the shortcut from Steam yourself); `entry on` writes them again.
 An update keeps your choice, and an uninstall removes both.
@@ -668,6 +673,19 @@ the installed program is gone: the `dosplex` program of the release archive does
 it, `sudo ./dosplex-VERSION/dosplex uninstall --remove-guest`. Dosplex never removes
 a guest account that was already on the device, and never touches Main's files.
 
+With `--remove-guest`, Guest is removed before the program is. The uninstall waits up to 20 seconds
+for Guest's processes to end. If they do not, it stops with `Guest still has running processes`,
+or, when `loginctl enable-linger` is set for Guest, says so and names
+`sudo loginctl disable-linger guest`. The program is still installed then, and
+`sudo /opt/dosplex/bin/dosplex repair` finishes the uninstall and keeps Guest.
+
+A finished uninstall prints what is still on the machine: Dosplex's entry in Steam's
+library, the shared library folder `/home/dosplex-library`, the two Steam settings Dosplex
+switched on (Maximum Game Resolution, Enable Native Resolution on External Displays) and
+`/var/lib/dosplex`. That folder stays while Guest is kept, because its journal is the record
+that Dosplex created Guest. When Guest is removed, the folder is removed too, except `perf/`
+with your recordings.
+
 ## What it changes
 
 | Does | Does not |
@@ -679,7 +697,7 @@ a guest account that was already on the device, and never touches Main's files.
 | Takes an existing Guest out of `audio`, `input`, `seat`, `video` and `render`, only if you pass `--adopt-guest-strip-groups` | Change any other group |
 | Starts temporary system services while it runs | Install a service that starts at boot, unless you turn on starting at boot (then `dosplex-autostart.service`, until you turn it off or uninstall) or the shared game library (then `dosplex-game-library.service`, the timer `dosplex-game-library-auto.timer` with its service, the template `dosplex-game-library-disk@.service` and a udev rule in `/etc/udev/rules.d`, until you turn it off) |
 | Changes the TV mode while it runs, if you asked | Change the default session or the display manager |
-| Keeps its journal after an uninstall | Delete a Steam profile or a save |
+| Keeps its journal after an uninstall that keeps Guest, and your `perf/` recordings after any | Delete a Steam profile or a save |
 
 ## Tested versions
 

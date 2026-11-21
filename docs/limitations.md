@@ -12,9 +12,19 @@ per-user device views use acknowledged assignment. Automatic native discovery is
 not complete.
 Do not start both native and generic owners for one device.
 
-Only a Steam Controller and the Steam Deck's own controls open the Dosplex menu. A DualShock 4, a DualSense, an
-Xbox or a Switch Pro controller is handed to its side as it is, so Dosplex never reads it: it plays games but cannot
-open the menu. A keyboard can.
+A Steam Controller and the Steam Deck's own controls open the Dosplex menu without side effects. A DualShock 4, a
+DualSense, an Xbox or a Switch Pro controller is handed to its side as it is, so Dosplex cannot filter it. It can
+open and drive its player's menu with the same chord, experimentally: the chord also reaches the game, and the
+player's side is paused while the menu is open because of that controller. A keyboard opens the menu without that.
+Its right button or the chord also closes a menu that something else opened; the side is not paused then, so the
+game gets that press too.
+
+Such a controller reaches a side's Steam through a mount in each of that Steam's namespaces. A mount that exists
+when Steam makes its client's container is copied into the container and cannot be replaced there. Dosplex
+therefore waits for the client before it hands a controller over at start. When Steam starts its client again
+later in the same session (after it updated itself, for example), the controllers the side holds are copied all
+the same, and one of them that then reconnects, or goes to the other player and comes back, does not reach that
+Steam until Dosplex is turned off and started again.
 
 The Steam Controller puck 28de:1305 is carried the same as the 1304 puck, including the firmware-update
 guard. The older Steam Controller dongle 28de:1142 is not supported.
@@ -115,6 +125,26 @@ programs and with a real service manager, and no run through a real suspend yet.
 A controller or receiver that the machine enumerates again after a sleep comes back
 as a new device node; whether the player gets the controller back without
 **Reset my side** is not established.
+
+While the layout shows two players, or Guest alone, each side's Steam is told every
+fifty minutes that somebody is there (one more on `GAMESCOPE_INPUT_COUNTER` of its
+nested root), so no Steam asks the system to sleep by itself: the machine then sleeps
+only when somebody chooses it. The screensaver is Steam's own and still comes after
+five minutes; the price is that the picture of a side nobody uses comes back for five
+minutes in every fifty. Steam's own lock against idle sleep
+(`org.freedesktop.ScreenSaver.Inhibit` on the side's session bus) does not hold the
+sleep request: seen on a Steam Deck (client 1795048523), both sides asked at 3600 s
+with the lock held. A sleep that Guest's Steam asks for (**Sleep** in Guest's own Steam
+menu) is refused by the system, and that Steam then stays on its sleep picture until
+its side is started again. Putting one side to sleep alone, and the machine when the
+last side sleeps, is not built.
+
+Standby freezes a side, and Steam counts the frozen time as idle time. Seen on a Steam Deck: a side that was
+frozen for 62 minutes asked the system to sleep one second after it was thawed, before the input count that the
+follower writes at its first cycle could matter. Guest's request is refused, and Guest's part of the screen then
+stays black until **Reset my side** in Guest's menu starts that Steam again (seen to work, with Main's side left
+alone). Main's request is granted like any other, so the machine should go to sleep at that moment; that case
+was not run.
 
 A game that starts while Steam on its side is idle (the screensaver is up and the
 account shows as Away) can stay behind Steam's window. When Steam is still in

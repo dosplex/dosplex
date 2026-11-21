@@ -8,7 +8,7 @@ On a Steam Controller, hold **Select / Back / View** first. While holding it, pr
 
 On a Steam Deck, the same chord works on its own controls: hold **View** (the left button of the pair under the screen), press **D-pad Up**, and hold both for about one second. If you set the chord to use **Menu** instead of View, hold **Menu** there. A hold that ends sooner than the configured time does not open the menu; the time is one second by default.
 
-Other gamepads, such as a DualShock 4, a DualSense, an Xbox or a Switch Pro controller, play games on the side they belong to but cannot open the menu. Open it from a Steam Controller, from the Steam Deck's own controls or from a keyboard.
+Other gamepads, such as a DualShock 4, a DualSense, an Xbox or a Switch Pro controller, can open and drive the menu of the player they belong to with the same chord. This is experimental. Dosplex cannot filter these controllers, so the chord also reaches the game, and so would every press you make in the menu. For that reason the player's side is paused while the menu is open because of such a controller: the picture and the sound stand still, and an online game may drop its connection. The game continues when the menu closes and you have let go of the controller. If you would rather not have this, `sudo touch /var/lib/dosplex/gamepad-menu-off` and a restart of Dosplex switch it off. You can also open the menu from a Steam Controller, from the Steam Deck's own controls or from a keyboard.
 
 On an assigned keyboard, use **Ctrl+Shift+M** or **Super+Shift+M**, then the arrow keys, **Enter** and **Escape**.
 

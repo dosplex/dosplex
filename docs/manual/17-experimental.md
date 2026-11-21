@@ -4,6 +4,8 @@ Two features are in the program and off after an install: the shared game librar
 
 `dosplex status` shows whether each is on.
 
+A third experimental feature, the menu from other gamepads, is on after an install and has its own switch: see the last section of this chapter.
+
 ## The shared game library
 
 Without it, each player installs their own copy of a game. With it, installed games are moved into one store on the disk, and both players see them in their own Steam library and play from the one copy. Each player still needs to own the game.
@@ -93,3 +95,22 @@ sudo /opt/dosplex/bin/dosplex autostart off
 ```
 
 After you turn it off, a restart of the machine is plain SteamOS again, and you start Dosplex yourself.
+
+## The menu from other gamepads
+
+A DualShock 4, a DualSense, an Xbox or a Switch Pro controller (any gamepad that is not a Steam Controller or the Deck's own controls) can open and drive the menu of the player it belongs to. The chord is the same as on a Steam Controller: hold Select / Back / View, press D-pad Up, and hold both for about one second. Then the D-pad or the left stick moves, the bottom button selects, and the right button goes back or closes. When the menu is already open because something else opened it (a touch, a keyboard, another controller), the gamepad's right button or the same chord closes it. The gamepad does not move in a menu it did not open, and the game gets that button press too, because the side is not paused then.
+
+It is experimental because Dosplex cannot filter these controllers. Two things follow:
+
+- The chord itself also reaches the game.
+- While the menu is open because of such a controller, that player's side is paused. The picture and the sound stand still, and an online game may drop its connection. The side continues when the menu has closed and you have let go of the controller.
+
+A pad drives only a menu that it opened itself. If the menu was opened some other way, the pad does nothing in it.
+
+Turn it off:
+
+```bash
+sudo touch /var/lib/dosplex/gamepad-menu-off
+```
+
+Then restart Dosplex. Delete the file and restart Dosplex to turn it on again.

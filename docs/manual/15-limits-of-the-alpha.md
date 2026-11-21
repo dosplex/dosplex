@@ -8,11 +8,11 @@ These are the limits a user will meet, in plain words. Each says what does not w
 - **A game keeps its own resolution setting.** Dosplex sets the size of the monitor a game sees, and Steam's own resolution settings work inside that. What a game saved in its own video settings is the game's: one that saved the full screen's size may quit at once when you start it in a split. [When something is wrong](14-when-something-is-wrong.md) says what to do.
 - **The Steam Deck's own screen shares one backlight.** If you run Dosplex on the Deck's built-in screen, both players share that screen's brightness. Main's menu is the only brightness control, and it is not there on a Steam Machine or an external monitor.
 - **The frame-rate display has not been checked on a device yet.** Dosplex's own frame-rate counter and Steam's Performance Overlay have so far only been checked with stand-in programs, not on a Steam Deck or a Steam Machine.
-- **Standby is experimental.** When a side goes to Standby it keeps using memory, does not survive a power loss, and online games can disconnect. Save before you rely on it.
+- **Standby is experimental.** When a side goes to Standby it keeps using memory, does not survive a power loss, and online games can disconnect. Save before you rely on it. After more than an hour in Standby a session's Steam asks for sleep the moment it comes back; see [Layout](06-layout.md).
 
 ## Controllers and sound
 
-- **Only a Steam Controller or the Deck's own controls open the menu.** A DualShock 4, a DualSense, an Xbox or a Switch Pro controller plays games on its side but cannot open the Dosplex menu. A player who has only such a controller needs a keyboard, or the other player, to change their settings.
+- **Other gamepads open the menu experimentally.** A DualShock 4, a DualSense, an Xbox or a Switch Pro controller can open the menu of its player with the same chord, but only experimentally: Dosplex cannot filter these controllers, so the chord also reaches the game, and the player's side is paused while the menu is open because of the controller. A keyboard, a Steam Controller or the Deck's own controls open it without any of that.
 - **A controller that connects first belongs to Main.** Every controller you connect is Main's until someone assigns it. Main can give a controller to Guest; Guest can claim and release their own.
 - **A game that was already running may not see a newly claimed controller.** Start the game after the controller is in place, or restart it once it is claimed.
 - **Guest's own Steam shows one output and one microphone.** The real devices are chosen in the Dosplex Audio menu; Steam's own audio settings cannot change them.
@@ -46,3 +46,4 @@ What Main decides for both of you, by design:
 - Which controller, mouse or keyboard belongs to whom. Guest can claim and release their own controllers.
 - The shared speakers and their mix. **Use own output** takes a player out of the shared mix.
 - Turning Dosplex off, and Sleep, Restart and Shut down.
+- When the machine sleeps: with two players on the screen it does not go to sleep by itself. See [Turn off, sleep, restart](12-turn-off-sleep-restart.md).

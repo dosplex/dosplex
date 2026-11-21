@@ -53,6 +53,7 @@ DISPLAY = ':99'
 MODE = 'GAMESCOPE_XWAYLAND_MODE_CONTROL'
 SCALER = 'GAMESCOPE_NEW_SCALING_SCALER'
 FILTER = 'GAMESCOPE_NEW_SCALING_FILTER'
+COUNTER = 'GAMESCOPE_INPUT_COUNTER'   # written to keep Steam awake; KeepAwakeStepTests is about it
 FOCUS = 'GAMESCOPE_FOCUSED_WINDOW'
 FORCE = 'GAMESCOPE_FORCE_WINDOWS_FULLSCREEN'
 FOCUSABLE = 'GAMESCOPE_FOCUSABLE_APPS'
@@ -343,8 +344,13 @@ class FakeX:
         return self.read()['calls']
 
     def sets(self):
-        """The property writes other than the scaling filter, which filter_sets() lists."""
-        return [call['argv'] for call in self.calls() if '-set' in call['argv'] and FILTER not in call['argv']]
+        """The property writes other than the scaling filter, which filter_sets() lists, and other than the
+        input counter that keeps Steam awake, which awake_sets() lists."""
+        return [call['argv'] for call in self.calls()
+                if '-set' in call['argv'] and FILTER not in call['argv'] and COUNTER not in call['argv']]
+
+    def awake_sets(self):
+        return [call['argv'][-1] for call in self.calls() if '-set' in call['argv'] and COUNTER in call['argv']]
 
     def filter_sets(self):
         return [call['argv'][-1] for call in self.calls() if '-set' in call['argv'] and FILTER in call['argv']]
@@ -1742,7 +1748,9 @@ class FitStepTests(unittest.TestCase):
         self.follower = self.new_follower()
 
     def new_follower(self):
-        return follower.Follower('/run/dosplex/control.sock', INSTANCE, 0, environment={'DISPLAY': DISPLAY})
+        made = follower.Follower('/run/dosplex/control.sock', INSTANCE, 0, environment={'DISPLAY': DISPLAY})
+        made.layout = follower.ALONE_LAYOUT    # no keep-awake writes here: KeepAwakeStepTests is about them
+        return made
 
     def focus_app(self):
         """The focus window's app as Gamescope holds it (from its process, or its STEAM_GAME)."""
@@ -2965,6 +2973,120 @@ class WakeStepTests(unittest.TestCase):
         self.assertEqual({tuple(argv) for _, argv in self.calls},
                          {tuple(follower.xprop_get_argv(FOCUSABLE)), tuple(follower.xprop_get_argv(FOCUSED_APP)),
                           tuple(self.ESCAPE)})
+
+
+class KeepAwakeStepTests(unittest.TestCase):
+    """Follower.keep_awake with a scripted xprop and a clock that costs nothing: when Steam is told that somebody is
+    there, by one more on GAMESCOPE_INPUT_COUNTER. Times are seconds since the start of the test."""
+    COUNTER = follower.INPUT_COUNTER_PROPERTY
+
+    def setUp(self):
+        self.clock = FakeClock()
+        for patcher in (mock.patch.object(follower, 'time', self.clock),
+                        mock.patch.object(follower, 'run_tool', self.tool)):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.stderr = io.StringIO()
+        redirect = contextlib.redirect_stderr(self.stderr)
+        redirect.__enter__()
+        self.addCleanup(redirect.__exit__, None, None, None)
+        self.began = self.clock.now
+        self.counter = 41           # what GAMESCOPE_INPUT_COUNTER holds; None: the property is not set
+        self.failing = None         # the error every tool raises, or None
+        self.writes = []            # (seconds since the start, value written)
+        self.follower = follower.Follower('/run/dosplex/control.sock', INSTANCE, 0, environment={'DISPLAY': DISPLAY})
+        self.follower.layout = 'vertical'
+
+    def tool(self, argv, environment):
+        if self.failing is not None:
+            raise self.failing
+        if argv == follower.xprop_get_argv(self.COUNTER):
+            if self.counter is None:
+                return self.COUNTER + ':  not found.\n'
+            return '%s(CARDINAL) = %d\n' % (self.COUNTER, self.counter)
+        self.assertEqual(argv[:6], ['xprop', '-root', '-f', self.COUNTER, '32c', '-set'])
+        self.assertEqual(argv[6], self.COUNTER)
+        self.counter = int(argv[7])
+        self.writes.append((self.clock.now - self.began, self.counter))
+        return ''
+
+    def run_for(self, seconds, step=0.5):
+        """Call keep_awake every `step` seconds, the first call now, for `seconds`."""
+        end = self.clock.now + seconds
+        while self.clock.now <= end:
+            self.follower.keep_awake(self.clock.monotonic())
+            self.clock.sleep(step)
+
+    def test_the_first_cycle_writes_one_more_than_the_counter_and_then_every_fifty_minutes(self):
+        self.run_for(7000)
+        self.assertEqual(self.writes, [(0.0, 42), (3000.0, 43), (6000.0, 44)])
+
+    def test_no_hour_passes_without_a_write(self):
+        self.assertLess(follower.KEEP_AWAKE_SECONDS + 2 * follower.KEEP_AWAKE_RETRY_SECONDS, 3600 - 300)
+        self.run_for(4 * 3600, step=7.0)        # a follower whose cycles take long
+        times = [when for when, _ in self.writes]
+        self.assertTrue(all(later - earlier < 3600 - 300 for earlier, later in zip(times, times[1:])), times)
+
+    def test_the_screensaver_is_left_to_steam(self):
+        self.run_for(2900)                      # Steam's screensaver comes after 300 s without input
+        self.assertEqual(self.writes, [(0.0, 42)])
+
+    def test_gamescope_counting_inputs_in_between_is_followed(self):
+        self.run_for(1)
+        self.counter = 900          # the nested Gamescope saw inputs and wrote its own count
+        self.run_for(3000)
+        self.assertEqual(self.writes, [(0.0, 42), (3000.0, 901)])
+
+    def test_with_main_alone_on_the_screen_nothing_is_written(self):
+        self.follower.layout = follower.ALONE_LAYOUT
+        self.run_for(7200)
+        self.assertEqual(self.writes, [])
+
+    def test_two_players_after_main_alone_are_told_at_once(self):
+        self.run_for(10)
+        self.follower.layout = follower.ALONE_LAYOUT
+        self.run_for(30)
+        self.follower.layout = 'horizontal'
+        self.run_for(10)
+        self.assertEqual([round(when, 1) for when, _ in self.writes], [0.0, 41.0])
+
+    def test_guest_alone_and_a_layout_that_is_not_named_are_held(self):
+        for layout in ('guest', None, 'a layout of a later version'):
+            self.follower.layout, self.follower.awake_next = layout, None
+            before = len(self.writes)
+            self.follower.keep_awake(self.clock.monotonic())
+            self.assertEqual(len(self.writes), before + 1, layout)
+
+    def test_a_counter_that_is_not_set_starts_at_one_and_the_largest_cardinal_goes_back_to_one(self):
+        self.counter = None
+        self.follower.keep_awake(self.clock.monotonic())
+        self.assertEqual(self.counter, 1)
+        self.counter, self.follower.awake_next = follower.MAX_CARDINAL, None
+        self.follower.keep_awake(self.clock.monotonic())
+        self.assertEqual(self.counter, 1)
+
+    def test_a_tool_that_fails_is_logged_once_tried_again_a_minute_later_and_said_to_recover(self):
+        self.failing = follower.ToolError('xprop: the tool failed')
+        self.run_for(150)
+        self.assertEqual(self.writes, [])
+        self.assertEqual(self.stderr.getvalue().count('keep awake: '), 1)
+        self.failing = None
+        self.run_for(60)
+        self.assertEqual([round(when, 1) for when, _ in self.writes], [180.0])
+        self.assertIn('keep awake: recovered', self.stderr.getvalue())
+        self.assertEqual(self.follower.display_failures, 0)    # it is no check of the display
+        self.run_for(3100)
+        self.assertEqual([round(when, 1) for when, _ in self.writes], [180.0, 3180.0])
+
+    def test_the_layout_comes_from_the_supervisors_contract(self):
+        live = {'display_revision': 3, 'game_width': 1920, 'game_height': 2160, 'scale_mode': 'fit',
+                'width': 1920, 'height': 2160, 'layout': 'single'}
+        with mock.patch.object(self.follower, 'exchange', return_value={'ok': True, 'live': live}):
+            self.assertIsNotNone(self.follower.poll_contract())
+        self.assertEqual(self.follower.layout, 'single')
+        with mock.patch.object(self.follower, 'exchange', return_value={'ok': True, 'live': dict(live, layout=7)}):
+            self.assertIsNotNone(self.follower.poll_contract())
+        self.assertIsNone(self.follower.layout)
 
 
 class UnitTests(unittest.TestCase):

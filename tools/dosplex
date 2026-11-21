@@ -45,7 +45,8 @@ commands are looked up on PATH, so tests run the whole program against a fake tr
 Only with a non-default sysroot, tests may also use DOSPLEX_TEST_ROOT_UID (which uid counts as root),
 DOSPLEX_TEST_CRASH_AT=<point> (exit abruptly at a named journal point, see Env.fault), DOSPLEX_TEST_FAULT_LOG
 (append the points that were reached), DOSPLEX_TEST_TTY (treat stdin as a terminal) and the
-short waits DOSPLEX_TEST_IDLE_SECONDS and DOSPLEX_TEST_DISPLAY_SECONDS.
+short waits DOSPLEX_TEST_IDLE_SECONDS, DOSPLEX_TEST_DISPLAY_SECONDS, DOSPLEX_TEST_STEAM_SECONDS and
+DOSPLEX_TEST_GUEST_SECONDS.
 """
 import argparse
 import base64
@@ -381,7 +382,8 @@ ALLOWED_COMMANDS = {'useradd', 'userdel', 'gpasswd', 'id', 'systemctl', 'systemd
 # policy files that sessions left behind.
 BUS_RELOAD = ['busctl', '--system', 'call', 'org.freedesktop.DBus', '/org/freedesktop/DBus', 'org.freedesktop.DBus',
               'ReloadConfig']
-USER_COMMANDS = {'steamosctl', 'gamescopectl', 'xprop', 'xwininfo', 'env'}
+USER_COMMANDS = {'steamosctl', 'gamescopectl', 'xprop', 'xwininfo', 'env', 'steamos-add-to-steam'}
+STEAM_ADD_TOOL = 'steamos-add-to-steam'
 STEAMOSCTL_VERBS = {'get-default-login-mode', 'get-default-desktop-session', 'switch-to-game-mode',
                     'switch-to-desktop-mode'}
 SYSTEMCTL_READ = {'show', 'is-active', 'is-failed'}
@@ -398,8 +400,10 @@ def check_command(env, argv, *, as_user=False):
         raise PolicyError('refusing to run %s: %s' % (exe, FORBIDDEN_COMMANDS[exe]))
     if _is_python(argv[0]):
         return _check_python(env, argv)
+    if exe == STEAM_ADD_TOOL and not as_user:
+        raise PolicyError('%s runs as the main user, through runuser; it refuses to run as root' % exe)
     if exe in USER_COMMANDS and as_user:
-        return _check_user_command(argv)
+        return _check_user_command(env, argv)
     if exe not in ALLOWED_COMMANDS:
         raise PolicyError('refusing to run %s: not a command dosplex uses' % exe)
     args = argv[1:]
@@ -474,9 +478,15 @@ def check_command(env, argv, *, as_user=False):
         _check_systemd_run(env, args)
 
 
-def _check_user_command(argv):
+def _check_user_command(env, argv):
     exe, args = os.path.basename(argv[0]), argv[1:]
-    if exe == 'steamosctl':
+    if exe == STEAM_ADD_TOOL:
+        # Asked one thing: to put the "Dosplex" application entry of the main user into that user's Steam library.
+        entry = args[0] if len(args) == 1 else ''
+        if (not entry or not os.path.isabs(entry) or os.path.normpath(entry) != entry
+                or not is_under(entry, env.sysroot) or not entry.endswith('/' + ENTRY_DESKTOP)):
+            raise PolicyError('%s may only be given the one entry file %s of the main user' % (exe, ENTRY_DESKTOP))
+    elif exe == 'steamosctl':
         if not args or args[0] not in STEAMOSCTL_VERBS:
             raise PolicyError('refusing steamosctl %s' % (args[0] if args else ''))
     elif exe == 'xprop' and '-set' in args:
@@ -2888,14 +2898,55 @@ def undo_guest(env, tx, data, result):
     return {}
 
 
+# After a session stops, Guest's user manager needs some seconds to exit; an uninstall waits that long.
+GUEST_EXIT_SECONDS = 20
+GUEST_EXIT_POLL_SECONDS = 0.5
+GUEST_LOGIN_STATES = ('active', 'online', 'lingering', 'closing')
+GUEST_LINGER_MESSAGE = ("Guest's account is set to keep running after sign-out (linger), so its processes do not end. "
+                        "Switch that off with: sudo loginctl disable-linger guest   (then Guest can be removed).")
+
+
+class GuestRunning(DosplexError):
+    """Guest cannot be removed yet: its processes or its login are still there."""
+
+
+def guest_login_property(env, name):
+    """What logind says about Guest (read-only), or '' when it cannot say."""
+    if not env.which('loginctl'):
+        return ''
+    proc = env.run(['loginctl', 'show-user', GUEST_USER, '--property=' + name, '--value'], check=False, timeout=15)
+    return proc.stdout.strip() if proc.returncode == 0 else ''
+
+
+def wait_for_guest_to_leave(env, uid, sleep=time.sleep, clock=time.monotonic):
+    """Wait until Guest has no process and logind has no login for it; GuestRunning (with the true reason) if not."""
+    seconds = GUEST_EXIT_SECONDS
+    if not env.real and os.environ.get('DOSPLEX_TEST_GUEST_SECONDS'):
+        seconds = float(os.environ['DOSPLEX_TEST_GUEST_SECONDS'])
+    deadline = clock() + seconds
+    while True:
+        running = processes(env, uid)
+        login = guest_login_property(env, 'State')
+        if not running and login not in GUEST_LOGIN_STATES:
+            return
+        if clock() >= deadline:
+            break
+        sleep(GUEST_EXIT_POLL_SECONDS)
+    if guest_login_property(env, 'Linger') == 'yes':
+        raise GuestRunning(GUEST_LINGER_MESSAGE)
+    if running:
+        names = sorted({comm for _, comm, _ in running})[:5]
+        raise GuestRunning('Guest still has running processes (%s).' % ', '.join(names))
+    raise GuestRunning('Guest still has a login session (%s).' % login)
+
+
 def remove_guest_account(env, entry):
     """userdel (never --remove) and then Guest's home with every safety check."""
     if processes(env, entry.uid):
         raise DosplexError('guest still has running processes; stop Dosplex first')
-    if env.which('loginctl'):
-        proc = env.run(['loginctl', 'show-user', GUEST_USER, '--property=State', '--value'], check=False, timeout=15)
-        if proc.returncode == 0 and proc.stdout.strip() in ('active', 'online', 'lingering', 'closing'):
-            raise DosplexError('guest still has a login session (%s); stop Dosplex first' % proc.stdout.strip())
+    login = guest_login_property(env, 'State')
+    if login in GUEST_LOGIN_STATES:
+        raise DosplexError('guest still has a login session (%s); stop Dosplex first' % login)
     env.run(['userdel'] + ([] if env.real else ['--root', str(env.sysroot)]) + [GUEST_USER], timeout=60)
     env.fault('uninstall:inner:guest-account-removed')
     remove_guest_home(env, entry.home, entry.uid)
@@ -4391,8 +4442,8 @@ def ensure_autostart_unit(env):
 # The entry in Steam's library, and the service behind it (ADR-026)
 #
 # The first release starts only when asked, and the person asking holds a controller. So the installer leaves an
-# application entry "Dosplex" in the main user's applications (added to Steam once with "Add a Non-Steam Game"), and
-# behind it a socket unit that systemd listens on for the main user alone. The service it starts accepts one
+# application entry "Dosplex" in the main user's applications (the installer asks Steam to add it to the library;
+# by hand it is "Add a Non-Steam Game"), and behind it a socket unit that systemd listens on for the main user alone. The service it starts accepts one
 # request, "start", and runs `dosplex control start`. Nothing of this runs until the entry is used.
 ENTRY_WANTS_DIR = AUTOSTART_UNIT_DIR + '/sockets.target.wants'
 ENTRY_LINK_TARGET = '../' + ENTRY_SOCKET
@@ -4604,6 +4655,97 @@ def entry_change(env, journal, state, wanted, action):
         raise
 
 
+STEAM_CLIENT_NAME = b'dosplex-start-client.py'
+STEAM_SHORTCUTS_MAX = 8 * 1024 * 1024
+STEAM_ADD_SECONDS = 20          # how long steamos-add-to-steam may take; it only hands the address to Steam
+STEAM_CONFIRM_SECONDS = 6.0     # how long after it returned Steam may take to write the shortcut
+STEAM_RETRY = 'sudo /opt/dosplex/bin/dosplex entry on'
+
+
+def steam_library_has_dosplex(env, account):
+    """Whether any Steam account of the main user lists Dosplex as a non-Steam game: shortcuts.vdf is binary, and
+    the start client's file name is in it when the entry was added. What cannot be read counts as "no"."""
+    userdata = env.path(account.home) / '.local/share/Steam/userdata'
+    try:
+        folders = sorted(userdata.glob('*/config'))
+    except OSError:
+        return False
+    for folder in folders:
+        path = folder / 'shortcuts.vdf'
+        try:
+            if folder.is_symlink() or folder.parent.is_symlink() or not stat.S_ISREG(os.lstat(path).st_mode):
+                continue
+            fd = os.open(str(path), os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+            with os.fdopen(fd, 'rb') as stream:
+                if STEAM_CLIENT_NAME in stream.read(STEAM_SHORTCUTS_MAX):
+                    return True
+        except OSError:
+            continue
+    return False
+
+
+def add_to_steam_library(env, account, state):
+    """Best effort, never fatal: ask Steam to add the entry to the main user's library. Returns (result, reason):
+    'already', 'added', 'not confirmed' or 'not possible', and a short clause for the last two."""
+    if steam_library_has_dosplex(env, account):
+        return 'already', None
+    if not env.which(STEAM_ADD_TOOL):
+        return 'not possible', 'this system has no %s' % STEAM_ADD_TOOL
+    if not any(comm == 'steam' for _, comm, _ in processes(env, account.uid)):
+        return 'not possible', 'Steam is not running'
+    try:
+        if trial_status(env, state)['alive']:
+            return 'not possible', 'Dosplex is running'
+    except DosplexError:
+        return 'not possible', 'Dosplex may be running'
+    entry = env.path(account.home) / ENTRY_DESKTOP
+    seconds, wait = STEAM_ADD_SECONDS, STEAM_CONFIRM_SECONDS
+    if not env.real and os.environ.get('DOSPLEX_TEST_STEAM_SECONDS'):
+        seconds = wait = float(os.environ['DOSPLEX_TEST_STEAM_SECONDS'])
+    # The tool runs `steam steam://addnonsteamgame/...`, which needs the user's runtime folder and display.
+    argv = user_command(account, 'DISPLAY=:0', STEAM_ADD_TOOL, str(entry))
+    try:
+        env.run(argv, timeout=seconds)
+    except DosplexError as error:
+        return 'not confirmed', '%s did not finish: %s' % (STEAM_ADD_TOOL, str(error).splitlines()[0][:80])
+    deadline = time.monotonic() + wait
+    while True:
+        if steam_library_has_dosplex(env, account):
+            return 'added', None
+        if time.monotonic() >= deadline:
+            return 'not confirmed', 'Steam did not list it in time'
+        time.sleep(0.5)
+
+
+def say_steam_library(result, reason, tail=''):
+    if result in ('added', 'already'):
+        say('Dosplex is in Steam\'s library: Library, Non-Steam, Dosplex.')
+    else:
+        say('Dosplex could not be added to Steam\'s library by itself (%s). In Desktop mode, add "Dosplex" to Steam '
+            'once ("Add a Non-Steam Game"), or run: %s%s' % (reason, STEAM_RETRY, tail))
+
+
+def try_steam_library(env, state, tail=''):
+    """After the entry is set up: add it to Steam's library and say how that went. Never raises."""
+    try:
+        account = user_entry(env, state.get('main_user') or '')
+        if account is None:
+            return
+        say_steam_library(*add_to_steam_library(env, account, state), tail=tail)
+    except (DosplexError, OSError) as error:
+        say_steam_library('not possible', str(error), tail=tail)
+
+
+def entry_status_text(env, state, facts):
+    """The words after "Start from Steam's library:" in `status` and `entry status`."""
+    if not facts['present']:
+        return 'off' if state.get('entry') is False else 'not set up'
+    account = user_entry(env, state.get('main_user') or '')
+    if account is not None and steam_library_has_dosplex(env, account):
+        return 'ready, in Steam\'s library'
+    return 'ready, not yet added to Steam\'s library (sudo dosplex entry on adds it)'
+
+
 def ensure_entry(env):
     """After an install or an update: unless it was turned off, make sure the entry and its service are there and are
     this release's. A problem is said, never fatal: `dosplex start` in a terminal always works."""
@@ -4622,11 +4764,10 @@ def ensure_entry(env):
             if facts['foreign']:
                 say('The entry for Steam\'s library was not set up: %s.' % facts['foreign'])
                 return
-            if facts['present'] and state.get('entry'):
-                return
-            entry_change(env, journal, state, True, 'units')
-        say('Dosplex can be started from Steam\'s library: in Desktop mode, add "Dosplex" to Steam once '
-            '("Add a Non-Steam Game"). Until then: sudo dosplex start')
+            if not (facts['present'] and state.get('entry')):
+                entry_change(env, journal, state, True, 'units')
+        # Outside the journal's lock: Steam may take a while to answer.
+        try_steam_library(env, state, tail='\nUntil then: sudo dosplex start')
     except DosplexError as error:
         say('The entry for Steam\'s library could not be set up: %s. Dosplex still starts with: sudo dosplex start'
             % error)
@@ -4637,8 +4778,7 @@ def cmd_entry(env, args):
     if args.mode == 'status':
         state = library_state(env)
         facts = entry_facts(env, state)
-        say('Start from Steam\'s library: %s' % ('ready' if facts['present'] else
-                                                  'off' if state.get('entry') is False else 'not set up'))
+        say('Start from Steam\'s library: %s' % entry_status_text(env, state, facts))
         return 0
     env.require_root()
     wanted = args.mode == 'on'
@@ -4653,11 +4793,12 @@ def cmd_entry(env, args):
             raise RefusedError(facts['foreign'])
         if wanted and facts['present'] and state.get('entry'):
             say('The entry for Steam\'s library is already set up.')
-            return 0
-        entry_change(env, journal, state, wanted, args.mode)
+        else:
+            entry_change(env, journal, state, wanted, args.mode)
+            if wanted:
+                say('Set up.')
     if wanted:
-        say('Set up. In Desktop mode, add "Dosplex" to Steam once ("Add a Non-Steam Game"); after that you start '
-            'Dosplex from Steam\'s library with a controller.')
+        try_steam_library(env, state)
     else:
         say('The entry and its service were removed. If you added "Dosplex" to Steam, remove it there yourself. '
             'Start Dosplex with: sudo dosplex start')
@@ -4800,6 +4941,7 @@ def apply_guest_exit(env, tx, data):
     if entry is not None:
         if entry.uid != data['uid'] or entry.home != data['home']:
             raise DosplexError('the guest account is not the one that was confirmed; nothing was removed')
+        wait_for_guest_to_leave(env, entry.uid)
         remove_guest_account(env, entry)
     else:
         remove_guest_home(env, data['home'], data['uid'])
@@ -4834,14 +4976,20 @@ def build_uninstall_plan(env, state, fact, remove_guest, confirmed_home):
         plan.append({'step': 'remove-bus-policies', 'data': {}})  # after the stop: what crashed sessions left behind
         plan.append({'step': 'remove-display-record', 'data': {}})
         plan.append({'step': 'remove-state', 'data': {}})
-    plan += [{'step': 'remove-cli', 'data': {}}, {'step': 'remove-current', 'data': {}}]
+    guest_steps = []
     if fact:
         data = dict(fact, action='remove' if remove_guest else 'keep', confirmed_home=confirmed_home)
-        plan.append({'step': 'guest', 'data': data})
+        guest_steps.append({'step': 'guest', 'data': data})
         if not remove_guest:        # an account that is going away needs nothing put back
             for group in fact.get('stripped_groups') or []:
-                plan.append({'step': 'restore-guest-group:' + group,
-                             'data': {'user': GUEST_USER, 'uid': fact['uid'], 'group': group}})
+                guest_steps.append({'step': 'restore-guest-group:' + group,
+                                    'data': {'user': GUEST_USER, 'uid': fact['uid'], 'group': group}})
+    if remove_guest:
+        # Guest goes while the program is still installed: when it cannot be removed, `repair` has to exist.
+        plan += guest_steps
+    plan += [{'step': 'remove-cli', 'data': {}}, {'step': 'remove-current', 'data': {}}]
+    if not remove_guest:
+        plan += guest_steps
     releases = env.opt / 'releases'
     versions = sorted(e.name for e in releases.iterdir() if VERSION_RE.fullmatch(e.name)) if releases.is_dir() else []
     plan += [{'step': 'remove-release:' + v, 'data': {'version': v}} for v in versions]
@@ -4863,16 +5011,70 @@ def worker_uninstall(env, opts):
         try:
             complete_plan(env, tx, UNINSTALL_APPLY)
         except BaseException as error:
-            message = 'uninstall stopped (%s). Run: sudo dosplex repair' % error
+            if isinstance(error, GuestRunning):
+                # The program is still installed at this point, so the command named here exists.
+                message = ('uninstall stopped: %s To finish the uninstall now and keep Guest, run: sudo dosplex repair'
+                           % error)
+            else:
+                message = 'uninstall stopped (%s). Run: sudo dosplex repair' % error
             tx.error(message)
             raise DosplexError(message) from error
         guest = tx.steps().get('guest', {}).get('result', {})
-        report_uninstall(guest, tx)
-        tx.end('complete', guest=guest)
+        clear = finish_uninstall(env, tx, guest)
+        tx.end('complete', guest=guest, clear_var=clear)
     return 0
 
 
-def report_uninstall(guest, tx):
+STEAM_SETTING_MARKERS = ('native-external-resolution', 'resolution-native-*')
+
+
+def has_steam_setting_marker(env, account):
+    """Whether the start of a side switched on a Steam setting for this account (see dosplex-steam-resolution-default.py)."""
+    folder = env.path(account.home) / '.local/share/dosplex'
+    try:
+        return any(True for pattern in STEAM_SETTING_MARKERS for _ in folder.glob(pattern))
+    except OSError:
+        return False
+
+
+def uninstall_leftovers(env, tx, guest):
+    """What an uninstall leaves on the machine, one sentence or two each. Only reads; whatever cannot be read is
+    left out, so this never fails an uninstall."""
+    lines = []
+    steps = {item['step']: item['data'] for item in tx.plan}
+    main = user_entry(env, steps.get('stop-session', {}).get('main_user') or MAIN_USER)
+    with contextlib.suppress(Exception):
+        if main is not None and steam_library_has_dosplex(env, main):
+            lines.append("Steam's library still lists Dosplex. Remove it in Steam: Library, Non-Steam, Dosplex, Manage, "
+                         "Remove non-Steam game from your library.")
+    with contextlib.suppress(Exception):
+        if lexists(env.path(GAME_STORE_ROOT)):
+            lines.append('The shared library folder %s stays. It holds no games and you may delete it.' % GAME_STORE_ROOT)
+    with contextlib.suppress(Exception):
+        accounts = [main] if main is not None else []
+        if guest.get('action') == 'kept':
+            accounts.append(user_entry(env, GUEST_USER))
+        if any(has_steam_setting_marker(env, account) for account in accounts if account is not None):
+            lines.append('Two Steam settings that Dosplex switched on stay as they are: Maximum Game Resolution (Native) '
+                         'and Enable Native Resolution on External Displays. Change them in Steam if you want.')
+    return lines
+
+
+def perf_recordings(env):
+    """Whether /var/lib/dosplex/perf holds recordings: the player's own files, which an uninstall never deletes."""
+    perf = env.var / 'perf'
+    try:
+        return perf.is_dir() and not perf.is_symlink() and any(True for _ in perf.iterdir())
+    except OSError:
+        return False
+
+
+def finish_uninstall(env, tx, guest):
+    """The closing notes of an uninstall. Returns whether the command that ran it then clears /var/lib/dosplex.
+
+    That folder holds the journal this very transaction is written to, and the command reads the notes back from
+    it, so it cannot go before the transaction has ended: the command does it afterwards (clear_dosplex_folder).
+    A kept Guest keeps it: the journal is the record that Dosplex created Guest."""
     tx.note('Dosplex is uninstalled.')
     left = tx.steps().get('remove-opt', {}).get('result', {}).get('left_in_place')
     if left:
@@ -4891,6 +5093,39 @@ def report_uninstall(guest, tx):
                 'sudo ./dosplex-VERSION/dosplex uninstall --remove-guest')
     elif action == 'removed':
         tx.note("Guest's account and home were removed: %s" % guest['home'])
+    for line in uninstall_leftovers(env, tx, guest):
+        tx.note(line)
+    if action == 'kept' and guest.get('origin') != 'adopted-foreign':
+        tx.note("Dosplex's settings and its record that it created Guest stay in /var/lib/dosplex. They go away when "
+                "you remove Guest.")
+        return False
+    if action == 'kept':
+        tx.note("Dosplex's settings and its record of what it changed stay in /var/lib/dosplex; nothing uses them now, "
+                "delete the folder if you like.")
+        return False
+    if perf_recordings(env):
+        tx.note('Your performance recordings stay in /var/lib/dosplex/perf. The rest of that folder is removed.')
+    return True
+
+
+def clear_dosplex_folder(env, created):
+    """After an uninstall that ended and was printed: remove /var/lib/dosplex but a non-empty perf/. Never fails."""
+    if created is None or created.outcome != 'complete' or not created.records[-1].get('clear_var'):
+        return
+    try:
+        journal = Journal.open(env, lock=True)
+        if journal is None:
+            return
+        with journal:
+            if journal.interrupted() is not None:
+                return
+            keep = 'perf' if perf_recordings(env) else None
+            for entry in sorted(env.var.iterdir()):
+                if entry.name != keep:
+                    env.rmtree(entry)
+        env.rmdir_if_empty(env.var)
+    except (OSError, DosplexError) as error:
+        say('Could not remove /var/lib/dosplex (%s). Delete the folder if you like.' % error)
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -4972,17 +5207,22 @@ def repair_rollback(env, journal, tx):
 
 def repair_uninstall(env, journal, tx):
     tx.append('repair', action='roll-forward')
+    skipped = None
     for item in tx.plan:
         step = item['step']
         if step == 'guest' and item['data'].get('action') == 'remove' and tx.status(step) not in ('done', 'skipped'):
             tx.skip(step, 'removing Guest needs a fresh confirmation')
     complete_plan(env, tx, UNINSTALL_APPLY)
     guest = tx.steps().get('guest', {}).get('result', {})
-    report_uninstall(guest, tx)
-    if tx.status('guest') == 'skipped':
-        tx.note("Guest was not removed. To remove Guest's account and home run: "
-                "sudo dosplex uninstall --remove-guest")
-    tx.end('complete', guest=guest, repaired=True)
+    for item in tx.plan:
+        if item['step'] == 'guest' and tx.status('guest') == 'skipped':
+            skipped = dict(item['data'], action='kept')
+            guest = {key: skipped.get(key) for key in ('user', 'uid', 'gid', 'home', 'origin')}
+            guest['action'] = 'kept'
+    if skipped:
+        tx.note('Guest was not removed: removing it needs a new confirmation.')
+    clear = finish_uninstall(env, tx, guest)
+    tx.end('complete', guest=guest, repaired=True, clear_var=clear)
 
 
 def repair_start(env, journal, tx):
@@ -5108,8 +5348,7 @@ def collect_status(env):
                 game_store_mode=library_store_mode(env, state['game_store']) if state.get('game_store') else None,
                 autostart=bool(state.get('autostart')), test_hooks=test_hooks_marked(env),
                 boot_warnings=state.get('boot_warnings') or [],
-                entry=('ready' if entry_facts(env, state)['present'] else
-                       'off' if state.get('entry') is False else 'not set up'))
+                entry=entry_status_text(env, state, entry_facts(env, state)))
     info['trial'] = trial_status(env, state)
     return info
 
@@ -5258,6 +5497,8 @@ def finish_worker(env, op, created, proc):
     for line in created.notes() if created is not None else ():
         say(line)
     if created is not None and created.outcome == 'complete':
+        if op == 'uninstall':
+            clear_dosplex_folder(env, created)
         return 0
     if created is not None and created.ended:
         raise DosplexError('%s did not finish: %s' % (op, created.records[-1].get('error') or created.outcome))
@@ -5491,6 +5732,8 @@ def cmd_repair(env, args):
         for line in reloaded.notes(known):
             say(line)
         left = journal.interrupted()
+    if left is None and reloaded.op == 'uninstall':
+        clear_dosplex_folder(env, reloaded)
     if left is not None:
         reasons = reloaded.errors(known) or (proc.stderr or '').strip().splitlines()
         raise DosplexError('the interrupted %s (%s) is still open%s' % (
