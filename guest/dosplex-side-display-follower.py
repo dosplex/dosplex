@@ -29,6 +29,26 @@ reports the outcome:
    the nested screen and deletes the property when it is done (at once if the screen already
    is W x H). The follower waits for the property to disappear and for `xrandr --current` to
    show W x H, at most 10 s. It writes nothing when the screen already is W x H.
+   Steam watches the nested screen and puts it back to 1920x1080 when a size is too large for it (measured on a
+   Steam Deck, SteamOS 3.10.1, Gamescope 3.17: up to 1920x1200 pixels stays, 1920x1210 and more is undone after
+   0.3 to 0.9 s). So after every change the follower keeps looking at the screen for HOLD_SECONDS (1.5 s) and
+   counts the size as set only when the screen kept it for all of that time. The look is left out when nothing was
+   written (the screen already had the size) and while a game runs (deferred, see below).
+   A size that was undone is tried again smaller, in the same shape as W x H. The pixel budgets are, in this order,
+   the one learned before (see below), 2,304,000 (1920x1200) and three more that are each 15 % smaller. For a
+   budget B the width is the largest even number up to sqrt(B * W / H), the height the largest even number up to
+   width * H / W, and the width goes down by 2 until width * height is within B. A candidate that is not smaller
+   than W x H in pixels, repeats an earlier one, or is below 320 in either dimension is skipped. Each candidate is
+   applied like any size, hold look included. The first that holds is the game monitor: the scaler is set for it
+   and the report says "applied" with that size as game_width and game_height; its detail names the budget and
+   both sizes. When none holds the report says "failed", gives the size the screen has then and the detail
+   "Steam set the screen back to AxB". The budget of the candidate that held is remembered while the follower runs:
+   a later target above it goes straight to the candidate for that budget (a flash of the large size is avoided),
+   a target within it is applied as it is. Nothing here is a known limit of Steam: other devices or versions may
+   have another budget or none, and a target that holds is never lowered.
+   The follower compares the screen with the size it asked for in this revision, never with the contract's size
+   after a fallback, so a screen that holds a smaller size is not applied again at every poll. A new revision
+   starts fresh and keeps only the remembered budget.
 2. Scaler. GAMESCOPE_NEW_SCALING_SCALER is set to one 32-bit cardinal chosen by scale_mode.
 
 A running game keeps its monitor. A screen that is resized under a game makes the game see its monitor
@@ -189,6 +209,7 @@ A missing DISPLAY or control endpoint at start is a usage error (exit status 2).
 """
 import argparse
 import json
+import math
 import os
 import re
 import signal
@@ -206,6 +227,12 @@ CONTROL_TIMEOUT_SECONDS = 3.0
 CONTROL_RETRY_SECONDS = 1.0   # a failed control exchange is asked again at most this long after its poll began
 CONTROL_RETRIES = 3           # such quick retries in a row; then the normal poll applies until an exchange succeeds
 WAIT_STEP_SECONDS = 0.1
+HOLD_SECONDS = 1.5            # a screen has to keep the size it was set to for this long before the size counts as set
+STEAM_PIXEL_BUDGET = 2304000  # 1920x1200: the most pixels Steam left alone when measured; a first guess, not a limit
+BUDGET_SHRINK_PERCENT = 85    # each further budget is this many percent of the one before
+BUDGET_STEPS = 3              # how many smaller budgets follow STEAM_PIXEL_BUDGET
+MIN_MONITOR_SIDE = 320        # a fallback screen is never smaller than this in either dimension
+MAX_DETAIL = 200
 DISPLAY_PROBE_EVERY = 4    # idle polls between checks that the display still answers
 DISPLAY_LOST_AFTER = 3     # consecutive unreachable results before the follower ends
 MAX_REPLY_BYTES = 65536
@@ -283,6 +310,13 @@ class DisplayUnreachable(ToolError):
     """An X tool could not connect to the display."""
 
 
+class ScreenSetBack(ToolError):
+    """Steam undid every size that was tried; `size` is the screen as it is then."""
+    def __init__(self, size):
+        super().__init__('Steam set the screen back to %dx%d' % size)
+        self.size = size
+
+
 class ControlRefused(Exception):
     """The control server answered, but not with ok."""
 
@@ -324,6 +358,29 @@ def parse_live(live):
     region = tuple(live.get(key) if is_int(live.get(key)) and MIN_DIMENSION <= live.get(key) <= MAX_DIMENSION else 0
                    for key in ('width', 'height'))
     return Contract(revision, width, height, scale_mode, *region)
+
+
+def capped_size(target, budget):
+    """The screen of the shape of target (width, height) that has at most `budget` pixels, or None when it is no
+    candidate: not smaller than target, or below MIN_MONITOR_SIDE in a dimension."""
+    width, height = target
+    wide = math.isqrt(budget * width // height)
+    wide -= wide % 2
+    while wide >= 2:
+        high = wide * height // width
+        high -= high % 2
+        if wide * high <= budget:
+            break
+        wide -= 2
+    else:
+        return None
+    if wide * high >= width * height or min(wide, high) < MIN_MONITOR_SIDE:
+        return None
+    return wide, high
+
+
+def describe_budget(budget):
+    return '1920x1200' if budget == STEAM_PIXEL_BUDGET else str(budget)
 
 
 def mode_control_values(width, height):
@@ -559,6 +616,8 @@ class Follower:
         if not self.display:
             raise ValueError('DISPLAY is not set')
         self.settled = None          # revision whose apply was last attempted, applied or failed
+        self.budget = None           # the pixel budget of the smaller size that held last; None until one did
+        self.fallback = None         # (budget, size) when the apply just run had to use a smaller size
         self.deferred = None         # (revision, games) of the deferral last reported; None while none is pending
         self.games = None            # the games that ran at the last read, sorted; None before the first read
         self.watching = {}           # game -> time.monotonic() when it appeared and Steam has not been woken for it
@@ -655,21 +714,73 @@ class Follower:
                                 % (self.apply_timeout, target[0], target[1], screen[0], screen[1], request))
             time.sleep(WAIT_STEP_SECONDS)
 
+    def hold_size(self, size):
+        """Look at the screen for HOLD_SECONDS; None when it kept `size`, else the other size it showed."""
+        end = time.monotonic() + HOLD_SECONDS
+        while True:
+            time.sleep(WAIT_STEP_SECONDS)
+            screen = self.screen_size()
+            if screen != size:
+                return screen
+            if time.monotonic() >= end:
+                return None
+
+    def set_monitor(self, size, screen):
+        """Set the game monitor to size. None when the screen has it and keeps it (nothing is written when it had
+        it already), else the other size it showed after the write."""
+        if screen == size and self.mode_request_absent():
+            return None
+        self.tool(xprop_set_argv(MODE_PROPERTY, mode_control_values(*size)))
+        self.wait_for_mode(size)
+        return self.hold_size(size)
+
+    def monitor_plan(self, target):
+        """The sizes to try for target, in order, as (budget, size); the budget is None for target itself.
+
+        target comes first unless it is above the budget learned before, which went straight to a smaller size.
+        """
+        plan = [] if self.budget and target[0] * target[1] > self.budget else [(None, target)]
+        budgets = [self.budget] if self.budget else []
+        budget = STEAM_PIXEL_BUDGET
+        for _ in range(BUDGET_STEPS + 1):
+            budgets.append(budget)
+            budget = budget * BUDGET_SHRINK_PERCENT // 100
+        for budget in budgets:
+            size = capped_size(target, budget)
+            if size and size not in [tried for _, tried in plan]:
+                plan.append((budget, size))
+        return plan or [(None, target)]   # a target with no usable smaller shape is still tried as it is
+
     def apply(self, contract, games=()):
         """Bring Gamescope to the contract: the game monitor first, then the scaler.
 
         A game that is running keeps the monitor it started with, so while one runs a target that differs from
         the screen is not applied: the scaler still is, and the size the screen keeps is returned. None says
-        that the contract was applied.
+        that the contract was applied; self.fallback then names the smaller size and budget when Steam undid
+        the target. Raises ScreenSetBack when every size was undone.
         """
         target = (contract.width, contract.height)
+        self.fallback = None
+        plan = self.monitor_plan(target)
         screen = self.screen_size()
-        kept = screen if games and screen != target else None
-        if kept is None and (screen != target or not self.mode_request_absent()):
-            self.tool(xprop_set_argv(MODE_PROPERTY, mode_control_values(*target)))
-            self.wait_for_mode(target)
-        self.tool(xprop_set_argv(SCALER_PROPERTY, [SCALER_VALUES[contract.scale_mode]]))
+        kept = screen if games and screen != plan[0][1] else None
         monitor = kept or target
+        if kept is None:
+            seen = screen
+            for position, (budget, size) in enumerate(plan):
+                undone = self.set_monitor(size, seen)
+                if undone is None:
+                    monitor = size
+                    if budget is not None:
+                        self.budget, self.fallback = budget, (budget, size)
+                    break
+                following = plan[position + 1:]
+                log('revision %d: Steam set %dx%d back to %dx%d%s' % (
+                    contract.revision, *size, *undone, '; trying %dx%d' % following[0][1] if following else ''))
+                seen = undone
+            else:
+                raise ScreenSetBack(self.screen_size())
+        self.tool(xprop_set_argv(SCALER_PROPERTY, [SCALER_VALUES[contract.scale_mode]]))
         picked = scaling_filter(contract.scale_mode, monitor, (contract.region_width, contract.region_height))
         self.tool(xprop_set_argv(FILTER_PROPERTY, [picked]))
         log('scaler %s (%d), filter %s (%d) for a %dx%d monitor in a %dx%d region'
@@ -689,13 +800,22 @@ class Follower:
         summary = '%dx%d %s' % (contract.width, contract.height, contract.scale_mode)
         size = target                # what the report gives as the game monitor
         try:
+            self.fallback = None
             kept = self.apply(contract, games)
-            if kept is None:
+            if kept is None and self.fallback:
+                budget, size = self.fallback
+                result = 'applied'
+                summary = '%dx%d %s (scaled to %dx%d)' % (*size, contract.scale_mode, *target)
+                detail = ('Steam keeps this screen within %s pixels: %dx%d is scaled to fill %dx%d'
+                          % (describe_budget(budget), *size, *target))[:MAX_DETAIL]
+            elif kept is None:
                 result, detail = 'applied', summary
             else:
                 result, size = 'deferred', kept
                 detail = clean('%s running; monitor stays %dx%d (target %dx%d)'
                                % (describe_games(games), *kept, *target))
+        except ScreenSetBack as error:
+            result, size, detail = 'failed', error.size, clean(error)
         except ToolError as error:
             result, detail = 'failed', clean(error)
         except Exception as error:   # an unexpected bug is still only a failed apply

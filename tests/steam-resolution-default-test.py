@@ -47,6 +47,65 @@ class Apply(unittest.TestCase):
         self.assertIsNone(helper.apply('not a config\n'))
 
 
+CLIENT_OFF = '"InstallConfigStore"\n{\n\t"Software"\n\t{\n\t}\n\t"Gamescope"\n\t{\n\t\t"HDREnabled"\n\t\t{\n\t\t}\n' \
+             '\t\t"EnableSteamNativeExternalResolution"\t\t"0"\n\t}\n}\n'
+CLIENT_WITHOUT_KEY = '"InstallConfigStore"\n{\n\t"Gamescope"\n\t{\n\t\t"HDREnabled"\n\t\t{\n\t\t}\n\t}\n}\n'
+CLIENT_WITHOUT_BLOCK = '"InstallConfigStore"\n{\n\t"Software"\n\t{\n\t}\n}\n'
+ON = '"EnableSteamNativeExternalResolution"\t\t"1"'
+
+
+class NativeOnExternalDisplays(unittest.TestCase):
+    """The client's own switch, without which a newer Steam puts a tall side back to 1920x1080."""
+
+    def test_off_becomes_on_and_a_missing_key_or_block_is_added(self):
+        for text in (CLIENT_OFF, CLIENT_WITHOUT_KEY, CLIENT_WITHOUT_BLOCK):
+            changed = helper.apply_external(text)
+            self.assertEqual(changed.count(ON), 1, changed)
+            self.assertEqual(changed.count('{'), changed.count('}'))
+            self.assertEqual(changed.count('"Gamescope"'), 1)
+            self.assertIsNone(helper.apply_external(changed), 'a second pass has nothing to do')
+        self.assertIn('"HDREnabled"', helper.apply_external(CLIENT_WITHOUT_KEY))
+
+    def test_text_it_does_not_understand_is_left_alone(self):
+        self.assertIsNone(helper.apply_external('not a config file'))
+        self.assertIsNone(helper.apply_external('"UserLocalConfigStore"\n{\n}\n'))
+
+    def run_helper(self, steam, markers):
+        return subprocess.run([sys.executable, '-I', str(HELPER), str(steam), str(markers)], capture_output=True,
+                              text=True, timeout=30)
+
+    def test_it_is_done_once_and_a_player_who_switches_it_off_keeps_that(self):
+        with tempfile.TemporaryDirectory() as directory:
+            steam, markers = Path(directory) / 'Steam', Path(directory) / 'dosplex'
+            config = steam / 'config/config.vdf'
+            config.parent.mkdir(parents=True)
+            config.write_text(CLIENT_WITHOUT_KEY)
+            os.chmod(config, 0o600)
+            result = self.run_helper(steam, markers)             # (no userdata folder: the client setting is done all the same)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(ON, config.read_text())
+            self.assertEqual(config.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(sorted(os.listdir(config.parent)), ['config.vdf'])
+            config.write_text(CLIENT_OFF)                        # the player switches it off in Steam
+            self.run_helper(steam, markers)
+            self.assertIn('"0"', config.read_text())
+
+    def test_a_steam_that_has_never_run_is_left_for_the_next_start(self):
+        with tempfile.TemporaryDirectory() as directory:
+            steam, markers = Path(directory) / 'Steam', Path(directory) / 'dosplex'
+            steam.mkdir()
+            self.assertEqual(self.run_helper(steam, markers).returncode, 0)
+            self.assertEqual(os.listdir(markers), [])
+            (steam / 'config').mkdir()
+            (steam / 'config/config.vdf').write_text('something else')
+            self.run_helper(steam, markers)
+            self.assertEqual(os.listdir(markers), [], 'no marker for a file that was not understood')
+            (steam / 'config/config.vdf').write_text(CLIENT_WITHOUT_BLOCK)
+            self.run_helper(steam, markers)
+            self.assertIn(ON, (steam / 'config/config.vdf').read_text())
+            self.assertEqual(os.listdir(markers), ['native-external-resolution'])
+
+
 class Once(unittest.TestCase):
     def run_helper(self, steam, markers):
         return subprocess.run([sys.executable, '-I', str(HELPER), str(steam), str(markers)], capture_output=True,

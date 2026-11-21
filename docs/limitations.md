@@ -173,6 +173,13 @@ reach Main's drives under `/run/media/deck`. A side that was already running whe
 Dosplex was updated keeps its earlier view until its next restart. Each account keeps its own
 game library unless you turn on the experimental shared library (see [Experimental features](manual/17-experimental.md)).
 
+A newer Steam client sets a side's screen back to 1920x1080 by itself whenever it has more pixels than 1920x1200,
+unless Steam's own setting "Enable Native Resolution on External Displays" (Settings, Developer) is on. A half of a 4K
+screen is 1920x2160, so Native, 1:1 and 4:3 are above that. Dosplex switches the setting on once for each account's
+Steam, before Steam starts; a player who switches it off in Steam keeps that. A Steam that has never run gets it at its
+second start. When Steam still undoes a size, Dosplex puts the largest size of the same shape that Steam leaves alone
+in its place, and Gamescope scales that picture to the area. Seen with the Steam Deck beta client 1795048523.
+
 ## Audio and trust
 
 Claimed outputs and the shared-speaker settings are kept in `/var/lib/dosplex/audio.json`
@@ -297,9 +304,7 @@ Machine. What the number means:
   no package for a package manager, and Dosplex is not in any store.
 - **Tested versions only.** A release lists the SteamOS, Gamescope and Steam client versions it was tested
   on, and the installer refuses others unless told to go on. A SteamOS update can therefore make Dosplex
-  refuse to start until a release has been tested on it. SteamOS 3.10 with Gamescope 3.17 (the preview channel
-  in November 2026) is one such version: there, a picture size chosen in the menu is undone at once and the side
-  stays at 1920x1080.
+  refuse to start until a release has been tested on it.
 - **One earlier release is kept.** `dosplex rollback` returns to it. Older ones are removed.
 - **Recovery is a reboot.** Dosplex starts only when asked, so a restart of the machine brings stock SteamOS
   back whatever state a session was in. `dosplex repair` finishes or undoes an install, update or uninstall

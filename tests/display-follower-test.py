@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# dosplex-test: tier=unit timeout=180
+# dosplex-test: tier=unit timeout=360
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
 """The display follower applies live display changes to the nested Gamescope and the launcher starts it.
@@ -70,7 +70,8 @@ spec.loader.exec_module(follower)
 # One script installed as xprop, xrandr and xdotool. It keeps a tiny X server in a JSON file: a mode-control
 # request is consumed after `delay` seconds (screen resized, property deleted), at once if the size is
 # unchanged, or never when `gamescope` is 'ignore'. It prints what the real tools print. A key press of xdotool
-# only shows in the log of calls. Three switches let a test model what a stop or a failure meets in the one-shot of the
+# only shows in the log of calls. A `budget` makes it behave like a Steam that watches the screen: a size above that many
+# pixels is put back to 1920x1080 `undo_after` seconds after the screen reached it. Three switches let a test model what a stop or a failure meets in the one-shot of the
 # window fit: the window reads fail (or are slow) only while the forced fullscreen is on, and an xprop that sets the
 # forced fullscreen to 1 stays running for a while after the property is set, as a slow xprop does.
 FAKE_X = r'''#!@PYTHON@
@@ -95,12 +96,19 @@ def fit_focused(state):
 
 
 def settle(state):
+    undo = state.get('undo')
+    if undo and time.time() >= undo['due']:
+        state['screen'] = [1920, 1080]    # Steam puts a screen that is too large back
+        state['undo'] = None
     pending = state['pending']
     if pending and time.time() >= pending['due']:
         state['screen'] = pending['size']
         state['props'].pop(MODE, None)
         state['pending'] = None
         state['applied_at'] = time.time()
+        budget = state.get('budget')
+        if budget and pending['size'][0] * pending['size'][1] > budget:
+            state['undo'] = {'due': pending['due'] + state.get('undo_after', 0.3)}
         fit_focused(state)    # a root resize marks the focus dirty
 
 
@@ -166,6 +174,8 @@ def xprop(state, args):
             sys.stderr.write('xprop: error: cannot change %s\n' % name)
             return 1
         state['props'][name] = values
+        if name == MODE:
+            state['undo'] = None
         if name == FORCE:
             fit_focused(state)    # the property change marks the focus dirty
             if values[0]:
@@ -303,7 +313,8 @@ class FakeX:
         state = {'display': DISPLAY, 'screen': [1280, 720], 'props': {}, 'pending': None, 'gamescope': 'apply',
                  'delay': 0.1, 'gone': False, 'fail_next': 0, 'applied_at': None, 'calls': [],
                  'windows': {}, 'hint_error': False, 'fail_force_set': False, 'fail_props': [], 'fail_key': False,
-                 'fail_reads_while_forced': False, 'slow_reads_while_forced': 0, 'linger_set': 0}
+                 'fail_reads_while_forced': False, 'slow_reads_while_forced': 0, 'linger_set': 0,
+                 'budget': None, 'undo_after': 0.3, 'undo': None}
         state.update(changes)
         self.path.write_text(json.dumps(state))
 
@@ -860,6 +871,127 @@ class DeferTests(FollowerCase):
         self.x.update(gone=True)
         self.assertEqual(self.process.wait(timeout=10), 0, self.log_lines())
         self.assertTrue(any('is gone' in line for line in self.log_lines()), self.log_lines())
+
+
+class HoldTests(FollowerCase):
+    """Steam puts a screen that is too large back; the follower looks at the screen after the change and falls back."""
+    BUDGET = 2304000
+
+    def mode_writes(self):
+        return [argv[-1] for argv in self.x.sets() if argv[-2] == MODE]
+
+    def start_capped(self, budget=BUDGET, **live):
+        self.x.reset(budget=budget)
+        self.control.start()
+        self.control.set_live(**live)
+        self.start_follower()
+
+    def settle_polls(self):
+        """Polls that go by after the last report: the follower may not write the mode again."""
+        before = len(self.mode_writes())
+        self.wait_for_gets(8)
+        self.assertEqual(len(self.mode_writes()), before)
+
+    def test_a_size_above_the_budget_is_reported_as_the_capped_size_that_held(self):
+        self.start_capped(display_revision=8)
+        report = self.wait_for_report(8)
+        self.assertEqual((report['result'], report['game_width'], report['game_height']), ('applied', 1430, 1608))
+        self.assertEqual(report['detail'], 'Steam keeps this screen within 1920x1200 pixels: '
+                                           '1430x1608 is scaled to fill 1920x2160')
+        self.assertLessEqual(len(report['detail']), 200)
+        self.assertEqual(self.x.read()['screen'], [1430, 1608])
+        self.assertEqual(self.mode_writes(), ['0, 1920, 2160, 1', '0, 1430, 1608, 1'])
+        self.assertEqual(self.x.read()['props'][SCALER], [2])
+        self.assertEqual(len(self.x.filter_sets()), 1)
+        lines = [line.split('dosplex-display-follower: ', 1)[1] for line in self.log_lines() if 'revision 8' in line]
+        self.assertEqual(lines[0], 'revision 8: Steam set 1920x2160 back to 1920x1080; trying 1430x1608')
+        self.assertRegex(lines[1], r'^revision 8: applied 1430x1608 fit \(scaled to 1920x2160\) in \d+\.\d\ds$')
+        self.settle_polls()
+        self.assertEqual(self.results(8), [(8, 'applied')])
+        self.assertEqual(self.x.read()['screen'], [1430, 1608])
+
+    def test_the_hold_time_is_waited_for_before_a_size_within_the_budget_is_reported(self):
+        for budget in (self.BUDGET, None):
+            with self.subTest(budget=budget):
+                self.x.reset(budget=budget)
+                self.control, self.process = FakeControl(self.root / ('control-%s.sock' % budget)), None
+                self.addCleanup(self.control.stop)
+                self.control.start()
+                self.control.set_live(game_width=1600, game_height=900, display_revision=3)
+                self.start_follower()
+                report = self.wait_for_report(3)
+                self.assertEqual((report['result'], report['game_width'], report['game_height'], report['detail']),
+                                 ('applied', 1600, 900, '1600x900 fit'))
+                state = self.x.read()
+                reached = state['applied_at']
+                reported = next(call['t'] for call in state['calls'] if call['argv'][-2:] == [SCALER, '2'])
+                self.assertGreaterEqual(reported - reached, follower.HOLD_SECONDS - 0.1)
+                self.assertEqual(self.mode_writes(), ['0, 1600, 900, 1'])
+                self.stop_follower()
+
+    def test_a_screen_that_already_has_the_size_is_not_looked_at_for_the_hold_time(self):
+        self.x.reset(screen=[1600, 900], budget=self.BUDGET)
+        self.control.start()
+        self.control.set_live(game_width=1600, game_height=900)
+        began = time.monotonic()
+        self.start_follower()
+        self.wait_for_report(1)
+        self.assertLess(time.monotonic() - began, follower.HOLD_SECONDS)
+        self.assertEqual(self.mode_writes(), [])
+
+    def test_nothing_that_holds_is_reported_failed_with_the_screen_and_is_not_applied_again(self):
+        self.start_capped(budget=1000, display_revision=5)
+        report = self.wait_for_report(5)
+        self.assertEqual((report['result'], report['game_width'], report['game_height']), ('failed', 1920, 1080))
+        self.assertEqual(report['detail'], 'Steam set the screen back to 1920x1080')
+        self.assertEqual(self.mode_writes(), ['0, 1920, 2160, 1', '0, 1430, 1608, 1', '0, 1318, 1482, 1',
+                                              '0, 1216, 1368, 1', '0, 1120, 1260, 1'])
+        self.assertNotIn(SCALER, self.x.read()['props'])
+        self.settle_polls()
+        self.assertEqual(self.results(5), [(5, 'failed')])
+        self.assertTrue(self.alive())
+
+    def test_a_later_request_above_the_learned_budget_goes_straight_to_its_capped_size(self):
+        self.start_capped(display_revision=1)
+        self.wait_for_report(1)
+        self.x.update(calls=[])
+        self.control.set_live(display_revision=2, game_width=1920, game_height=1920)
+        report = self.wait_for_report(2)
+        self.assertEqual((report['result'], report['game_width'], report['game_height']), ('applied', 1516, 1516))
+        self.assertEqual(self.mode_writes(), ['0, 1516, 1516, 1'])      # 1920x1920 itself was never asked for
+        self.assertIn('1516x1516 is scaled to fill 1920x1920', report['detail'])
+        self.settle_polls()
+        # A request within the budget is applied as it is.
+        self.control.set_live(display_revision=3, game_width=1600, game_height=900)
+        report = self.wait_for_report(3)
+        self.assertEqual((report['result'], report['game_width'], report['game_height'], report['detail']),
+                         ('applied', 1600, 900, '1600x900 fit'))
+        self.assertEqual(self.mode_writes(), ['0, 1516, 1516, 1', '0, 1600, 900, 1'])
+        self.assertEqual(self.x.read()['screen'], [1600, 900])
+
+    def test_the_same_request_again_under_a_new_revision_keeps_the_screen_and_writes_nothing(self):
+        self.start_capped(display_revision=1)
+        self.wait_for_report(1)
+        before = len(self.mode_writes())
+        self.control.set_live(display_revision=2, scale_mode='stretch')
+        report = self.wait_for_report(2)
+        self.assertEqual((report['result'], report['game_width'], report['game_height']), ('applied', 1430, 1608))
+        self.assertEqual(len(self.mode_writes()), before)
+        self.assertEqual(self.x.read()['props'][SCALER], [4])
+
+    def test_a_deferred_revision_that_is_applied_later_gets_the_hold_and_the_fallback(self):
+        self.x.reset(screen=[1600, 900], budget=self.BUDGET)
+        self.control.start()
+        self.control.set_live(game_width=1600, game_height=900)
+        self.start_follower()
+        self.wait_for_report(1)
+        self.x.games(GAME_APP)
+        self.control.set_live(display_revision=2, game_width=1920, game_height=2160)
+        self.assertEqual(self.wait_for_report(2)['result'], 'deferred')
+        self.x.games()
+        report = self.wait_for_result(2, 'applied')
+        self.assertEqual((report['game_width'], report['game_height']), (1430, 1608))
+        self.assertEqual(self.mode_writes(), ['0, 1920, 2160, 1', '0, 1430, 1608, 1'])
 
 
 class SupervisorChainTests(FollowerCase):
