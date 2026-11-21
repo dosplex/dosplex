@@ -42,13 +42,25 @@ reports the outcome:
    applied like any size, hold look included. The first that holds is the game monitor: the scaler is set for it
    and the report says "applied" with that size as game_width and game_height; its detail names the budget and
    both sizes. When none holds the report says "failed", gives the size the screen has then and the detail
-   "Steam set the screen back to AxB". The budget of the candidate that held is remembered while the follower runs:
-   a later target above it goes straight to the candidate for that budget (a flash of the large size is avoided),
-   a target within it is applied as it is. Nothing here is a known limit of Steam: other devices or versions may
-   have another budget or none, and a target that holds is never lowered.
+   "Steam set the screen back to AxB". The budget of the candidate that held is remembered while the follower runs,
+   for the order only: it is the first budget tried among the smaller sizes. Every new revision tries the
+   contract's own size first (a short moment at the full size is accepted), because Steam's setting can change
+   while the follower runs. Nothing here is a known limit of Steam: other devices or versions may have another
+   budget or none, and a target that holds is never lowered.
    The follower compares the screen with the size it asked for in this revision, never with the contract's size
    after a fallback, so a screen that holds a smaller size is not applied again at every poll. A new revision
    starts fresh and keeps only the remembered budget.
+   Keeping the size. Steam can also set the screen once by itself, seconds after the hold has passed (its setting
+   "Enable Native Resolution on External Displays" puts the nested screen at the output's full size about 5 to 7 s
+   after the side started). The follower remembers the size it put in place for the settled revision (the
+   contract's size or the fallback size) and, every CHECK_SECONDS (2 s), while no game runs, reads the screen
+   once. A screen of another size is set again like any size (property, wait, hold look, fallback candidates,
+   then scaler and filter) and logged as "the screen changed to AxB by itself; setting WxH again (K of 3)". A new
+   report is sent only when the size that holds differs from the one reported before. After REASSERT_LIMIT (3)
+   such resets in one revision, a screen that changes again is left alone and reported once as "failed", with the
+   size it has and the detail "Steam keeps setting the screen to AxB", until the revision changes. While a game
+   runs the screen is not read, not touched and not counted; the check goes on when the game has ended. A new
+   revision starts the count and the remembered size again.
 2. Scaler. GAMESCOPE_NEW_SCALING_SCALER is set to one 32-bit cardinal chosen by scale_mode.
 
 A running game keeps its monitor. A screen that is resized under a game makes the game see its monitor
@@ -233,6 +245,8 @@ BUDGET_SHRINK_PERCENT = 85    # each further budget is this many percent of the 
 BUDGET_STEPS = 3              # how many smaller budgets follow STEAM_PIXEL_BUDGET
 MIN_MONITOR_SIDE = 320        # a fallback screen is never smaller than this in either dimension
 MAX_DETAIL = 200
+CHECK_SECONDS = 2.0           # a settled screen is looked at this often, while no game runs
+REASSERT_LIMIT = 3            # how often one revision sets a screen right that changed by itself
 DISPLAY_PROBE_EVERY = 4    # idle polls between checks that the display still answers
 DISPLAY_LOST_AFTER = 3     # consecutive unreachable results before the follower ends
 MAX_REPLY_BYTES = 65536
@@ -618,6 +632,10 @@ class Follower:
         self.settled = None          # revision whose apply was last attempted, applied or failed
         self.budget = None           # the pixel budget of the smaller size that held last; None until one did
         self.fallback = None         # (budget, size) when the apply just run had to use a smaller size
+        self.in_place = None         # (revision, size) the settled revision put in place; None while none is kept
+        self.reported_size = None    # the game monitor size last reported for the settled revision
+        self.reasserts = 0           # times the settled revision set a changed screen right again
+        self.checked = 0.0           # when the screen was last compared with in_place
         self.deferred = None         # (revision, games) of the deferral last reported; None while none is pending
         self.games = None            # the games that ran at the last read, sorted; None before the first read
         self.watching = {}           # game -> time.monotonic() when it appeared and Steam has not been woken for it
@@ -734,12 +752,14 @@ class Follower:
         self.wait_for_mode(size)
         return self.hold_size(size)
 
-    def monitor_plan(self, target):
+    def monitor_plan(self, target, keep=None):
         """The sizes to try for target, in order, as (budget, size); the budget is None for target itself.
 
-        target comes first unless it is above the budget learned before, which went straight to a smaller size.
+        target comes first, whatever was learned: the learned budget only puts its candidate first among the smaller
+        sizes. With `keep`, a smaller size that is in place for this revision, target is left out (a screen that
+        changed by itself is set to what was in place, never climbed back to the full size).
         """
-        plan = [] if self.budget and target[0] * target[1] > self.budget else [(None, target)]
+        plan = [] if keep and keep != target else [(None, target)]
         budgets = [self.budget] if self.budget else []
         budget = STEAM_PIXEL_BUDGET
         for _ in range(BUDGET_STEPS + 1):
@@ -751,17 +771,18 @@ class Follower:
                 plan.append((budget, size))
         return plan or [(None, target)]   # a target with no usable smaller shape is still tried as it is
 
-    def apply(self, contract, games=()):
+    def apply(self, contract, games=(), keep=None):
         """Bring Gamescope to the contract: the game monitor first, then the scaler.
 
         A game that is running keeps the monitor it started with, so while one runs a target that differs from
         the screen is not applied: the scaler still is, and the size the screen keeps is returned. None says
         that the contract was applied; self.fallback then names the smaller size and budget when Steam undid
-        the target. Raises ScreenSetBack when every size was undone.
+        the target. Raises ScreenSetBack when every size was undone. `keep` is the size in place when a screen
+        that changed by itself is set right again.
         """
         target = (contract.width, contract.height)
         self.fallback = None
-        plan = self.monitor_plan(target)
+        plan = self.monitor_plan(target, keep)
         screen = self.screen_size()
         kept = screen if games and screen != plan[0][1] else None
         monitor = kept or target
@@ -789,11 +810,13 @@ class Follower:
                contract.region_width, contract.region_height))
         return kept
 
-    def apply_and_report(self, contract, games=()):
+    def apply_and_report(self, contract, games=(), again=False):
         """Apply the contract, or defer it while a game runs, and report the outcome to the supervisor.
 
         A deferred revision stays unsettled, so that the poll after the game has ended applies it. `deferred`
         remembers what the supervisor was told, so the same deferral is not reported again at every poll.
+        `again` is a settled revision that sets its screen right once more: it counts on, and it is reported only
+        when the size that holds is not the one reported before.
         """
         began = time.monotonic()
         target = (contract.width, contract.height)
@@ -801,7 +824,7 @@ class Follower:
         size = target                # what the report gives as the game monitor
         try:
             self.fallback = None
-            kept = self.apply(contract, games)
+            kept = self.apply(contract, games, **({'keep': self.in_place[1]} if again else {}))
             if kept is None and self.fallback:
                 budget, size = self.fallback
                 result = 'applied'
@@ -829,10 +852,53 @@ class Follower:
                                                     '' if result == 'applied' else ': ' + detail))
             self.settled, self.deferred = contract.revision, None
             self.refit = True        # the screen may have another size now (a failed apply may have changed it too)
+            if not again:
+                self.reasserts = 0
+            self.in_place = (contract.revision, size) if result == 'applied' else None
+            self.checked = time.monotonic()
+        if result == 'deferred':
+            self.in_place = None
+        if again and result == 'applied' and size == self.reported_size:
+            return
+        self.reported_size = size
         self.pending_report = {'instance': self.instance, 'display': 'report', 'revision': contract.revision,
                                'game_width': size[0], 'game_height': size[1],
                                'result': result, 'detail': detail}
         self.deliver_report()
+
+    def keep_size(self, contract, games):
+        """Set the screen right again when it changed by itself; True when the screen was looked at.
+
+        Only a settled revision whose size is in place, and only while no game runs, every CHECK_SECONDS. After
+        REASSERT_LIMIT resets the next change is reported as failed once and left alone.
+        """
+        if self.in_place is None or contract is None or games is None or games or contract.revision != self.in_place[0]:
+            return False
+        if time.monotonic() - self.checked < CHECK_SECONDS:
+            return False
+        self.checked = time.monotonic()
+        wanted = self.in_place[1]
+        try:
+            screen = self.screen_size()
+        except ToolError as error:
+            self.note_error('display', describe(error))
+            return True
+        if screen == wanted:
+            return True
+        if self.reasserts >= REASSERT_LIMIT:
+            detail = 'Steam keeps setting the screen to %dx%d' % screen
+            log('revision %d: %s' % (contract.revision, detail))
+            self.in_place, self.reported_size = None, screen
+            self.pending_report = {'instance': self.instance, 'display': 'report', 'revision': contract.revision,
+                                   'game_width': screen[0], 'game_height': screen[1],
+                                   'result': 'failed', 'detail': detail}
+            self.deliver_report()
+            return True
+        self.reasserts += 1
+        log('revision %d: the screen changed to %dx%d by itself; setting %dx%d again (%d of %d)'
+            % (contract.revision, *screen, *wanted, self.reasserts, REASSERT_LIMIT))
+        self.apply_and_report(contract, (), True)
+        return True
 
     def needs_apply(self, contract, games):
         """Whether this revision still has to be applied, or reported as deferred for these games.
@@ -1178,6 +1244,8 @@ class Follower:
         games = self.watch_games()
         if contract is not None and games is not None and self.needs_apply(contract, games):
             self.apply_and_report(contract, games)
+        elif self.keep_size(contract, games):
+            pass
         elif self.cycles % DISPLAY_PROBE_EVERY == 0:
             self.probe_display()
         if not self.display_lost:

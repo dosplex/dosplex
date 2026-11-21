@@ -71,7 +71,9 @@ spec.loader.exec_module(follower)
 # request is consumed after `delay` seconds (screen resized, property deleted), at once if the size is
 # unchanged, or never when `gamescope` is 'ignore'. It prints what the real tools print. A key press of xdotool
 # only shows in the log of calls. A `budget` makes it behave like a Steam that watches the screen: a size above that many
-# pixels is put back to 1920x1080 `undo_after` seconds after the screen reached it. Three switches let a test model what a stop or a failure meets in the one-shot of the
+# pixels is put back to 1920x1080 `undo_after` seconds after the screen reached it. A `meddle` ({'after', 'to',
+# 'delay', 'times'}) sets the screen to `to` `delay` seconds after it reached `after`, `times` times (None: always).
+# Three switches let a test model what a stop or a failure meets in the one-shot of the
 # window fit: the window reads fail (or are slow) only while the forced fullscreen is on, and an xprop that sets the
 # forced fullscreen to 1 stays running for a while after the property is set, as a slow xprop does.
 FAKE_X = r'''#!@PYTHON@
@@ -100,12 +102,24 @@ def settle(state):
     if undo and time.time() >= undo['due']:
         state['screen'] = [1920, 1080]    # Steam puts a screen that is too large back
         state['undo'] = None
+    due = state.get('meddle_due')
+    if due and time.time() >= due:
+        meddle = state['meddle']
+        state['screen'] = meddle['to']    # Steam sets the screen by itself, long after the follower's hold
+        state['meddle_due'], state['meddled_at'] = None, due
+        if meddle['times'] is not None:
+            meddle['times'] -= 1
+            if meddle['times'] <= 0:
+                state['meddle'] = None
     pending = state['pending']
     if pending and time.time() >= pending['due']:
         state['screen'] = pending['size']
         state['props'].pop(MODE, None)
         state['pending'] = None
         state['applied_at'] = time.time()
+        meddle = state.get('meddle')
+        if meddle and pending['size'] == meddle['after']:
+            state['meddle_due'] = pending['due'] + meddle['delay']
         budget = state.get('budget')
         if budget and pending['size'][0] * pending['size'][1] > budget:
             state['undo'] = {'due': pending['due'] + state.get('undo_after', 0.3)}
@@ -175,7 +189,7 @@ def xprop(state, args):
             return 1
         state['props'][name] = values
         if name == MODE:
-            state['undo'] = None
+            state['undo'] = state['meddle_due'] = None
         if name == FORCE:
             fit_focused(state)    # the property change marks the focus dirty
             if values[0]:
@@ -314,7 +328,8 @@ class FakeX:
                  'delay': 0.1, 'gone': False, 'fail_next': 0, 'applied_at': None, 'calls': [],
                  'windows': {}, 'hint_error': False, 'fail_force_set': False, 'fail_props': [], 'fail_key': False,
                  'fail_reads_while_forced': False, 'slow_reads_while_forced': 0, 'linger_set': 0,
-                 'budget': None, 'undo_after': 0.3, 'undo': None}
+                 'budget': None, 'undo_after': 0.3, 'undo': None,
+                 'meddle': None, 'meddle_due': None, 'meddled_at': None}
         state.update(changes)
         self.path.write_text(json.dumps(state))
 
@@ -556,10 +571,10 @@ class FollowerCase(unittest.TestCase):
         self.assertTrue(reports, 'no report for revision %d; follower log: %s' % (revision, self.log_lines()))
         return reports[0]
 
-    def wait_for_result(self, revision, result):
+    def wait_for_result(self, revision, result, timeout=10.0):
         def found():
             return [r for r in self.control.snapshot()[1] if r['revision'] == revision and r['result'] == result]
-        reports = wait_for(found)
+        reports = wait_for(found, timeout)
         self.assertTrue(reports, 'no "%s" report for revision %d; reports: %s; follower log: %s'
                         % (result, revision, self.results(), self.log_lines()))
         return reports[0]
@@ -951,33 +966,46 @@ class HoldTests(FollowerCase):
         self.assertEqual(self.results(5), [(5, 'failed')])
         self.assertTrue(self.alive())
 
-    def test_a_later_request_above_the_learned_budget_goes_straight_to_its_capped_size(self):
+    def test_a_later_request_above_the_learned_budget_tries_its_own_size_first_then_the_learned_budget(self):
         self.start_capped(display_revision=1)
         self.wait_for_report(1)
-        self.x.update(calls=[])
+        self.x.update(calls=[], budget=1958400)                          # Steam's budget is lower now than it was
         self.control.set_live(display_revision=2, game_width=1920, game_height=1920)
         report = self.wait_for_report(2)
-        self.assertEqual((report['result'], report['game_width'], report['game_height']), ('applied', 1516, 1516))
-        self.assertEqual(self.mode_writes(), ['0, 1516, 1516, 1'])      # 1920x1920 itself was never asked for
-        self.assertIn('1516x1516 is scaled to fill 1920x1920', report['detail'])
+        self.assertEqual((report['result'], report['game_width'], report['game_height']), ('applied', 1398, 1398))
+        # The full size once, undone; the learned budget's candidate (2,304,000) next, undone; then the next one down.
+        self.assertEqual(self.mode_writes(), ['0, 1920, 1920, 1', '0, 1516, 1516, 1', '0, 1398, 1398, 1'])
+        self.assertIn('1398x1398 is scaled to fill 1920x1920', report['detail'])
         self.settle_polls()
         # A request within the budget is applied as it is.
         self.control.set_live(display_revision=3, game_width=1600, game_height=900)
         report = self.wait_for_report(3)
         self.assertEqual((report['result'], report['game_width'], report['game_height'], report['detail']),
                          ('applied', 1600, 900, '1600x900 fit'))
-        self.assertEqual(self.mode_writes(), ['0, 1516, 1516, 1', '0, 1600, 900, 1'])
+        self.assertEqual(self.mode_writes()[-1], '0, 1600, 900, 1')
         self.assertEqual(self.x.read()['screen'], [1600, 900])
 
-    def test_the_same_request_again_under_a_new_revision_keeps_the_screen_and_writes_nothing(self):
+    def test_the_learned_budget_is_tried_first_among_the_smaller_sizes(self):
+        self.start_capped(budget=1958400, display_revision=1)
+        self.wait_for_report(1)                                          # 2,304,000 was undone, 1,958,400 held
+        self.x.update(calls=[], budget=None)                              # Steam's setting changed: all is allowed now
+        self.control.set_live(display_revision=2, game_width=1920, game_height=2160)
+        report = self.wait_for_report(2)
+        self.assertEqual((report['result'], report['game_width'], report['game_height'], report['detail']),
+                         ('applied', 1920, 2160, '1920x2160 fit'))
+        self.assertEqual(self.x.read()['screen'], [1920, 2160])
+        self.assertEqual(self.mode_writes(), ['0, 1920, 2160, 1'])
+
+    def test_the_same_request_again_under_a_new_revision_tries_the_full_size_first_and_settles(self):
         self.start_capped(display_revision=1)
         self.wait_for_report(1)
         before = len(self.mode_writes())
         self.control.set_live(display_revision=2, scale_mode='stretch')
         report = self.wait_for_report(2)
         self.assertEqual((report['result'], report['game_width'], report['game_height']), ('applied', 1430, 1608))
-        self.assertEqual(len(self.mode_writes()), before)
+        self.assertEqual(self.mode_writes()[before:], ['0, 1920, 2160, 1', '0, 1430, 1608, 1'])
         self.assertEqual(self.x.read()['props'][SCALER], [4])
+        self.settle_polls()
 
     def test_a_deferred_revision_that_is_applied_later_gets_the_hold_and_the_fallback(self):
         self.x.reset(screen=[1600, 900], budget=self.BUDGET)
@@ -992,6 +1020,87 @@ class HoldTests(FollowerCase):
         report = self.wait_for_result(2, 'applied')
         self.assertEqual((report['game_width'], report['game_height']), (1430, 1608))
         self.assertEqual(self.mode_writes(), ['0, 1920, 2160, 1', '0, 1430, 1608, 1'])
+
+
+class KeepSizeTests(FollowerCase):
+    """Steam sets the screen by itself once the hold has passed; the follower keeps the size it put in place."""
+
+    def meddle(self, times, delay=3.0, after=(1920, 1080), to=(1920, 2160), **state):
+        self.x.reset(meddle={'after': list(after), 'to': list(to), 'delay': delay, 'times': times}, **state)
+        self.control.start()
+        self.control.set_live(game_width=after[0], game_height=after[1], display_revision=1)
+
+    def mode_writes(self):
+        return [argv[-1] for argv in self.x.sets() if argv[-2] == MODE]
+
+    def quiet(self, writes):
+        self.wait_for_gets(8)
+        self.assertEqual(len(self.mode_writes()), writes)
+
+    def test_a_screen_set_by_steam_once_is_set_right_again_without_a_new_report(self):
+        self.meddle(1)
+        self.start_follower()
+        self.wait_for_report(1)
+        self.assertTrue(wait_for(lambda: self.x.read()['meddled_at']), self.log_lines())
+        meddled = self.x.read()['meddled_at']
+        self.assertTrue(wait_for(lambda: self.x.read()['screen'] == [1920, 1080] and len(self.mode_writes()) == 2),
+                        self.log_lines())
+        again = [call['t'] for call in self.x.calls() if call['argv'][-2:] == [MODE, '0, 1920, 1080, 1']][-1]
+        self.assertLess(again - meddled, follower.CHECK_SECONDS + 1.0)
+        self.assertEqual(self.mode_writes(), ['0, 1920, 1080, 1'] * 2)
+        self.assertTrue(any('revision 1: the screen changed to 1920x2160 by itself; setting 1920x1080 again (1 of 3)'
+                            in line for line in self.log_lines()), self.log_lines())
+        self.quiet(2)
+        self.assertEqual(self.results(), [(1, 'applied')])
+        self.assertEqual(len(self.x.filter_sets()), 2)       # the scaler and the filter are set again with it
+        self.assertEqual(self.x.read()['screen'], [1920, 1080])
+
+    def test_a_screen_that_steam_keeps_changing_is_given_up_after_three_resets(self):
+        self.meddle(None, delay=2.0)
+        self.start_follower()
+        report = self.wait_for_result(1, 'failed', 40)
+        self.assertEqual((report['game_width'], report['game_height'], report['detail']),
+                         (1920, 2160, 'Steam keeps setting the screen to 1920x2160'))
+        self.assertEqual(self.mode_writes(), ['0, 1920, 1080, 1'] * 4)       # the first time and three resets
+        self.assertEqual(self.results(), [(1, 'applied'), (1, 'failed')])
+        self.assertTrue(any('(3 of 3)' in line for line in self.log_lines()), self.log_lines())
+        self.quiet(4)
+        self.assertEqual(self.results(), [(1, 'applied'), (1, 'failed')])
+        self.assertEqual(self.x.read()['screen'], [1920, 2160])
+        # A new revision starts again, and is applied as usual.
+        self.x.update(meddle=None)
+        self.control.set_live(display_revision=2, game_width=1600, game_height=900)
+        report = self.wait_for_result(2, 'applied')
+        self.assertEqual((report['game_width'], report['game_height'], report['detail']), (1600, 900, '1600x900 fit'))
+        self.assertEqual(self.mode_writes()[-1], '0, 1600, 900, 1')
+        self.quiet(5)
+        self.assertEqual(self.x.read()['screen'], [1600, 900])
+
+    def test_the_screen_is_left_alone_while_a_game_runs_and_set_right_after_it(self):
+        self.meddle(1)
+        self.start_follower()
+        self.wait_for_report(1)
+        self.x.games(GAME_APP)
+        self.assertTrue(wait_for(lambda: self.x.read()['screen'] == [1920, 2160]), self.log_lines())
+        time.sleep(follower.CHECK_SECONDS * 2 + 0.5)
+        self.assertEqual(self.mode_writes(), ['0, 1920, 1080, 1'])
+        self.assertEqual(self.results(), [(1, 'applied')])
+        self.assertEqual(self.x.read()['screen'], [1920, 2160])
+        self.x.games()
+        self.assertTrue(wait_for(lambda: self.x.read()['screen'] == [1920, 1080]), self.log_lines())
+        self.assertEqual(self.mode_writes(), ['0, 1920, 1080, 1'] * 2)
+        self.quiet(2)
+
+    def test_a_fallback_size_that_steam_changes_is_set_again_without_climbing_to_the_full_size(self):
+        self.meddle(1, delay=2.0, after=(1430, 1608), to=(1920, 1080), budget=2304000)
+        self.control.set_live(game_width=1920, game_height=2160)
+        self.start_follower()
+        self.wait_for_report(1)
+        self.assertTrue(wait_for(lambda: len(self.mode_writes()) >= 3), self.log_lines())
+        self.assertTrue(wait_for(lambda: self.x.read()['screen'] == [1430, 1608]), self.log_lines())
+        self.assertEqual(self.mode_writes(), ['0, 1920, 2160, 1', '0, 1430, 1608, 1', '0, 1430, 1608, 1'])
+        self.quiet(3)
+        self.assertEqual(self.results(), [(1, 'applied')])           # the same size as reported: no second report
 
 
 class SupervisorChainTests(FollowerCase):

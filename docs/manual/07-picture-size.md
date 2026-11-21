@@ -22,4 +22,6 @@ In Full screen your part is the whole output: on 4K, **Native** and **16:9** are
 
 If a size above 1920x1200 pixels does not stay, Steam has set it back. Newer Steam clients do that unless Steam's setting "Enable Native Resolution on External Displays" is on. Dosplex switches it on for you before Steam starts, the first time. If you switched it off, it is in Steam under Settings, System, Enable Developer Mode, and then Settings, Developer. A side that has just been created gets the setting at its second start. Until it is on, Dosplex gives you the largest picture of the same shape that Steam leaves alone and scales it to your area.
 
+With that setting on, Steam switches its own screen to the full size of your area a few seconds after Dosplex starts. Dosplex puts the size from your menu back within a few seconds, so the picture can change once shortly after a start.
+
 Steam's own resolution settings work in each part of the screen, as on SteamOS: Settings → Display → Maximum Game Resolution for all games, and the game's Properties → General → Game Resolution for one game. Steam's list starts from your part of the screen and offers smaller sizes. A smaller size makes a heavy game lighter in a split, and Gamescope scales it up.

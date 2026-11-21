@@ -3,10 +3,10 @@
 What changed in each release of Dosplex, newest first. Versions follow `MAJOR.MINOR.PATCH`, with `-alpha.N`
 while a release is an alpha.
 
-## 0.1.0-alpha.3
+## 0.1.0-alpha.4
 
-The first public release. An alpha for SteamOS on a Steam Deck and a Steam Machine. (0.1.0-alpha.1 and 0.1.0-alpha.2
-were built and signed, and not published. Since then: a picture size above 1920x1200 pixels stays with newer Steam
+The first public release. An alpha for SteamOS on a Steam Deck and a Steam Machine. (0.1.0-alpha.1 to 0.1.0-alpha.3
+were built and signed, and not published. Since the first of them: a picture size above 1920x1200 pixels stays with newer Steam
 clients, the menu offers screen brightness only while the Steam Deck's own screen is on, and the manual says which
 controllers open the menu.)
 

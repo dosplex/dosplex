@@ -179,6 +179,9 @@ screen is 1920x2160, so Native, 1:1 and 4:3 are above that. Dosplex switches the
 Steam, before Steam starts; a player who switches it off in Steam keeps that. A Steam that has never run gets it at its
 second start. When Steam still undoes a size, Dosplex puts the largest size of the same shape that Steam leaves alone
 in its place, and Gamescope scales that picture to the area. Seen with the Steam Deck beta client 1795048523.
+With the setting on, Steam sets a side's screen to the area's full size once, a few seconds after the side starts;
+Dosplex looks at the screen every two seconds while no game runs and sets the menu's size again, at most three times
+for one choice, and then says that Steam keeps changing it.
 
 ## Audio and trust
 
