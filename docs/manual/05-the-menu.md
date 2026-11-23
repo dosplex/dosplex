@@ -1,31 +1,40 @@
 # The menu
 
-Your menu shows every setting that belongs to your side of the screen. It has four pages: **Display** (picture size, the frame-rate counter, brightness), **Devices** (who has which controller, mouse and keyboard), **Audio** (where your sound goes and which microphone is yours) and **Session** (reset your side; for Main also the layout, power and **Turn off DosPlex**). The first line says whose menu it is, for example **DosPlex · Main**.
+The first line says whose menu it is, for example **DosPlex · Main**.
+
+| Page | What you set there |
+|---|---|
+| **Display** | Picture size, frame-rate counter, brightness |
+| **Devices** | Who has which controller, mouse and keyboard |
+| **Audio** | Where your sound goes, which microphone is yours |
+| **Session** | Reset your side. *Main only:* layout, power, **Turn off DosPlex** |
 
 ## Open the menu
 
-On a Steam Controller, hold **Select / Back / View** first. While holding it, press **D-pad Up** and hold both for about one second. Release both buttons, then use the D-pad or a stick to move, **A / Cross** to select, and **B / Circle** to go back or close.
+![Hold View, press D-pad Up, and keep both held for one second](menu-chord.png)
 
-On a Steam Deck, the same chord works on its own controls: hold **View** (the left button of the pair under the screen), press **D-pad Up**, and hold both for about one second. If you set the chord to use **Menu** instead of View, hold **Menu** there. A hold that ends sooner than the configured time does not open the menu; the time is one second by default.
+| On | Do this |
+|---|---|
+| Steam Controller | Hold <kbd>Select / Back / View</kbd>, press <kbd>D-pad Up</kbd>, keep both for one second. |
+| Steam Deck | Hold <kbd>View</kbd>, press <kbd>D-pad Up</kbd>, keep both for one second. |
+| Keyboard | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd> or <kbd>Super</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd> |
+| Other gamepad | Same chord as the Steam Controller. Experimental. |
 
-Other gamepads, such as a DualShock 4, a DualSense, an Xbox or a Switch Pro controller, can open and drive the menu of the player they belong to with the same chord. This is experimental. DosPlex cannot filter these controllers, so the chord also reaches the game, and so would every press you make in the menu. For that reason the player's side is paused while the menu is open because of such a controller: the picture and the sound stand still, and an online game may drop its connection. The game continues when the menu closes and you have let go of the controller. If you would rather not have this, `sudo touch /var/lib/dosplex/gamepad-menu-off` and a restart of DosPlex switch it off. You can also open the menu from a Steam Controller, from the Steam Deck's own controls or from a keyboard.
+Move with the D-pad or a stick. <kbd>A / Cross</kbd> selects. <kbd>B / Circle</kbd> goes back or closes. On a keyboard use the arrow keys, <kbd>Enter</kbd> and <kbd>Escape</kbd>.
 
-On an assigned keyboard, use **Ctrl+Shift+M** or **Super+Shift+M**, then the arrow keys, **Enter** and **Escape**.
-
-Your game still gets **Select / Back / View** exactly when you press it, so a game menu that uses that button works as usual. DosPlex holds back only the second button of the chord, and only while the first one is held down. If you let go before the hold ends, the game gets the button straight away, so a quick Select + D-pad Up still reaches your game.
+> [!WARNING]
+> Other gamepads (DualShock 4, DualSense, Xbox, Switch Pro) cannot be filtered. The chord also reaches the game, and your side is paused while the menu is open: an online game may drop its connection. To switch this off, run `sudo touch /var/lib/dosplex/gamepad-menu-off` and restart DosPlex.
 
 ## Help
 
-The top row of the menu has a small **?** button beside **X**.
-
-**?** opens this manual at the chapter for the page you are on. Up and down read, left and right go to the chapter before and after, and **B** closes it.
-
-It covers your side of the screen while it is open and is gone when you close it. The other player keeps playing.
-
-This release has no feedback form in the menu. The chapter "Tell us how it went" says where to write to us.
+- The **?** button beside **X** opens a cheat sheet of three pages, at the one for your page.
+- Up and down read. Left and right change chapter. <kbd>B</kbd> closes it.
+- The other player keeps playing.
 
 ## Whose menu is it
 
-Each person's menu controls their own session. Main also has shared layout and session controls; actions that affect both people warn you first.
+- Each menu controls its own side. Main also has layout and session controls. Actions that affect both ask first.
+- One menu is open at a time. Main's replaces Guest's and cancels what Guest was about to confirm. Guest cannot open it while Main's is open.
+- In Full screen only Main has a menu. In Guest full screen both do.
 
-Only one menu is open at a time. When Main opens the menu while Guest's is open, Main's replaces it and anything Guest was about to confirm is cancelled. Guest cannot open the menu while Main's is open. In Full screen only Main has a menu, and in Guest full screen both of you do, with Main's drawn over Guest's picture.
+More: [the user guide](../user-guide.md#open-your-menu).

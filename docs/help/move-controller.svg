@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 250" width="720" height="250" role="img" aria-label="On the Devices page choose Guest on a controller's row, then Keep assignment">
+  <rect width="720" height="250" rx="20" fill="#101820"/>
+  <g font-family="Noto Sans, DejaVu Sans, sans-serif">
+    <circle cx="40" cy="42" r="15" fill="#f8c21c"/>
+    <text x="40" y="48" font-size="18" font-weight="700" text-anchor="middle" fill="#101820">1</text>
+    <text x="66" y="48" font-size="17" font-weight="700" fill="#f4f6fa">Devices: choose Guest on the controller's row</text>
+    <text x="40" y="84" font-size="14" font-weight="700" fill="#f4f6fa">2</text>
+    <text x="62" y="84" font-size="14" fill="#f4f6fa">Steam Controller  Connected</text>
+    <rect x="36" y="94" width="206" height="32" rx="4" fill="#3373db"/>
+    <text x="139" y="115" font-size="15" font-weight="700" text-anchor="middle" fill="#ffffff">Main</text>
+    <rect x="254" y="94" width="206" height="32" rx="4" fill="#1c2633" stroke="#f8c21c" stroke-width="3"/>
+    <text x="357" y="115" font-size="15" font-weight="700" text-anchor="middle" fill="#ffffff">Guest</text>
+    <rect x="472" y="94" width="206" height="32" rx="4" fill="#1c2633"/>
+    <text x="575" y="115" font-size="15" font-weight="700" text-anchor="middle" fill="#ffffff">Unassigned</text>
+    <circle cx="40" cy="168" r="15" fill="#f8c21c"/>
+    <text x="40" y="174" font-size="18" font-weight="700" text-anchor="middle" fill="#101820">2</text>
+    <text x="66" y="174" font-size="17" font-weight="700" fill="#f4f6fa">Then choose Keep assignment</text>
+    <rect x="36" y="192" width="315" height="32" rx="4" fill="#3373db"/>
+    <text x="193" y="213" font-size="15" font-weight="700" text-anchor="middle" fill="#ffffff">Undo</text>
+    <rect x="363" y="192" width="315" height="32" rx="4" fill="#1c2633" stroke="#f8c21c" stroke-width="3"/>
+    <text x="520" y="213" font-size="15" font-weight="700" text-anchor="middle" fill="#ffffff">Keep assignment</text>
+  </g>
+</svg>

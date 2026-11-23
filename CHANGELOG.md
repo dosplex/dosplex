@@ -3,6 +3,36 @@
 What changed in each release of DosPlex, newest first. Versions follow `MAJOR.MINOR.PATCH`, with `-alpha.N`
 while a release is an alpha.
 
+## 0.1.0-alpha.7
+
+### Fixed
+
+- A gamepad that was plugged in while Main's controller was in use could be given to Main instead of the second
+  player. The moment a controller arrives can hold up the others for an instant; a controller now counts as its
+  player's for a short while after it was last seen awake.
+
+### Added
+
+- A hint for the menu. A player who has not opened the DosPlex menu yet sees a small card ten seconds after their
+  side starts: a controller with the two buttons of the chord lit, and the keyboard's keys. It goes away by itself,
+  and it is not shown again to a player who has opened the menu with the chord once.
+
+- Restart and Shut Down in Steam's own power menu work for the main player: they restart and shut down the machine,
+  and after a restart you are in plain SteamOS. Before, they did nothing inside DosPlex, and a person who could not
+  open the DosPlex menu had no way out. Both sides show that Steam is closing. The second player's Steam still
+  cannot restart or shut down the machine.
+
+### Changed
+
+- **Forget** on the **Devices** page also drops a Steam Controller that is asleep, not only a gamepad that is off.
+  A forgotten controller comes back as a new one when you turn it on.
+- **Help** in the menu is a cheat sheet of three pages with pictures: the menu, controllers and the screen, sound and
+  power. It holds only what you need while DosPlex runs. The manual is in the repository and on the website.
+- The install ends with "You can start DosPlex:" and the ways to do it, and says nothing else.
+- **Devices** lists the controllers that are connected first, then the ones DosPlex knows that are asleep or off.
+  The empty slots of a Steam Controller receiver are no longer listed: a slot gets its row when a controller wakes
+  on it.
+
 ## 0.1.0-alpha.6
 
 ### Fixed

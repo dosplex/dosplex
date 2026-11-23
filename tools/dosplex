@@ -90,7 +90,10 @@ GUEST_SHELL = '/bin/bash'
 MIN_UID = 1000
 DEVICE_PYTHON = '/usr/bin/python3'
 FAULT_EXIT = 86
-STEAM_IDLE_SECONDS = 90
+# How long a start waits for stock Steam to be idle in Gaming mode. Seen on the Steam Deck: a start from the
+# desktop icon under a minute after a stop gave up at 90 seconds ("normal Gaming mode did not become ready") and
+# returned to the desktop without a word; a Steam that was just started needs longer than that.
+STEAM_IDLE_SECONDS = 180
 BOOT_IDLE_SECONDS = 300          # a start at boot waits longer: Steam may update itself first
 BOOT_DISPLAY_SECONDS = 120       # ... and for a TV that is still waking up, so a start at boot looks for it this long
 BOOT_DISPLAY_POLL_SECONDS = 2    # ... every few seconds
@@ -151,6 +154,7 @@ REQUIRED_RELEASE_FILES = (
     'libexec/dosplex-side-auth.py',
     'libexec/steamos-session-select-shim.sh',
     'libexec/dosplex-sleep-guard.py',
+    'libexec/dosplex-power-guard.py',
     'libexec/dosplex-start-service.py',
     'libexec/dosplex-start-client.py',
     'libexec/native-deck-relay.py',
@@ -5986,10 +5990,6 @@ def cmd_install(env, args):
         if probe['alive']:
             started = True
             say_already_running(env, probe)
-    if not (read_state(env) or {}).get('autostart'):
-        # The first release starts when asked (ADR-026). The start at boot is experimental and says so.
-        say('DosPlex starts when you ask for it. A start at every boot is experimental: sudo %s autostart on '
-            '--experimental' % (env.opt / 'bin' / 'dosplex'))
     if not started:
         say_how_to_start(env)
     return 0
@@ -6011,7 +6011,9 @@ def say_how_to_start(env):
     except (DosplexError, OSError):
         ways = []
     ways.append('in a terminal: sudo %s start' % (env.opt / 'bin' / 'dosplex'))
-    say('DosPlex is installed and not started. Start it:')
+    # Only what the person can do now (the owner, after his own install: say that DosPlex can be started and how,
+    # and nothing about what it does not do by itself; they are looking at that).
+    say('You can start DosPlex:')
     for way in ways:
         say('  %s' % way)
 
@@ -7866,9 +7868,11 @@ def control_assign(env, controller, target):
 
 
 def control_forget(env, controller):
-    """Ask the routing service to remove the record of a controller that is off: its number is free again and its row
+    """Ask the routing service to forget a controller that is off or asleep: its number is free again and its row
     leaves the Devices tab. The request is a file `<id>.forget` in the controller directory, which the service (the one
-    process that removes a record, under the lock of the numbering) carries out on its next look."""
+    process that changes a record, under the lock of the numbering) carries out on its next look. A gamepad's record
+    goes. A Steam Controller is a slot of the session's receiver and keeps a record, which then says that it waits
+    for its first owner: the controller that next wakes on the slot comes back as a new one."""
     env.require_root()
     root = require_running(env)
     directory = open_root_dir(env, controller_directory(env))
@@ -7883,8 +7887,11 @@ def control_forget(env, controller):
             raise ControlError('unavailable', 'The routing service is not publishing the controllers.')
         if (rows.get(controller) or {}).get('connected'):
             raise ControlError('refused', 'Controller %s is connected. Turn it off or unplug it first.' % controller)
-        if record.get('backend') == 'native':
-            raise ControlError('refused', 'Controller %s is a receiver of this session and stays listed.' % controller)
+        slot = record.get('backend') == 'native'
+        if slot and controller not in rows:
+            raise ControlError('refused', 'Controller %s is on a receiver that is not plugged in.' % controller)
+        if slot and record.get('first') == 'pending':
+            raise ControlError('refused', 'Controller %s already waits for its first owner.' % controller)
         request = controller + '.forget'
         try:
             os.close(os.open(request, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600,
@@ -7900,6 +7907,11 @@ def control_forget(env, controller):
                 os.stat(controller + '.json', dir_fd=directory, follow_symlinks=False)
             except FileNotFoundError:
                 break
+            if slot:
+                # The slot keeps its record; the service has done it when the record waits for its first owner.
+                now = read_trusted_json(env, directory, controller + '.json', 16384)
+                if isinstance(now, dict) and now.get('first') == 'pending':
+                    break
             if time.monotonic() >= deadline:
                 try:
                     os.unlink(request, dir_fd=directory)      # (it must not fire later, when the user forgot it)

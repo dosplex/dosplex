@@ -70,6 +70,7 @@ RETAINED_FILES = {
     'dosplex-session-manager.py': 'bundle/libexec/dosplex-session-manager.py',
     'dosplex-power-action': 'bundle/libexec/dosplex-power-action',
     'dosplex-sleep-guard.py': 'bundle/libexec/dosplex-sleep-guard.py',
+    'dosplex-power-guard.py': 'bundle/libexec/dosplex-power-guard.py',
     'native-output-delivery.py': 'native-output-delivery.py',
     'native-output-watch.py': 'native-output-watch.py',
 }
@@ -83,6 +84,18 @@ def sleep_guard_command(root, transaction):
         '--property=BindsTo='+transaction['unit'],'--property=KillMode=control-group','--property=TimeoutStopSec=20s',
         '--property=Restart=on-failure','--property=RestartSec=2','--property=SyslogIdentifier=dosplex-sleep-guard',
         '--','/usr/bin/python3',str(root/'bundle/libexec/dosplex-sleep-guard.py')]
+
+
+def power_guard_command(root, transaction):
+    """(unit, systemd-run argv) of the power guard. root-session-trial.py has the same function (it is staged
+    separately); a test keeps the two equal."""
+    unit='dosplex-power-guard-'+transaction['id']+'.service'
+    user=transaction['main_user']
+    if not re.fullmatch(r'[a-z_][a-z0-9_-]{0,31}',user):raise ValueError('invalid main user')
+    return unit,['systemd-run','--quiet','--collect','--service-type=exec','--unit='+unit,
+        '--property=BindsTo='+transaction['unit'],'--property=KillMode=control-group','--property=TimeoutStopSec=10s',
+        '--property=Restart=on-failure','--property=RestartSec=2','--property=SyslogIdentifier=dosplex-power-guard',
+        '--','/usr/bin/python3',str(root/'bundle/libexec/dosplex-power-guard.py'),'--root',str(root),'--main-user',user]
 
 
 def recovery_hook_properties(transaction):
@@ -157,6 +170,16 @@ def start_compositor(root, tx, *, session_script=None, seconds=None):
         except (subprocess.SubprocessError, OSError) as error:
             # Sleep goes unguarded, as it did before, and `dosplex status` says so; the compositor is up already.
             print('could not start the sleep guard ' + unit + ': ' + ((getattr(error, 'stderr', None) or '').strip() or str(error)),
+                  flush=True)
+    # The power guard is bound to the compositor in the same way.
+    if tx.get('power_guard_unit'):
+        unit, command = power_guard_command(root, tx)
+        if tx['power_guard_unit'] != unit:
+            raise RuntimeError('unexpected power guard unit')
+        try:
+            subprocess.run(command, check=True, timeout=15, capture_output=True, text=True)
+        except (subprocess.SubprocessError, OSError) as error:
+            print('could not start the power guard ' + unit + ': ' + ((getattr(error, 'stderr', None) or '').strip() or str(error)),
                   flush=True)
 
 

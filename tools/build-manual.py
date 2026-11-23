@@ -9,6 +9,14 @@ DIR/index.json lists them in order with their title. --target site is for the we
 HTML5 page per chapter plus DIR/index.html, DIR/manual.css and the pictures. README.md and other
 files are skipped. Files in DIR a previous run left behind are removed. The output is the same on
 every run.
+
+The Markdown is a small subset: headings, paragraphs, bullet and numbered lists (one level of
+nesting), tables, fenced code, **bold**, *italic*, `code`, links, pictures and `> ` quotes. Two
+more elements: a key cap, written <kbd>View</kbd> (only this exact lowercase tag, no attributes,
+plain text inside; arrows become Up, Down, Left, Right on the TV), and a callout, a quote whose
+first line is `> [!TIP]`, `> [!NOTE]`, `> [!IMPORTANT]` or `> [!WARNING]` (the same syntax
+GitHub renders as an alert); the lines after it, joined into one paragraph, and an empty `>`
+line starting a new one. All other HTML is escaped.
 """
 import argparse
 import hashlib
@@ -31,6 +39,15 @@ BACKTICK = re.compile(r'`([^`]+)`')
 LINK = re.compile(r'\[([^\]]+)\]\(([^)\s]+)\)')
 IMAGE = re.compile(r'!\[([^\]]*)\]\(([^)\s]+)\)')
 COMMENT = re.compile(r'<!--.*?-->', re.DOTALL)
+# The one allowed tag: a key cap. Matched on the escaped text, so only this exact form gets through.
+KBD = re.compile('&lt;kbd&gt;([A-Za-z0-9 +/.?\u2191\u2193\u2190\u2192-]+)&lt;/kbd&gt;')
+CAP_MARK = re.compile('\x00(\\d+)\x00')
+CALLOUT_FIRST = re.compile(r'^> \[!(TIP|NOTE|IMPORTANT|WARNING)\]\s*$')
+CALLOUT_LINE = re.compile(r'^>(?: (.*)|\s*)$')
+CALLOUT_COLOURS = {'TIP': '#4cc38a', 'NOTE': '#5aa9f5', 'IMPORTANT': '#b58cf0', 'WARNING': '#ffb454'}
+# The panel's font can lack arrow glyphs (an empty box was seen on a Steam Deck): words there.
+PANEL_ARROWS = {'\u2191': 'Up', '\u2193': 'Down', '\u2190': 'Left', '\u2192': 'Right'}
+PANEL_KEY_BACKGROUND = '#3a4658'
 
 SITE_CSS = """body {
   margin: 0;
@@ -86,6 +103,37 @@ figcaption {
 a {
   color: #0645ad;
 }
+kbd {
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  padding: 0.1em 0.4em;
+  border: 1px solid #aaa;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: #fafafa;
+  white-space: nowrap;
+}
+.callout {
+  margin: 1em 0;
+  padding: 0.1em 1em;
+  border-left: 4px solid #777;
+  border-radius: 3px;
+  background: #f7f7f7;
+}
+.callout p {
+  margin: 0.5em 0;
+}
+.callout-title {
+  font-weight: bold;
+}
+.callout-tip { border-left-color: #1a7f37; }
+.callout-tip .callout-title { color: #1a7f37; }
+.callout-note { border-left-color: #0969da; }
+.callout-note .callout-title { color: #0969da; }
+.callout-important { border-left-color: #8250df; }
+.callout-important .callout-title { color: #8250df; }
+.callout-warning { border-left-color: #9a6700; }
+.callout-warning .callout-title { color: #9a6700; }
 @media (prefers-color-scheme: dark) {
   body {
     background: #1b1b1b;
@@ -107,6 +155,22 @@ a {
   figcaption {
     color: #999;
   }
+  kbd {
+    background: #333;
+    border-color: #666;
+    border-bottom-color: #555;
+  }
+  .callout {
+    background: #242424;
+  }
+  .callout-tip { border-left-color: #3fb950; }
+  .callout-tip .callout-title { color: #3fb950; }
+  .callout-note { border-left-color: #58a6ff; }
+  .callout-note .callout-title { color: #58a6ff; }
+  .callout-important { border-left-color: #a371f7; }
+  .callout-important .callout-title { color: #a371f7; }
+  .callout-warning { border-left-color: #d29922; }
+  .callout-warning .callout-title { color: #d29922; }
 }
 """
 
@@ -131,12 +195,45 @@ def strip_comments(text):
     return ''.join(out)
 
 
+def png_size(path):
+    """(width, height) of a PNG file from its header, or None for anything else."""
+    try:
+        with open(path, 'rb') as stream:
+            head = stream.read(24)
+    except OSError:
+        return None
+    if len(head) < 24 or head[:8] != b'\x89PNG\r\n\x1a\n' or head[12:16] != b'IHDR':
+        return None
+    width, height = int.from_bytes(head[16:20], 'big'), int.from_bytes(head[20:24], 'big')
+    return (width, height) if 0 < width <= 16384 and 0 < height <= 16384 else None
+
+
 def render_inline(text, folder=None, copied=None, site=False):
     """The allowed inline markup of one line; everything else is plain escaped text."""
     text = escape(text)
+    caps = []
+
+    def cap(match):
+        caps.append(match.group(1))
+        return '\x00%d\x00' % (len(caps) - 1)
+
+    def plain(value):
+        """A value that goes into an attribute: key caps as their bare text."""
+        return CAP_MARK.sub(lambda match: caps[int(match.group(1))], value)
+
+    def key(match):
+        name = caps[int(match.group(1))]
+        if site:
+            return '<kbd>%s</kbd>' % name
+        for arrow, word in PANEL_ARROWS.items():
+            name = name.replace(arrow, word)
+        return ('<span style="background-color:%s;"><b>&nbsp;%s&nbsp;</b></span>'
+                % (PANEL_KEY_BACKGROUND, name.replace(' ', '&nbsp;')))
+
+    text = KBD.sub(cap, text)
 
     def image(match):
-        alt = match.group(1)
+        alt = plain(match.group(1))
         name = Path(match.group(2)).name
         if folder is not None and (folder / name).is_file():
             if copied is not None:
@@ -145,6 +242,11 @@ def render_inline(text, folder=None, copied=None, site=False):
                 alt_out = alt.replace('"', '&quot;')
                 return ('<figure><img src="%s" alt="%s"><figcaption>%s</figcaption></figure>'
                         % (name, alt_out, alt_out))
+            # The TV's text element draws a picture at the size it is told; without one it draws it at its own
+            # pixels, which fits no screen. The panel scales these two numbers to its width (logic.mjs fitImages).
+            size = png_size(folder / name)
+            if size:
+                return '<img src="%s" width="%d" height="%d">' % (name, size[0], size[1])
             return '<img src="%s">' % name
         if site:
             return '<em>[Picture: %s]</em>' % alt.replace('"', '&quot;')
@@ -152,7 +254,7 @@ def render_inline(text, folder=None, copied=None, site=False):
 
     def link(match):
         text = match.group(1)
-        target = match.group(2)
+        target = plain(match.group(2))
         if site:
             if target.startswith(('http://', 'https://')):
                 return '<a href="%s">%s</a>' % (target, text)
@@ -171,7 +273,7 @@ def render_inline(text, folder=None, copied=None, site=False):
     text = BOLD.sub(lambda match: bold % match.group(1), text)
     text = ITALIC_STAR.sub(lambda match: italic % match.group(1), text)
     text = ITALIC_UNDERSCORE.sub(lambda match: italic % match.group(1), text)
-    return text
+    return CAP_MARK.sub(key, text)
 
 
 def table_cells(line):
@@ -271,6 +373,34 @@ def render_blocks(text, folder=None, copied=None, site=False):
                 out.append('<h%d>%s</h%d>' % (level, render_inline(match.group(2), folder, copied),
                                               level))
             number += 1
+            continue
+        match = CALLOUT_FIRST.match(line.rstrip())
+        if match:
+            kind = match.group(1)
+            paragraphs = [[]]
+            number += 1
+            while number < len(lines):
+                body = CALLOUT_LINE.match(lines[number].rstrip())
+                if body is None:
+                    break
+                text = (body.group(1) or '').strip()
+                if text:
+                    paragraphs[-1].append(text)
+                elif paragraphs[-1]:
+                    paragraphs.append([])
+                number += 1
+            rendered = [render_inline(' '.join(words), folder, copied, site)
+                        for words in paragraphs if words]
+            title = kind.capitalize()
+            if site:
+                out.append('<div class="callout callout-%s"><p class="callout-title">%s</p>%s</div>'
+                           % (kind.lower(), title, ''.join('<p>%s</p>' % p for p in rendered)))
+            else:
+                colour = CALLOUT_COLOURS[kind]
+                out.append('<table cellspacing="0" cellpadding="6"><tr>'
+                           '<td width="4" bgcolor="%s">&nbsp;</td>'
+                           '<td><p><b><font color="%s">%s</font></b></p>%s</td></tr></table>'
+                           % (colour, colour, title, ''.join('<p>%s</p>' % p for p in rendered)))
             continue
         match = QUOTE.match(line)
         if match:

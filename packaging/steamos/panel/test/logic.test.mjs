@@ -18,6 +18,7 @@ import {
   parseOutbox,
   steamIdFromLoginUsers,
   chapterForPage,
+  fitImages,
   KEY_HINT,
   keyHint,
   SCROLL_STEP,
@@ -374,16 +375,27 @@ test('steamIdFromLoginUsers: garbage and nothing return empty', () => {
   assert.equal(steamIdFromLoginUsers(null), '');
 });
 
+test('fitImages scales a picture to the page and keeps its shape', () => {
+  const html = '<p>a</p><img src="menu-chord.png" width="1440" height="640"><p>b</p>';
+  assert.equal(fitImages(html, 600.7), '<p>a</p><img src="menu-chord.png" width="600" height="267"><p>b</p>');
+  assert.equal(fitImages(html, 1800), '<p>a</p><img src="menu-chord.png" width="1800" height="800"><p>b</p>');
+  // No room known yet, or a picture without its two numbers: left as it is.
+  assert.equal(fitImages(html, 0), html);
+  assert.equal(fitImages('<img src="x.png">', 600), '<img src="x.png">');
+  assert.equal(fitImages('<img src="x.png" width="0" height="10">', 600), '<img src="x.png" width="0" height="10">');
+});
+
 test('chapterForPage maps each page and defaults to the menu', () => {
-  assert.equal(chapterForPage('layout'), '06-layout');
-  assert.equal(chapterForPage('picture'), '07-picture-size');
-  assert.equal(chapterForPage('devices'), '08-controllers');
-  assert.equal(chapterForPage('audio'), '09-sound');
-  assert.equal(chapterForPage('display'), '10-display');
-  assert.equal(chapterForPage('session'), '12-turn-off-sleep-restart');
-  assert.equal(chapterForPage('first'), '05-the-menu');
-  assert.equal(chapterForPage('whatever'), '05-the-menu');
-  assert.equal(chapterForPage(undefined), '05-the-menu');
+  // Three pages: the menu, controllers and the screen, sound and power.
+  assert.equal(chapterForPage('layout'), '02-controllers-and-screen');
+  assert.equal(chapterForPage('picture'), '02-controllers-and-screen');
+  assert.equal(chapterForPage('devices'), '02-controllers-and-screen');
+  assert.equal(chapterForPage('display'), '02-controllers-and-screen');
+  assert.equal(chapterForPage('audio'), '03-sound-and-power');
+  assert.equal(chapterForPage('session'), '03-sound-and-power');
+  assert.equal(chapterForPage('first'), '01-the-menu');
+  assert.equal(chapterForPage('whatever'), '01-the-menu');
+  assert.equal(chapterForPage(undefined), '01-the-menu');
 });
 
 test('KEY_HINT is the unified hint string and keyHint returns it', () => {

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 210" width="720" height="210" role="img" aria-label="The four layouts: Side by side, Top / bottom, Full screen, Guest full screen">
+  <rect width="720" height="210" rx="20" fill="#101820"/>
+  <g font-family="Noto Sans, DejaVu Sans, sans-serif" font-weight="700" text-anchor="middle">
+    <g>
+      <rect x="22" y="24" width="150" height="96" rx="8" fill="#1c2633" stroke="#5a6b82" stroke-width="3"/>
+      <rect x="27" y="29" width="68" height="86" rx="4" fill="#3373db"/>
+      <rect x="99" y="29" width="68" height="86" rx="4" fill="#1f9d8f"/>
+      <text x="61" y="78" font-size="15" fill="#ffffff">Main</text>
+      <text x="133" y="78" font-size="15" fill="#ffffff">Guest</text>
+      <text x="97" y="150" font-size="15" fill="#f4f6fa">Side by side</text>
+    </g>
+    <g>
+      <rect x="198" y="24" width="150" height="96" rx="8" fill="#1c2633" stroke="#5a6b82" stroke-width="3"/>
+      <rect x="203" y="29" width="140" height="41" rx="4" fill="#3373db"/>
+      <rect x="203" y="74" width="140" height="41" rx="4" fill="#1f9d8f"/>
+      <text x="273" y="55" font-size="15" fill="#ffffff">Main</text>
+      <text x="273" y="100" font-size="15" fill="#ffffff">Guest</text>
+      <text x="273" y="150" font-size="15" fill="#f4f6fa">Top / bottom</text>
+    </g>
+    <g>
+      <rect x="374" y="24" width="150" height="96" rx="8" fill="#1c2633" stroke="#5a6b82" stroke-width="3"/>
+      <rect x="379" y="29" width="140" height="86" rx="4" fill="#3373db"/>
+      <text x="449" y="78" font-size="15" fill="#ffffff">Main</text>
+      <text x="449" y="150" font-size="15" fill="#f4f6fa">Full screen</text>
+      <text x="449" y="172" font-size="12" font-weight="400" fill="#c9d1dc">Guest waits or is off</text>
+    </g>
+    <g>
+      <rect x="550" y="24" width="150" height="96" rx="8" fill="#1c2633" stroke="#5a6b82" stroke-width="3"/>
+      <rect x="555" y="29" width="140" height="86" rx="4" fill="#1f9d8f"/>
+      <text x="625" y="78" font-size="15" fill="#ffffff">Guest</text>
+      <text x="625" y="150" font-size="15" fill="#f4f6fa">Guest full screen</text>
+      <text x="625" y="172" font-size="12" font-weight="400" fill="#c9d1dc">Main waits</text>
+    </g>
+  </g>
+</svg>

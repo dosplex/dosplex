@@ -233,7 +233,7 @@ def journaled_native_units(transaction):
             'native_controller_unit':'native-controller','native_capture_router_unit':'native-capture',
             'native_slot_guard_unit':'native-slot-guard','controller_broker_unit':'controller-broker',
             'controller_output_unit':'controller-output','audio_trial_unit':'audio','audio_socket_unit':'audio-socket',
-            'sleep_guard_unit':'sleep-guard'}
+            'sleep_guard_unit':'sleep-guard','power_guard_unit':'power-guard'}
     for key,prefix in fields.items():
         if not transaction.get(key):continue
         expected='dosplex-'+prefix+'-'+transaction['id']+'.service'
@@ -277,6 +277,53 @@ def start_sleep_guard(root, transaction):
     try:run(command)
     except (subprocess.SubprocessError,OSError) as error:
         print('could not start the sleep guard '+unit+': '+((getattr(error,'stderr',None) or '').strip() or str(error)),flush=True)
+
+
+POWER_GUARD = 'libexec/dosplex-power-guard.py'
+POWER_RULE = Path('/run/polkit-1/rules.d/49-dosplex-power.rules')
+POWER_RULE_MARK = b'// DosPlex power rule.'
+
+
+def power_guard_command(root, transaction):
+    """(unit, systemd-run argv) of the power guard, a root service bound to the compositor like the sleep guard.
+
+    update-retained-session.py repeats this (it is staged separately). The guard lets the main player's Steam restart
+    and shut down the machine while DosPlex runs (one polkit rule under /run, removed when it ends) and closes both
+    sides when the machine goes down (packaging/steamos/dosplex-power-guard.py)."""
+    unit='dosplex-power-guard-'+transaction['id']+'.service'
+    user=transaction['main_user']
+    if not re.fullmatch(r'[a-z_][a-z0-9_-]{0,31}',user):raise ValueError('invalid main user')
+    return unit,['systemd-run','--quiet','--collect','--service-type=exec','--unit='+unit,
+        '--property=BindsTo='+transaction['unit'],'--property=KillMode=control-group','--property=TimeoutStopSec=10s',
+        '--property=Restart=on-failure','--property=RestartSec=2','--property=SyslogIdentifier=dosplex-power-guard',
+        '--','/usr/bin/python3',str(root/'bundle'/POWER_GUARD),'--root',str(root),'--main-user',user]
+
+
+def start_power_guard(root, transaction):
+    """Run the power guard. The unit is journaled before it starts, as the sleep guard's is. A guard that cannot
+    start costs the session nothing it had: Steam's own Restart and Shut down do nothing, as before it existed."""
+    unit,command=power_guard_command(root,transaction)
+    transaction['power_guard_unit']=unit
+    save(root,transaction)
+    try:run(command)
+    except (subprocess.SubprocessError,OSError) as error:
+        print('could not start the power guard '+unit+': '+((getattr(error,'stderr',None) or '').strip() or str(error)),flush=True)
+
+
+def remove_power_rule(path=POWER_RULE):
+    """Take away the power guard's polkit rule when the guard did not (it was killed): a regular file of root's that
+    begins with the guard's own first line, and nothing else. True when a file was removed. It does not raise."""
+    try:
+        info=os.lstat(path)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid!=os.geteuid():return False
+        with open(path,'rb') as stream:
+            if stream.read(len(POWER_RULE_MARK))!=POWER_RULE_MARK:return False
+        os.unlink(path)
+    except OSError:return False
+    # polkit does not watch a directory of rules that was made after it started: it is told to read them again.
+    try:subprocess.run(['systemctl','reload','polkit.service'],capture_output=True,timeout=10,check=False)
+    except (subprocess.SubprocessError,OSError):pass
+    return True
 
 
 ARCHIVE_SCRIPT = r"""
@@ -358,6 +405,13 @@ def recover_locked(root):
         if transaction['sleep_guard_unit']!=expected:raise ValueError('unexpected sleep guard unit')
         run(['systemctl','stop',expected],check=False)
         if not unit_dead(expected):raise RuntimeError('sleep guard remains active')
+    if transaction.get('power_guard_unit'):
+        expected='dosplex-power-guard-'+transaction['id']+'.service'
+        if transaction['power_guard_unit']!=expected:raise ValueError('unexpected power guard unit')
+        run(['systemctl','stop',expected],check=False)
+        if not unit_dead(expected):raise RuntimeError('power guard remains active')
+    # The guard removes its rule as it ends; one that was killed could not. No session, no rule.
+    remove_power_rule()
     for field, prefix in (('controller_broker_unit', 'dosplex-controller-broker-'),
                           ('native_capture_router_unit', 'dosplex-native-capture-'),
                           ('controller_output_unit', 'dosplex-controller-output-')):
@@ -876,6 +930,7 @@ def start(bundle, manifest, seconds, main_user, guest_user, device_view=False, n
         transaction['phase']='started';save(root,transaction)
         # A bundle from before the guard has no such file; the product's release must (the installer checks).
         if SLEEP_GUARD in files:start_sleep_guard(root,transaction)
+        if POWER_GUARD in files:start_power_guard(root,transaction)
         if not keep_session: run(['systemd-run','--quiet','--collect','--service-type=exec',
              '--unit=dosplex-trial-watch-'+ident,
              '--property=RuntimeMaxSec='+str(seconds+120),

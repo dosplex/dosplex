@@ -1110,9 +1110,19 @@ class PadManager:
         the second player is on the screen with none, the next one is theirs (registry first_owner). others are the rows
         of the router's own controllers (the receivers' and the Steam Deck's controls). The user can release the pad or
         give it to the other player, and the choice is kept."""
-        owners = [row.get('requested', row.get('target')) for row in others if isinstance(row, dict) and row.get('connected')]
+        return self.first_owner_facts(state, others)['owner']
+
+    def first_owner_facts(self, state=None, others=()):
+        """The first owner of a new pad and what decided it (for the log): the layout, and whether each player has a
+        controller. A controller of the router's counts while it is awake and for a short while after (its row's
+        awake_recently): a pad that is plugged into USB can hold up the status of the others for a moment."""
+        state = state or {'layout': 'single'}
+        owners = [row.get('requested', row.get('target')) for row in others
+                  if isinstance(row, dict) and row.get('awake_recently', row.get('connected'))]
         owners += self.awake_owners()
-        return self.reg.first_owner(state or {'layout': 'single'}, 'main' in owners, 'guest' in owners)
+        main_has, guest_has = 'main' in owners, 'guest' in owners
+        return dict(owner=self.reg.first_owner(state, main_has, guest_has), layout=state.get('layout'),
+                    main_has=main_has, guest_has=guest_has)
 
     def remember(self, pad, target):
         number = self.reg.save_record(self.registry.directory, pad.id,
@@ -1146,9 +1156,11 @@ class PadManager:
             if len(self.names) >= 28:
                 self.errors[key] = 'controller inventory is full'
                 continue
-            target = self.default_target(state, others)
+            facts = self.first_owner_facts(state, others)
+            target = facts['owner']
             self.remember(pad, target)
-            self.log({'native_pad_new': pad.name, 'id': key, 'target': target})
+            self.log({'native_pad_new': pad.name, 'id': key, 'target': target, 'layout': facts['layout'],
+                      'main_has': facts['main_has'], 'guest_has': facts['guest_has']})
 
     def tick(self, state, others=()):
         """One pass: look for pads when udev said so (or now and then), lock them down, move and deliver them.

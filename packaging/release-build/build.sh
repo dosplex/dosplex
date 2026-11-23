@@ -68,7 +68,7 @@ echo "== image $tag" >&2
 echo "== image id $("$runtime" image inspect --format '{{.Id}}' "$tag")" >&2
 
 git -C "$repo" archive --format=tar "$commit" -- compositor guest packaging legal tools/check-sbom.py \
-    tools/generate-notices.py tools/build-manual.py docs/manual LICENSE NOTICE > "$tmp/source.tar"
+    tools/generate-notices.py tools/build-manual.py docs/manual docs/help LICENSE NOTICE > "$tmp/source.tar"
 environment=(-e "SOURCE_DATE_EPOCH=$epoch" -e "DOSPLEX_COMMIT=$commit")
 if [[ -n $version ]]; then environment+=(-e "DOSPLEX_VERSION=$version"); fi
 echo "== payload build (no network)" >&2

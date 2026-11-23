@@ -2,8 +2,8 @@
 
 DosPlex gives two people their own Steam session on one screen. Play together,
 play different games, or let one person watch a movie while the other plays.
-This guide is the long form. [The manual](manual/README.md) is the short one, and the
-same pages open from **Help** in the DosPlex menu. DosPlex 0.1.0 is an alpha: read
+This guide is the long form. [The manual](manual/README.md) is the short one.
+**Help** in the DosPlex menu shows a cheat sheet of three pages. DosPlex 0.1.0 is an alpha: read
 [the limits](manual/15-limits-of-the-alpha.md) first.
 
 ## Start and sign in
@@ -31,10 +31,22 @@ Each person needs their own Steam account and access to the game they want to
 play. DosPlex does not change Steam's game-ownership or online-play requirements.
 
 To start DosPlex with a controller, open **DosPlex** in Steam's library and
-press **Play**. You can also start it from the DosPlex icon on the desktop. An install does not start it by itself unless you add `--start`. The installer adds it to Steam's library by itself while Steam is
+press **Play**. You can also start it from the DosPlex icon on the desktop. With `--start` on the install command it starts right after the install. The installer adds it to Steam's library by itself while Steam is
 running. If it says it could not, run `sudo /opt/dosplex/bin/dosplex entry on`
 with Steam running, or add it once by hand: in Desktop mode, in Steam, choose
 **Games**, then **Add a Non-Steam Game to My Library**, and tick **DosPlex**.
+
+### Install and start: details from the manual
+
+A signed release is an archive (`dosplex-VERSION.tar.gz`) and its signature file.
+
+No controller has to be connected or awake for the install.
+
+The first start after an install takes longer: Guest's Steam sets itself up first, and Guest's half can stay black for a few minutes. Only the main player's account can start DosPlex this way. Nothing of DosPlex runs before you press Play, and after a restart of the machine you are in normal SteamOS until you press it again.
+
+If the installer says a version is not in the tested set: Steam updates its own client often, so this is likely for the Steam client, and it is the least risky of the three. If only the Steam client is named, install with `--allow-untested` added to the command. If SteamOS or Gamescope is named, a newer release of DosPlex may list your version: look at the release page first. You can go on with `--allow-untested` there too, at your own risk; a restart of the machine brings plain SteamOS back whatever happens.
+
+To sign in the second player with no controller, keyboard or mouse, use the QR code on Steam's sign-in page on the second half and scan it with the Steam mobile app. If you want to use a Steam Controller on the second side, make sure it is paired and assigned before you sign in.
 
 ## Open your menu
 
@@ -79,11 +91,22 @@ Only one menu is open at a time. When Main opens the menu while Guest's is open,
 Main's replaces it and anything Guest was about to confirm is cancelled. Guest
 cannot open the menu while Main's is open. In full screen only Main has one, and in Guest full screen both of you do (Main's opens over Guest's picture).
 
+### The four pages of the menu
+
+The first line of your menu says whose menu it is, for example **DosPlex · Main**. The menu has four pages:
+
+| Page | What you set there |
+|---|---|
+| Display | Picture size, the frame-rate counter, brightness |
+| Devices | Who has which controller, mouse and keyboard |
+| Audio | Where your sound goes and which microphone is yours |
+| Session | Reset your side. *Main only:* the layout, power and Turn off DosPlex |
+
 ## Help in the menu
 
 The top row of your menu has **?** beside **X**.
 
-**?** opens the manual at the chapter for the page you are on. Up and down
+**?** opens a cheat sheet of three pages (the menu, controllers and the screen, sound and power), at the one for the page you are on. Up and down
 read, left and right change the chapter, and **B** closes it. It covers only
 your side of the screen and runs only while it is open.
 
@@ -219,6 +242,8 @@ after exit and briefly shows a notice in that player's menu; reopen the game to
 use the corrected list. This portrait fix is still under hardware and game
 acceptance testing.
 
+When there is nothing to apply, the **Apply** button reads **Up to date**.
+
 ## Choose your controls
 
 Open **Devices** to see connected controls and their owner. The first controller is Main's. While two players share the screen and the second player has no controller, the next controller that wakes goes to the second player by itself. On a Steam Deck the built-in controls are Main's, so the first other controller is the second player's. You can change who has which controller at any time in the menu, under Devices, and DosPlex remembers what you chose. A controller that appears never changes the
@@ -237,7 +262,13 @@ To drop a controller you no longer use, turn it off or unplug it, then choose
 **Forget** on its row in Main's Devices page and confirm (or run
 `dosplex control forget`). Its number is free for the next new controller. A
 controller that is connected cannot be forgotten: release it to Unassigned
-instead. Forgetting does not remove a Bluetooth pairing.
+instead. Forgetting does not remove a Bluetooth pairing, nor a Steam
+Controller's pairing with its receiver.
+
+A Steam Controller that is asleep can be forgotten the same way. A forgotten
+controller comes back by itself when you turn it on: it is listed again as a
+new one, with the smallest free number, and it finds its player like any new
+controller. Only the player you had chosen for it by hand is gone.
 
 - **Claim:** choose **Claim** on an Unassigned controller that is awake. It is
   added to your side. You can hold several, and Steam on your side sees each as
@@ -296,6 +327,8 @@ Main's last available menu control cannot be handed away by an ordinary transfer
 Moving Main to the other screen position is separate from assigning a controller.
 Wake a sleeping controller before trying to move it between players.
 
+The Devices page lists the controllers that are connected first, then the ones DosPlex knows that are asleep or off. An empty slot of a Steam Controller receiver is not listed; it gets a row when a controller wakes on it.
+
 ## Choose your sound
 
 The first time DosPlex runs, Main gets the output your system already uses (the
@@ -334,6 +367,8 @@ output and volume if a game is silent.
 Guest's own Steam shows just one output, **DosPlex sound**, and one microphone,
 **DosPlex microphone**. Choose the real devices in the DosPlex Audio menu; Steam's
 own audio settings cannot change them.
+
+**Stop sharing** ends the shared mix. Each player then hears only the output they claimed, and a player who claimed none hears nothing until the mix is on again or they claim one. A list of outputs or microphones that does not fit on one page has **Next** and **Previous** at the bottom.
 
 ## Take the whole screen, then return to two people
 
@@ -382,6 +417,13 @@ Main's **Session** page also has machine power:
 These three have not been shown to work on a Steam Deck or a Steam Machine yet.
 Until they have, save and quit your games before you use them. If a controller
 does not answer after the machine woke up, use **Reset my side**.
+
+### The layout row
+
+Open Main's menu and go to the **Session** page. The row **Shared display layout** has four buttons: **Full screen**, **Side by side**, **Top / bottom** and **Guest full screen**. The row under it says which part is Main's: **Main left** or **Main right** side by side, **Main top** or **Main bottom** in Top / bottom. **Side by side** splits the screen vertically: one player on the left, one on the right. **Top / bottom** splits the screen horizontally: one player on top, one on the bottom. Only Main changes the layout. Guest's menu has no layout control. A change of layout asks first when it affects the other player. **Full screen** asks what happens to Guest: **Standby** or **Off...**.
+
+While one player has the full screen there is one reset button instead, **Reset Steam**, and it does the same for that player as **Reset my side**. Each power choice (**Turn off DosPlex**, **Sleep**, **Restart**, **Shut down**) asks first and says **This affects both players**. **Cancel** is selected first, so a stray press changes nothing. After **Turn off DosPlex** the screen says that Steam is closing on both sides, and within a minute you are back in normal SteamOS.
+
 
 ## Set the screen brightness
 
@@ -485,6 +527,8 @@ machine does not have leaves its field empty. The `fps` and frame time columns
 are about one side only. What they measure is in
 [Current limitations](limitations.md#dosplexs-own-fps-counter).
 
+While **Record performance** records, the button reads **Recording: stop**.
+
 ## Desktop mode
 
 Steam's own menu offers Desktop mode. It opens a KDE Plasma desktop in your part
@@ -549,3 +593,42 @@ Use the [short game-test template](game-test-notes.md). Record which side you
 used, controller, resolution, Proton version and what failed. A useful report
 says what you did, what you expected, and what happened. Never include passwords,
 Steam Guard codes or sign-in QR images.
+
+## Steam's own settings pages
+
+Steam's own settings pages for Wi-Fi, power, updates and storage do not work inside a side. For each:
+
+- **Wi-Fi and power.** Open Steam's Quick Access Menu on the side and use it there.
+- **Restart and Shut Down in Steam's power menu.** For Main they restart and shut down the machine, as on plain SteamOS; after a restart you are in plain SteamOS. Both sides show that Steam is closing, and the other player's Steam is asked to quit and gets a few seconds before the machine goes down, so save on both sides first. For Guest they do nothing: one player cannot take the machine from the other. While DosPlex runs, a rule under `/run/polkit-1/rules.d` lets Main's account ask the system for a restart or a shutdown without a password; it is removed when DosPlex stops and is gone after a restart.
+- **Updates.** Update the machine itself before you update DosPlex. Run the update from a plain shell: `sudo /opt/dosplex/bin/dosplex update`.
+- **Storage.** Use Desktop mode for Steam's storage page.
+
+## When a game quits right after it starts in a split
+
+A game remembers the resolution you chose in its own video settings. If you last played it in Full screen, it may ask for that size again in a split, where your part of the screen is smaller, and some games then quit at once without a message. Choose **Full screen** on the Session page, start the game, set its own video settings to a window or to a smaller size, and quit it. It then starts in a split too.
+
+## Shared game library: defects and things to know
+
+The library's tidy-up runs as the administrator and trusts things that a program in a player's account can change. These are open in this release:
+
+- A program in a player's account can name a folder that is not that player's as one of their Steam libraries. The tidy-up then moves and renames files in it.
+- While a library is being put in place, a program in a player's account can redirect it to another folder.
+- A game on an SD card or a USB drive that arrives while Steam runs can be played before Steam has checked its files.
+- A file list that one account forges can remove the other player's copy of a game, or stop it from being updated.
+
+So turn the library on only when both accounts on the machine belong to people you trust, and not on a machine that others can log in to.
+
+- Each player's own files of a shared game stay their own. Saves, settings and anything a game writes into its folder are kept per player, not shared.
+- A game goes back to the player who shared it first when you turn the library off. What the other player had written into that game's folder is not deleted: it is moved to that player's `conflicts` folder in the store, which only the administrator can read.
+- A drive you take out while a side still uses it may stay in use by that side. Close the games on it, or stop DosPlex, before you remove an SD card or a USB drive.
+- Steam may mark a game "update required" when DosPlex asks it for a file list it no longer has. The mark goes away when Steam has answered or after the next start of DosPlex.
+- `library auto on` is the setting after `library on`: every ten minutes DosPlex looks for games that were installed or updated, checks them, and shares them at the next start of DosPlex. `library auto off` is sharing by hand.
+
+## Tell us how it went
+
+DosPlex is an alpha. The fastest way to make it better is to hear from you, in your own words. This release has no feedback form in the menu, so telling us is something you do from a phone or a computer.
+
+- **Discord.** The channel `#alpha-testers` on the DosPlex server is the place for how it went, what you played and what surprised you. The invite is discord.gg/HSBJhQPA6A.
+- **GitHub.** For a defect you want to follow until it is fixed, open an issue at github.com/dosplex/dosplex/issues.
+
+Both are public: other people can read what you write there. What helps: what you did and what happened (which game, which side, which layout, and what you expected); your version (`sudo /opt/dosplex/bin/dosplex status` prints it on its first line); your machine (Steam Deck or Steam Machine, the SteamOS version, and what the picture is shown on); and whether it happens once, sometimes or every time. A photo of the screen taken with a phone is often enough. Never include a password, a Steam Guard code or a sign-in QR code. A security problem does not belong in a public channel: the file `SECURITY.md` of the project says how to report it privately.

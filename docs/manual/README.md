@@ -1,6 +1,6 @@
 # The DosPlex manual
 
-For DosPlex 0.1.0 alpha on SteamOS. The same pages open from **Help** in the DosPlex menu.
+For DosPlex 0.1.0 alpha on SteamOS. **Help** in the DosPlex menu shows a cheat sheet of three pages; this is the whole manual.
 
 1. [What DosPlex is](01-what-dosplex-is.md)
 2. [Before you install](02-before-you-install.md)

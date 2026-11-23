@@ -41,7 +41,7 @@ Read [the manual](docs/manual/README.md) first; it is short. In brief, in Deskto
 2. Take the `dosplex` program out of it and compare its SHA-256 with the one on the release page:
    `tar -xzf dosplex-VERSION.tar.gz dosplex-VERSION/dosplex && sha256sum dosplex-VERSION/dosplex`.
 3. Install: `sudo ./dosplex-VERSION/dosplex install --release dosplex-VERSION.tar.gz`. It checks your device first and changes nothing when a check fails.
-4. Nothing starts by itself. The installer adds **DosPlex** to Steam's library while Steam is running (if it says it could not, `sudo /opt/dosplex/bin/dosplex entry on` tries again) and puts a DosPlex icon on the desktop. Start DosPlex from either one, or add `--start` to the install command.
+4. Start DosPlex from Steam's library or from the DosPlex icon on the desktop. The installer puts it in both places (if it says it could not add it to Steam's library, `sudo /opt/dosplex/bin/dosplex entry on` tries again). With `--start` on the install command it starts right after the install.
 
 [Install](docs/manual/03-install.md) has every step, and
 [Update, roll back, uninstall](docs/manual/13-update-roll-back-uninstall.md) has the way back.

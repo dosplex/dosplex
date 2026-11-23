@@ -352,16 +352,17 @@ def main():
             raise SystemExit('layout.txt names %s, which the repository export does not have' % repository_path)
         kind = 'license' if destination.startswith('licenses/') else 'script'
         place(destination, origin, **owned(repository_path, kind))
-    # The manual the panel's Help shows: one page per chapter of docs/manual, built here so that the payload holds
-    # the manual of exactly this source tree.
-    manual = args.source / 'docs/manual'
+    # What the panel's Help shows: the cheat sheet of docs/help, a few pages about using DosPlex once it runs (the
+    # owner found the whole manual too much to read in the menu; the manual itself is for the website). Built here so
+    # that the payload holds the pages of exactly this source tree.
+    manual = args.source / 'docs/help'
     if manual.is_dir():
         built_manual = args.stage / 'manual'
         subprocess.run([sys.executable, str(args.source / 'tools/build-manual.py'), '--source', str(manual),
                         '--out', str(built_manual)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         for item in sorted(built_manual.iterdir()):
             if item.is_file():
-                place('share/dosplex/manual/' + item.name, item, **owned('docs/manual', 'data'))
+                place('share/dosplex/manual/' + item.name, item, **owned('docs/help', 'data'))
     # The release name, written once and read back by everything that needs it (prepare-session-bundle.py).
     place('share/dosplex/VERSION', data=(args.version + '\n').encode(),
           **owned('packaging/release-build/assemble.py', 'data'))

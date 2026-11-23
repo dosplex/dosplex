@@ -88,7 +88,7 @@ Installing:
   `/opt/dosplex/current` at it and keeps one earlier release;
 - creates the `guest` account with a private home, or adopts one that is
   already there and safe to use;
-- starts nothing: an install leaves DosPlex stopped unless you add `--start`.
+- puts DosPlex in Steam's library and on the desktop, where you start it (`--start` starts it right after the install).
 
 The install prints one line for the checks that passed and the whole line for
 each check that did not. `preflight` prints every check. The last lines say how

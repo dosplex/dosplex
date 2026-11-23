@@ -165,6 +165,40 @@ def forget_record(directory, key):
     return True
 
 
+def wait_again_record(directory, key):
+    """Make the record of a controller wait for its first owner again; its number, or None if there was no record.
+
+    This is what forgetting means for a receiver slot of the running session: the session goes on holding the slot, so
+    its record cannot go (a missing record reads as Main's). Under the lock, in one step: the owner the user chose is
+    dropped from assignments.json, and the record is written anew as nobody's and waiting (FIRST_PENDING), with the
+    smallest number that is free. The controller that next wakes on the slot gets its first owner like a new one.
+    The record must be trusted as for forget_record; anything else is refused with ValueError and left alone."""
+    if not re.fullmatch('[a-f0-9]{32}', key): raise ValueError('invalid controller id')
+    directory = Path(directory)
+    path = directory / (key + '.json')
+    with index_lock(directory):
+        try:
+            record = read_json(path)
+        except FileNotFoundError:
+            return None
+        except OSError as error:
+            raise ValueError('untrusted controller state') from error
+        if not isinstance(record, dict): raise ValueError('untrusted controller state')
+        batch = directory / 'assignments.json'
+        try:
+            value = read_json(batch)
+            if isinstance(value, dict) and isinstance(value.get('assignments'), dict) and key in value['assignments']:
+                del value['assignments'][key]
+                write_json(batch, value)
+        except (OSError, ValueError, TypeError): pass
+        taken = used_indexes(directory, skip=key)
+        number = next(n for n in range(1, MAX_INDEX + 2) if n not in taken)
+        if number > MAX_INDEX: raise RuntimeError('controller numbers are used up')
+        kept = {k: v for k, v in record.items() if k not in ('index', 'target', 'first', 'preview')}
+        write_json(path, dict(kept, target='unassigned', first=FIRST_PENDING, index=number))
+    return number
+
+
 class Registry:
     def __init__(self, directory, inventory):
         self.directory = Path(directory)
@@ -222,13 +256,15 @@ class Registry:
         save_record(self.directory, key, dict({k: v for k, v in record.items() if k not in ('index', 'first')}, target=owner))
         if key in self.devices: self.devices[key]['requested'] = owner
 
-    def forget_requests(self, connected, protected=()):
+    def forget_requests(self, connected, protected=(), session=()):
         """Forget the controllers that a `<id>.forget` file in the directory asks for; the ids that were forgotten.
 
         Whoever is root (the overlay, `dosplex control forget`) makes the file, so the one place that removes a record is
         this process, under the lock. A request is removed whatever happens to it. A controller that is in connected is
-        refused, and so is one in protected (the receivers of the session, which are rebuilt from its plan): the user
-        turns the controller off first. A request that is not a regular file of this user is ignored and removed."""
+        refused, and so is one in protected: the user turns the controller off first. One in session (a receiver slot
+        of the running session, which goes on holding it) keeps a record: it is made nobody's and waits for its first
+        owner again (wait_again_record), so the controller that next wakes on it comes back as a new one. A request
+        that is not a regular file of this user is ignored and removed."""
         done = []
         for p in sorted(self.directory.glob('*' + FORGET_SUFFIX))[:32]:
             key = p.name[:-len(FORGET_SUFFIX)]
@@ -237,6 +273,12 @@ class Registry:
                 p.unlink()
                 if (not re.fullmatch('[a-f0-9]{32}', key) or not stat.S_ISREG(st.st_mode) or st.st_uid != os.geteuid()
                         or st.st_mode & 0o022 or key in connected or key in protected): continue
+                if key in session:
+                    number = wait_again_record(self.directory, key)
+                    if number is None: continue
+                    if key in self.devices: self.devices[key].update(index=number, requested='unassigned')
+                    done.append(key)
+                    continue
                 forget_record(self.directory, key)
                 self.devices.pop(key, None)
                 done.append(key)

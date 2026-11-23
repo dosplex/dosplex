@@ -30,6 +30,7 @@ COMPOSITOR = ROOT / 'compositor' / 'dosplex-compositor.c'
 PANEL = ROOT / 'packaging' / 'steamos' / 'panel'
 AUDIO_ROUTER = ROOT / 'packaging' / 'steamos' / 'dosplex-audio-router.py'
 MANUAL = ROOT / 'docs' / 'manual'
+HELP = ROOT / 'docs' / 'help'       # the cheat sheet the menu's Help shows: the same rule for its bold words
 
 # A string the manual prints in bold that is not a word of DosPlex's menu. The reason is one of
 # 'steam', 'button', 'emphasis', nothing else. 'steam': a word of Steam's or SteamOS's own interface,
@@ -37,78 +38,18 @@ MANUAL = ROOT / 'docs' / 'manual'
 # opener in bold that names no button.
 NOT_DOSPLEX = {
     # steam: words of Steam's and SteamOS's own interface.
-    'A / Cross': 'steam',
     'Add Selected Programs': 'steam',
     'Add a Non-Steam Game to My Library': 'steam',
-    'B / Circle': 'steam',
-    'D-pad Up': 'steam',
-    'Enter': 'steam',
-    'Escape': 'steam',
     'Games': 'steam',
     'Library': 'steam',
-    'Menu': 'steam',
     'Non-Steam': 'steam',
     'Play': 'steam',
     'Power': 'steam',
     'Return to Gaming Mode': 'steam',
-    'Select / Back / View': 'steam',
-    'Storage': 'steam',
-    'Super+Shift+M': 'steam',
     'Switch to Desktop': 'steam',
-    'Updates': 'steam',
-    'View': 'steam',
-    'Wi-Fi and power': 'steam',
     # button: controller and keyboard keys.
-    'B': 'button',
-    'Ctrl+Shift+M': 'button',
-    'L2': 'button',
-    'R2': 'button',
     'X': 'button',
     '?': 'button',
-    # emphasis: sentence openers that name no button.
-    'A black screen': 'emphasis',
-    'Discord': 'emphasis',
-    'GitHub': 'emphasis',
-    'What you did, and what happened': 'emphasis',
-    'Your version': 'emphasis',
-    'Other gamepads open the menu experimentally': 'emphasis',
-    'The machine does not go to sleep by itself while two players are on the screen': 'emphasis',
-    'Your machine': 'emphasis',
-    'Whether it happens again': 'emphasis',
-    "The first controller is Main's, the next is the second player's": 'emphasis',
-    'A controller that does not answer': 'emphasis',
-    'A game that does not start': 'emphasis',
-    'A game that quits right after it starts in a split': 'emphasis',
-    'A game keeps its own resolution setting': 'emphasis',
-    "Each player's own files of a shared game stay their own": 'emphasis',
-    'A drive you take out': 'emphasis',
-    'Steam may mark a game "update required"': 'emphasis',
-    'A game goes back to the player who shared it first': 'emphasis',
-    'A game that was already running may not see a newly claimed controller': 'emphasis',
-    'A microphone you claim is not kept': 'emphasis',
-    "A program can draw over the other player's part of the screen": 'emphasis',
-    "DosPlex does not start from Steam's library": 'emphasis',
-    'Flatpak apps are there too': 'emphasis',
-    "Guest's own Steam shows one output and one microphone": 'emphasis',
-    'It starts only when you start it': 'emphasis',
-    "Main's": 'emphasis',
-    'No picture changes while a game is running': 'emphasis',
-    'No sound': 'emphasis',
-    'Some things are missing, and some are rough': 'emphasis',
-    'Standby is experimental': 'emphasis',
-    "The Steam Deck's own screen shares one backlight": 'emphasis',
-    'The desktop opens at a readable scale': 'emphasis',
-    'The frame-rate display has not been checked on a device yet': 'emphasis',
-    'The two sides share one network': 'emphasis',
-    'To choose another scale,': 'emphasis',
-    'To open it,': 'emphasis',
-    'When you would change it': 'emphasis',
-    'Your desktop is your own': 'emphasis',
-    'Your feedback is what improves it': 'emphasis',
-    # Paragraph openers of the chapter on the commands; the words are the commands `dosplex update`, `rollback`, `uninstall`.
-    'Roll back': 'emphasis',
-    'Uninstall': 'emphasis',
-    'Update': 'emphasis',
 }
 
 # (phrase, file, line, what was searched) — a phrase that looks like a menu word and is not in the program,
@@ -133,7 +74,7 @@ def collect_bold_phrases():
     collected. The phrase is kept with every place it occurs, so one phrase on several lines is listed
     for every line."""
     phrases = []
-    for path in sorted(MANUAL.glob('[0-9]*.md')):
+    for path in sorted(MANUAL.glob('[0-9]*.md')) + sorted(HELP.glob('[0-9]*.md')):
         in_fence = False
         for number, line in enumerate(path.read_text(encoding='utf-8').splitlines(), 1):
             if FENCE.match(line):

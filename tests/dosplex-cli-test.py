@@ -956,10 +956,9 @@ class InstallLayout(Base):
         (external,) = world.events('external.run')
         self.assertEqual((external['main'], external['guest'], external['builtin_deck']), (None, None, False))
         self.assertEqual(world.events('trial.start')[0]['layout'], 'vertical')       # by hand: the two splits (ADR-013)
-        # The one line at the end says how to start at boot; it is off after an install.
-        self.assertEqual(result.out.splitlines()[-1],
-                         'DosPlex starts when you ask for it. A start at every boot is experimental: sudo %s autostart on '
-                         '--experimental' % (world.tree / 'opt/dosplex/bin/dosplex'))
+        # It ends with the session; a start at boot is off after an install and the install does not bring it up.
+        self.assertIn('DosPlex is running (', result.out.splitlines()[-1])
+        self.assertNotIn('autostart', result.out)
         self.assertEqual(world.state().get('autostart'), None)
 
     def test_an_install_starts_nothing_unless_it_is_asked_to_and_says_how_to_start(self):
@@ -973,7 +972,7 @@ class InstallLayout(Base):
                 self.assertEqual(world.commands('systemd-run'), [])
                 self.assertEqual(world.events('trial.start'), [])
                 lines = result.out.splitlines()
-                self.assertEqual(lines[-2], 'DosPlex is installed and not started. Start it:')
+                self.assertEqual(lines[-2], 'You can start DosPlex:')
                 self.assertEqual(lines[-1], '  in a terminal: sudo %s start' % (world.tree / 'opt/dosplex/bin/dosplex'))
                 self.assertNotIn("Steam's library: Library", '\n'.join(lines[-3:]))     # no entry set up: not promised
         both = self.world()
@@ -4341,6 +4340,34 @@ class Control(Base):
         self.assertEqual(sorted(p.name for p in prefs.iterdir()), [CONTROLLER_A + '.json', CONTROLLER_B + '.json'])
         self.assertNotIn(CONTROLLER_C, [c['id'] for c in self.ctl(world, 'devices')['data']['controllers']])
 
+    def test_forget_of_a_steam_controller_that_is_asleep_is_done_when_its_slot_waits_again(self):
+        import threading
+        world = self.running()
+        root = self.trial(world)
+        prefs = self.add_controllers(root)
+        record = prefs / (CONTROLLER_C + '.json')
+        record.write_text(json.dumps({'name': 'Pad C', 'target': 'guest', 'backend': 'native', 'index': 3}))
+
+        def service():      # (the routing service: the slot keeps its record, which then waits for its first owner)
+            for _ in range(100):
+                if (prefs / (CONTROLLER_C + '.forget')).exists():
+                    (prefs / (CONTROLLER_C + '.forget')).unlink()
+                    record.write_text(json.dumps({'name': 'Pad C', 'target': 'unassigned', 'backend': 'native',
+                                                  'first': 'pending', 'index': 3}))
+                    return
+                time.sleep(0.05)
+        thread = threading.Thread(target=service)
+        thread.start()
+        answer = self.ctl(world, 'forget', CONTROLLER_C, expect='ok', DOSPLEX_TEST_ASSIGN_SECONDS='5')
+        thread.join()
+        self.assertEqual(answer['data'], {'id': CONTROLLER_C, 'name': 'Pad C'})
+        self.assertTrue(record.exists())
+        # A service that does not answer: no request is left to fire later, and the record is as it was.
+        record.write_text(json.dumps({'name': 'Pad C', 'target': 'guest', 'backend': 'native', 'index': 3}))
+        self.ctl(world, 'forget', CONTROLLER_C, expect='unavailable', DOSPLEX_TEST_ASSIGN_SECONDS='0.3')
+        self.assertFalse(list(prefs.glob('*.forget')))
+        self.assertEqual(json.loads(record.read_text())['target'], 'guest')
+
     def test_forget_refuses_a_connected_controller_and_asks_for_nothing(self):
         world = self.running()
         prefs = self.add_controllers(self.trial(world))
@@ -4365,8 +4392,18 @@ class Control(Base):
         root = self.trial(world)
         prefs = self.add_controllers(root)
         self.ctl(world, 'forget', 'd' * 32, expect='not-found')
-        (prefs / (CONTROLLER_C + '.json')).write_text(json.dumps({'name': 'Pad C', 'target': 'unassigned', 'backend': 'native'}))
+        # A Steam Controller is a slot of a receiver. One that already waits for its first owner has nothing to forget,
+        # and one whose receiver is not in this session is not listed and is not touched.
+        (prefs / (CONTROLLER_C + '.json')).write_text(json.dumps(
+            {'name': 'Pad C', 'target': 'unassigned', 'backend': 'native', 'first': 'pending'}))
         self.ctl(world, 'forget', CONTROLLER_C, expect='refused')
+        (prefs / (CONTROLLER_C + '.json')).write_text(json.dumps({'name': 'Pad C', 'target': 'guest', 'backend': 'native'}))
+        self.publish(root, [{'id': CONTROLLER_A, 'name': 'Pad A', 'connected': True, 'target': 'main'}])
+        self.ctl(world, 'forget', CONTROLLER_C, expect='refused')
+        self.assertFalse(list(prefs.glob('*.forget')))
+        prefs = self.add_controllers(root)
+        (prefs / (CONTROLLER_C + '.json')).write_text(json.dumps({'name': 'Pad C', 'target': 'unassigned', 'backend': 'native',
+                                                                  'first': 'pending'}))
         (prefs / (CONTROLLER_C + '.json')).chmod(0o666)                              # a record that others can write
         self.ctl(world, 'forget', CONTROLLER_C, expect='not-found')
         (prefs / (CONTROLLER_C + '.json')).unlink()
@@ -6189,7 +6226,7 @@ class LibraryEntry(Base):
         self.assertEqual(stat.S_IMODE(launcher.stat().st_mode), 0o755)
         self.assertEqual(sorted(p.name for p in (world.tree / 'home/deck/Desktop').iterdir()), ['DosPlex.desktop'])
         lines = result.out.splitlines()
-        self.assertEqual(lines[-3:-1], ['DosPlex is installed and not started. Start it:',
+        self.assertEqual(lines[-3:-1], ['You can start DosPlex:',
                                         '  from the DosPlex icon on the desktop'])        # no Steam entry in the library yet
         self.assertEqual(lines[-1], '  in a terminal: sudo %s start' % (world.tree / 'opt/dosplex/bin/dosplex'))
 
@@ -6199,7 +6236,7 @@ class LibraryEntry(Base):
         result = world.install(world.bundle(), '--no-start', start=False, **self.ON)
         self.assertOk(result)
         self.assertEqual(result.out.splitlines()[-4:],
-                         ['DosPlex is installed and not started. Start it:',
+                         ['You can start DosPlex:',
                           "  from Steam's library: Library, Non-Steam, DosPlex",
                           '  from the DosPlex icon on the desktop',
                           '  in a terminal: sudo %s start' % (world.tree / 'opt/dosplex/bin/dosplex')])
@@ -6211,7 +6248,7 @@ class LibraryEntry(Base):
         result = world.install(world.bundle(), '--no-start', start=False, **self.ON)
         self.assertOk(result)
         self.assertEqual(result.out.splitlines()[-2:],
-                         ['DosPlex is installed and not started. Start it:',
+                         ['You can start DosPlex:',
                           '  in a terminal: sudo %s start' % (world.tree / 'opt/dosplex/bin/dosplex')])
         self.assertFalse(os.path.lexists(world.tree / self.LAUNCHER))
 
@@ -6221,7 +6258,7 @@ class LibraryEntry(Base):
         self.assertOk(result)
         self.assertFalse((world.tree / 'home/deck/Desktop').exists())
         self.assertTrue((world.tree / self.DESKTOP).is_file())
-        self.assertNotIn('desktop', result.out.split('Start it:')[-1])
+        self.assertNotIn('desktop', result.out.split('You can start DosPlex:')[-1])
         self.assertIn("Start from Steam's library: ready", world.run('status').out)
         self.assertOk(world.run('entry', 'off'))
         self.assertFalse((world.tree / 'home/deck/Desktop').exists())
@@ -6515,11 +6552,14 @@ WantedBy=graphical.target
     def systemctl(self, world):
         return [c['argv'] for c in world.commands('systemctl')]
 
-    def test_it_is_off_after_an_install_and_the_install_says_how_to_turn_it_on(self):
+    def test_it_is_off_after_an_install_and_the_install_says_nothing_about_it(self):
         world = self.world()
         result = world.install(world.bundle(), '--no-start')
         self.assertOk(result)
-        self.assertIn('autostart on --experimental', result.out.splitlines()[-3])   # then the lines on how to start
+        # The install ends with how to start DosPlex and nothing else; the start at boot is in the documents.
+        self.assertNotIn('autostart', result.out)
+        self.assertNotIn('by itself', result.out)
+        self.assertEqual(result.out.splitlines()[-2], 'You can start DosPlex:')
         self.assertFalse((world.tree / self.UNIT).exists())
         self.assertNotIn('autostart', world.state())
         self.assertIn('Starts at boot: no', world.run('status').out)

@@ -324,16 +324,30 @@ export function steamIdFromLoginUsers(text) {
 
 // The manual chapter for an overlay page. `page` comes from the overlay (the
 // --help argument). Unknown pages go to the menu chapter.
+// Help is a cheat sheet of three pages (docs/help): the menu, controllers and the screen, sound and power.
 const CHAPTERS = {
-    layout: "06-layout",
-    picture: "07-picture-size",
-    devices: "08-controllers",
-    audio: "09-sound",
-    display: "10-display",
-    session: "12-turn-off-sleep-restart",
+    layout: "02-controllers-and-screen",
+    picture: "02-controllers-and-screen",
+    devices: "02-controllers-and-screen",
+    display: "02-controllers-and-screen",
+    audio: "03-sound-and-power",
+    session: "03-sound-and-power",
 };
+// The pictures of a chapter, made to fit the page: the manual builder writes each as
+// <img src="NAME" width="W" height="H"> with the picture's own pixels, and the text element draws exactly what it
+// is told. `available` is the width in pixels the picture may take. A picture without both numbers is left alone.
+export function fitImages(html, available) {
+    var room = Math.floor(available);
+    if (!(room > 0)) return html;
+    return String(html).replace(/<img src="([^"<>]+)" width="(\d+)" height="(\d+)">/g, function(all, name, w, h) {
+        var width = Number(w), height = Number(h);
+        if (!(width > 0 && height > 0)) return all;
+        return '<img src="' + name + '" width="' + room + '" height="' + Math.max(1, Math.round(room * height / width)) + '">';
+    });
+}
+
 export function chapterForPage(page) {
-    return CHAPTERS[page] || "05-the-menu";
+    return CHAPTERS[page] || "01-the-menu";
 }
 
 // The one line of help text shown under every feedback step's heading,

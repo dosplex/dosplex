@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 320" width="720" height="320" role="img" aria-label="Hold View, press D-pad Up, keep both held for one second">
+  <rect width="720" height="320" rx="24" fill="#101820"/>
+  <!-- controller -->
+  <g>
+    <path d="M190,96 Q190,70 222,70 H498 Q530,70 530,96 L556,214 Q562,250 528,250 Q506,250 494,228 L478,204 H242 L226,228 Q214,250 192,250 Q158,250 164,214 Z" fill="#1c2633" stroke="#5a6b82" stroke-width="4" stroke-linejoin="round"/>
+    <!-- D-pad -->
+    <rect x="252" y="112" width="26" height="26" rx="5" fill="#f8c21c"/>
+    <rect x="252" y="164" width="26" height="26" rx="5" fill="#5a6b82"/>
+    <rect x="226" y="138" width="26" height="26" rx="5" fill="#5a6b82"/>
+    <rect x="278" y="138" width="26" height="26" rx="5" fill="#5a6b82"/>
+    <rect x="252" y="138" width="26" height="26" fill="#3a4658"/>
+    <!-- View and Menu -->
+    <rect x="322" y="100" width="34" height="18" rx="9" fill="#f8c21c"/>
+    <rect x="366" y="100" width="34" height="18" rx="9" fill="#5a6b82"/>
+    <!-- face buttons -->
+    <circle cx="452" cy="126" r="12" fill="#5a6b82"/>
+    <circle cx="452" cy="176" r="12" fill="#5a6b82"/>
+    <circle cx="427" cy="151" r="12" fill="#5a6b82"/>
+    <circle cx="477" cy="151" r="12" fill="#5a6b82"/>
+  </g>
+  <!-- callouts -->
+  <g font-family="Noto Sans, DejaVu Sans, sans-serif" fill="#f4f6fa">
+    <circle cx="339" cy="40" r="15" fill="#f8c21c"/>
+    <text x="339" y="46" font-size="18" font-weight="700" text-anchor="middle" fill="#101820">1</text>
+    <text x="362" y="46" font-size="19" font-weight="700">Hold View</text>
+    <line x1="339" y1="56" x2="339" y2="98" stroke="#f8c21c" stroke-width="3"/>
+    <circle cx="66" cy="125" r="15" fill="#f8c21c"/>
+    <text x="66" y="131" font-size="18" font-weight="700" text-anchor="middle" fill="#101820">2</text>
+    <text x="30" y="166" font-size="19" font-weight="700">D-pad Up</text>
+    <line x1="82" y1="125" x2="250" y2="125" stroke="#f8c21c" stroke-width="3"/>
+    <text x="360" y="296" font-size="19" text-anchor="middle" fill="#c9d1dc">Keep both held for one second</text>
+  </g>
+</svg>

@@ -79,6 +79,7 @@ packaging/steamos/dosplex-side-left.qml
 packaging/steamos/dosplex-side-right.qml
 packaging/steamos/dosplex-side-supervisor.py
 packaging/steamos/dosplex-side-supervisor.sh
+packaging/steamos/dosplex-power-guard.py
 packaging/steamos/dosplex-sleep-guard.py
 packaging/steamos/dosplex-switch-mode.sh
 packaging/steamos/dosplex-virtio-gpu-args.sh
@@ -152,6 +153,7 @@ tests/swap-choice-test.py
 tests/shared-audio-checks.py
 tests/side-control-socket-test.py
 tests/sleep-guard-integration.py
+tests/power-guard-test.py
 tests/sleep-guard-test.py
 tests/smoke-test.sh
 tests/source-check.sh
@@ -224,6 +226,8 @@ docs/manual/14-when-something-is-wrong.md
 docs/manual/15-limits-of-the-alpha.md
 docs/manual/16-tell-us-how-it-went.md
 docs/manual/17-experimental.md
+docs/manual/menu-chord.png
+docs/manual/menu-chord.svg
 docs/manual/README.md
 docs/release-process.md
 docs/steamos-installation.md
@@ -280,3 +284,12 @@ tests/kwin_layers_client.py
 compositor/subprojects/packagefiles/wlroots-0.17.4-x11-present-commit-seq.patch
 legal/RIGHTS_HOLDER
 legal/spdx-exclusions.txt
+docs/help/01-the-menu.md
+docs/help/02-controllers-and-screen.md
+docs/help/03-sound-and-power.md
+docs/help/layouts.png
+docs/help/layouts.svg
+docs/help/menu-chord.png
+docs/help/menu-chord.svg
+docs/help/move-controller.png
+docs/help/move-controller.svg

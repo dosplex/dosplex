@@ -133,6 +133,14 @@ class BuildManualTest(unittest.TestCase):
         self.assertEqual(self.html('01-a.html'), '<p><img src="pic.png"></p>\n')
         self.assertEqual((self.out / 'pic.png').read_bytes(), b'png-bytes')
 
+    def test_a_png_picture_carries_its_size_for_the_tv(self):
+        # The TV's text element draws a picture at the size it is told; the panel scales these numbers to its width.
+        header = (b'\x89PNG\r\n\x1a\n' + (13).to_bytes(4, 'big') + b'IHDR'
+                  + (1440).to_bytes(4, 'big') + (640).to_bytes(4, 'big') + b'\x08\x06\x00\x00\x00')
+        (self.source / 'chord.png').write_bytes(header)
+        self.build(('01-a.md', '![The chord](chord.png)\n'))
+        self.assertEqual(self.html('01-a.html'), '<p><img src="chord.png" width="1440" height="640"></p>\n')
+
     def test_image_placeholder_when_missing(self):
         self.build(('01-a.md', '![The picture](missing.png)\n'))
         self.assertEqual(self.html('01-a.html'), '<p><i>[Picture: The picture]</i></p>\n')
@@ -395,6 +403,159 @@ class SiteTargetRealManualTest(unittest.TestCase):
                     continue
                 self.assertTrue((out / href.split('#')[0]).is_file(),
                                 'dangling link %s in %s' % (href, path.name))
+
+
+class KeyCapAndCalloutTest(unittest.TestCase):
+    """<kbd> key caps and GitHub-style callouts, in both targets."""
+
+    PANEL_CAP = '<span style="background-color:#3a4658;"><b>&nbsp;%s&nbsp;</b></span>'
+
+    def build(self, body, target):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        source = Path(directory.name) / 'source'
+        source.mkdir()
+        (source / '01-first.md').write_text('# First\n\n' + body, encoding='utf-8')
+        out = Path(directory.name) / 'out'
+        status, _, _ = run_build(source, out, target=target)
+        self.assertEqual(status, 0)
+        self.out = out
+        return (out / '01-first.html').read_text(encoding='utf-8')
+
+    def panel(self, body):
+        return self.build(body, 'panel')
+
+    def site(self, body):
+        return self.build(body, 'site')
+
+    def test_key_cap_plain(self):
+        self.assertIn('<p>Press %s.</p>' % (self.PANEL_CAP % 'View'),
+                      self.panel('Press <kbd>View</kbd>.\n'))
+        self.assertIn('<p>Press <kbd>View</kbd>.</p>', self.site('Press <kbd>View</kbd>.\n'))
+
+    def test_key_cap_with_space_stays_whole_on_panel(self):
+        self.assertIn(self.PANEL_CAP % 'D-pad&nbsp;Up', self.panel('<kbd>D-pad Up</kbd>\n'))
+        self.assertIn('<kbd>D-pad Up</kbd>', self.site('<kbd>D-pad Up</kbd>\n'))
+
+    def test_key_caps_joined_by_plus(self):
+        text = '<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd>\n'
+        self.assertIn('<p>%s+%s+%s</p>' % tuple(self.PANEL_CAP % k for k in ('Ctrl', 'Shift', 'M')),
+                      self.panel(text))
+        self.assertIn('<p><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd></p>', self.site(text))
+
+    def test_key_cap_inside_bold_list_table_heading(self):
+        text = ('**press <kbd>A</kbd> now**\n\n- item <kbd>B</kbd>\n\n1. step <kbd>X</kbd>\n\n'
+                '| a | b |\n| --- | --- |\n| <kbd>C</kbd> | d |\n\n## Use <kbd>Y</kbd>\n')
+        panel = self.panel(text)
+        site = self.site(text)
+        for key in 'ABCXY':
+            self.assertIn(self.PANEL_CAP % key, panel)
+            self.assertIn('<kbd>%s</kbd>' % key, site)
+        self.assertIn('<b>press %s now</b>' % (self.PANEL_CAP % 'A'), panel)
+        self.assertIn('<strong>press <kbd>A</kbd> now</strong>', site)
+        self.assertIn('<li>item %s</li>' % (self.PANEL_CAP % 'B'), panel)
+        self.assertIn('<li>item <kbd>B</kbd></li>', site)
+        self.assertIn('<td>%s</td>' % (self.PANEL_CAP % 'C'), panel)
+        self.assertIn('<td><kbd>C</kbd></td>', site)
+        self.assertIn('<h2>Use %s</h2>' % (self.PANEL_CAP % 'Y'), panel)
+        self.assertIn('>Use <kbd>Y</kbd></h2>', site)
+
+    def test_arrows_are_words_on_panel_and_arrows_on_site(self):
+        text = '<kbd>\u2191</kbd> <kbd>\u2193</kbd> <kbd>\u2190</kbd> <kbd>\u2192</kbd> <kbd>D-pad \u2192</kbd>\n'
+        panel = self.panel(text)
+        for word in ('Up', 'Down', 'Left', 'Right', 'D-pad&nbsp;Right'):
+            self.assertIn(self.PANEL_CAP % word, panel)
+        for arrow in '\u2191\u2193\u2190\u2192':
+            self.assertNotIn(arrow, panel)
+        site = self.site(text)
+        for arrow in '\u2191\u2193\u2190\u2192':
+            self.assertIn('<kbd>%s</kbd>' % arrow, site)
+
+    def test_malformed_or_attributed_tag_stays_text(self):
+        text = ('<kbd class="x">A</kbd> <KBD>B</KBD> <kbd>C <kbd>D</kbd> <kbd>a<b></kbd> '
+                '<kbd></kbd> <kbd>E\n')
+        for html in (self.panel(text), self.site(text)):
+            self.assertIn('&lt;kbd class="x"&gt;A&lt;/kbd&gt;', html)
+            self.assertIn('&lt;KBD&gt;B&lt;/KBD&gt;', html)
+            self.assertIn('&lt;kbd&gt;a&lt;b&gt;&lt;/kbd&gt;', html)
+            self.assertIn('&lt;kbd&gt;&lt;/kbd&gt;', html)
+            self.assertNotIn('<kbd class', html)
+            self.assertNotIn('<KBD', html)
+        self.assertNotIn('<kbd>a', self.site(text))
+
+    def test_other_html_still_escaped(self):
+        text = '<b>x</b> <script>y</script> <span style="a">z</span> <kbd>A</kbd>\n'
+        for html in (self.panel(text), self.site(text)):
+            self.assertIn('&lt;b&gt;x&lt;/b&gt; &lt;script&gt;y&lt;/script&gt; '
+                          '&lt;span style="a"&gt;z&lt;/span&gt;', html)
+
+    def test_key_cap_in_image_alt_and_link_target_stays_text(self):
+        site = self.site('![a <kbd>B</kbd>](missing.png)\n\n[x](http://e/<kbd>B</kbd>)\n')
+        self.assertIn('[Picture: a B]', site)
+        self.assertNotIn('<kbd>B</kbd>"', site)
+        self.assertNotIn('href="http://e/<', site)
+
+    def test_callout_each_kind(self):
+        colours = {'TIP': '#4cc38a', 'NOTE': '#5aa9f5', 'IMPORTANT': '#b58cf0', 'WARNING': '#ffb454'}
+        for kind, colour in colours.items():
+            text = '> [!%s]\n> One line.\n' % kind
+            title = kind.capitalize()
+            self.assertIn('<div class="callout callout-%s"><p class="callout-title">%s</p>'
+                          '<p>One line.</p></div>' % (kind.lower(), title), self.site(text))
+            self.assertIn('<table cellspacing="0" cellpadding="6"><tr>'
+                          '<td width="4" bgcolor="%s">&nbsp;</td>'
+                          '<td><p><b><font color="%s">%s</font></b></p><p>One line.</p></td>'
+                          '</tr></table>' % (colour, colour, title), self.panel(text))
+
+    def test_callout_lines_joined_and_paragraphs(self):
+        text = '> [!TIP]\n> First line\n> second line.\n>\n> Another paragraph.\n\nAfter.\n'
+        site = self.site(text)
+        self.assertIn('<p>First line second line.</p><p>Another paragraph.</p></div>', site)
+        self.assertIn('<p>After.</p>', site)
+        panel = self.panel(text)
+        self.assertIn('<p>First line second line.</p><p>Another paragraph.</p></td>', panel)
+        self.assertIn('<p>After.</p>', panel)
+
+    def test_callout_inline_markup_and_key_cap(self):
+        text = '> [!NOTE]\n> Use **bold**, *it*, `code` and <kbd>View</kbd> or [a](http://e.org).\n'
+        site = self.site(text)
+        self.assertIn('<p>Use <strong>bold</strong>, <em>it</em>, <code>code</code> and '
+                      '<kbd>View</kbd> or <a href="http://e.org">a</a>.</p>', site)
+        panel = self.panel(text)
+        self.assertIn('<p>Use <b>bold</b>, <i>it</i>, <code>code</code> and %s or a (http://e.org).</p>'
+                      % (self.PANEL_CAP % 'View'), panel)
+
+    def test_plain_blockquote_and_unknown_kind_unchanged(self):
+        text = '> quoted\n\n> [!FOO]\n> x\n\n> [!tip]\n> y\n'
+        site = self.site(text)
+        self.assertIn('<blockquote><p>quoted</p></blockquote>', site)
+        self.assertIn('<blockquote><p>[!FOO]</p></blockquote>\n<blockquote><p>x</p></blockquote>', site)
+        self.assertIn('<blockquote><p>[!tip]</p></blockquote>', site)
+        self.assertNotIn('callout"', site)
+        panel = self.panel(text)
+        self.assertIn('<p><i>quoted</i></p>', panel)
+        self.assertIn('<p><i>[!FOO]</i></p>\n<p><i>x</i></p>', panel)
+        self.assertNotIn('<table', panel)
+
+    def test_css_has_the_new_rules(self):
+        self.site('x\n')
+        css = (self.out / 'manual.css').read_text(encoding='utf-8')
+        self.assertIn('kbd {', css)
+        for kind in ('tip', 'note', 'important', 'warning'):
+            self.assertIn('.callout-%s {' % kind, css)
+            self.assertIn('.callout-%s .callout-title {' % kind, css)
+        dark = css[css.index('prefers-color-scheme: dark'):]
+        self.assertIn('kbd {', dark)
+        self.assertIn('.callout-tip', dark)
+
+    def test_deterministic(self):
+        text = ('> [!WARNING]\n> Press <kbd>View</kbd>\n\nSome <kbd>\u2192</kbd> **<kbd>A</kbd>**\n')
+        for target in ('panel', 'site'):
+            first = self.build(text, target)
+            snapshot = {path.name: path.read_bytes() for path in self.out.iterdir()}
+            second = self.build(text, target)
+            self.assertEqual(first, second)
+            self.assertEqual(snapshot, {path.name: path.read_bytes() for path in self.out.iterdir()})
 
 
 if __name__ == '__main__':

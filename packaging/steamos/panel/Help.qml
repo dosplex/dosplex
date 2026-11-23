@@ -32,7 +32,7 @@ Item {
         at = index;
         loaded = false;
         flick.contentY = 0;
-        read(chapters[at].file, function(text) { body = text; loaded = true; });
+        read(chapters[at].file, function(text) { body = Logic.fitImages(text, flick.width * 0.94); loaded = true; });
     }
 
     Component.onCompleted: {
@@ -88,6 +88,7 @@ Item {
             width: flick.width
             text: !loaded ? "" : body !== "" ? body : "<p>This page of the manual is not installed.</p>"
             textFormat: Text.RichText
+            baseUrl: manualDir === "" ? "" : "file://" + manualDir + "/"   // where a chapter's pictures are
             wrapMode: Text.WordWrap
             color: "#ffffff"; font.pixelSize: 24 * u
             lineHeight: 1.15

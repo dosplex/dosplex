@@ -30,6 +30,7 @@ libexec/dosplex-power-action             packaging/steamos/dosplex-power-action
 libexec/dosplex-start-service.py         packaging/steamos/dosplex-start-service.py
 libexec/dosplex-start-client.py          packaging/steamos/dosplex-start-client.py
 libexec/dosplex-sleep-guard.py           packaging/steamos/dosplex-sleep-guard.py
+libexec/dosplex-power-guard.py           packaging/steamos/dosplex-power-guard.py
 # The session's own programs (T-812): what starts, runs and stops a session, and what carries each player's
 # controllers to their own Steam. They lived in the development tree until 2026-11-19.
 libexec/dosplex-device-view-session.py   packaging/steamos/session/dosplex-device-view-session.py
@@ -60,7 +61,7 @@ tools/session-bundle-integrity.py        packaging/steamos/session/session-bundl
 tools/start-external-native-trial.py     packaging/steamos/session/start-external-native-trial.py
 tools/update-retained-session.py         packaging/steamos/session/update-retained-session.py
 # The panel (Help): its launcher, and the QML that SteamOS's own qml6 runs. The manual it shows is not
-# listed here: assemble.py builds it from docs/manual with tools/build-manual.py into share/dosplex/manual/.
+# listed here: assemble.py builds the cheat sheet of docs/help with tools/build-manual.py into share/dosplex/manual/.
 # The feedback form (packaging/steamos/panel/Feedback.qml) is NOT part of a release: without that file the menu has
 # no Feedback button and the launcher refuses the mode, so a release sends nothing. Adding the line
 # share/dosplex/panel/Feedback.qml back to this list puts the form in.

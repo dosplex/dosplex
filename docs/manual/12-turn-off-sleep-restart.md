@@ -1,23 +1,45 @@
 # Turn off, sleep, restart
 
-Open Main's menu and go to the **Session** page. It has **Turn off DosPlex** and three power entries. Only Main sees them.
+Only Main sees these, on the **Session** page of Main's menu. Each power choice asks first, says **This affects both players**, and has **Cancel** selected first.
 
-**Turn off DosPlex** ends DosPlex and leaves the machine on. Use it when you are done playing together and want plain SteamOS back.
+| Choice | What it does |
+|---|---|
+| **Turn off DosPlex** | Ends DosPlex, leaves the machine on, in plain SteamOS. Both games close. |
+| **Sleep** | Suspends the machine. Both sessions resume on wake. |
+| **Restart** | Asks Steam to quit on both sides, then restarts the machine. |
+| **Shut down** | The same, then turns the machine off. |
+| **Reset my side** | Restarts your own Steam only. |
+| **Reset both sides** | Restarts both Steams. |
 
-1. Save in both games first: both players' games close.
+While one player has the full screen, one button, **Reset Steam**, does that player's reset.
+
+## Turn off DosPlex
+
+1. Save in both games.
 2. Choose **Turn off DosPlex**.
-3. Choose **Continue**. **Cancel** is selected first, so a stray press changes nothing.
+3. Choose **Continue**.
 
-The screen says that Steam is closing on both sides. Within a minute you are back in normal SteamOS. To play together again, start DosPlex from Steam's library.
+Within a minute you are back in SteamOS. To play together again, start DosPlex from Steam's library.
 
-**Sleep** suspends the machine. Both sessions stay open and resume when the machine wakes. DosPlex pauses both sessions just before sleep and lets them run again on wake. A session that was in Standby stays in Standby. If a controller does not answer after the machine wakes, use **Reset my side**.
+## Steam's own power menu
 
-**The machine does not go to sleep by itself while two players are on the screen.** Each player's Steam only knows about its own controller, so DosPlex holds Steam's idle sleep on both sides: otherwise Main's Steam would put the machine to sleep while Guest is still playing. Steam's screensaver still comes after a few minutes on a side nobody uses, and goes away when that player presses a button. About once an hour the picture of such a side comes back for five minutes; that is DosPlex telling Steam not to sleep. Choose **Sleep** here, or press the power button, when you are done. With Main alone on the screen, Steam sleeps the machine after its usual time. Do not use **Sleep** in Guest's own Steam menu: Guest's Steam may not put the machine to sleep, and it stays on its sleep picture until DosPlex is turned off and started again.
+Main's Steam can restart or shut down the machine too: press <kbd>Steam</kbd>, choose **Power**, then Restart or Shut Down. It is the way out when you cannot open the DosPlex menu. After a restart you are in plain SteamOS.
 
-**Restart** asks Steam to quit on both sides and waits up to 45 seconds for each, so saves can sync to the cloud. It then stops both sessions and DosPlex, and restarts the machine. A Steam that does not quit in time is stopped. Save your progress first. After a restart the machine comes back as normal SteamOS. Start DosPlex from Steam's library to bring it back.
+- The other player's Steam is asked to quit and gets a few seconds, so save on both sides first.
+- Guest's Steam cannot restart or shut down the machine.
+- Sleep in Main's own Steam menu puts the whole machine to sleep.
 
-**Shut down** works the same way but turns the machine off instead of restarting it.
+> [!WARNING]
+> Save before Restart or Shut down. DosPlex waits up to 45 seconds for each Steam to quit, then stops it. After a restart you are in plain SteamOS. If something goes wrong, you return to Main's **Session** page with a message.
 
-Each of these asks first, and says **This affects both players**. **Cancel** is selected first. If something goes wrong during a restart, the screen returns to Main's menu on the **Session** page with a message, and both players' controls work again.
+## Sleep
 
-**Reset my side** restarts your own Steam and leaves the other player alone. **Reset both sides** restarts both. While one player has the full screen there is one button instead, **Reset Steam**, and it does the same for that player.
+- With two players the machine does not sleep by itself. Choose **Sleep** or press the power button when you are done.
+- Steam's screensaver comes on a side nobody uses, and about once an hour it goes away for five minutes.
+- A session in Standby stays in Standby.
+- A controller does not answer after wake? Choose **Reset my side**.
+
+> [!IMPORTANT]
+> Do not use **Sleep** in Guest's own Steam menu. The machine may not sleep, and Guest stays on its sleep picture until DosPlex is turned off and started again.
+
+More: [the user guide](../user-guide.md#take-the-whole-screen-then-return-to-two-people).

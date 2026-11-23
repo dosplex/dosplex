@@ -487,9 +487,10 @@ class ControllerNumberTests(unittest.TestCase):
 
 
 class ForgetTests(unittest.TestCase):
-    """Main forgets a controller that is off: a confirmation, then a request file for the routing service. A connected
-    controller and a receiver of the session are never offered it. What this does not show: the service removing the
-    record (the registry and routing unit tests do) or a real pad being turned off."""
+    """Main forgets a controller that is off: a confirmation, then a request file for the routing service. A gamepad and
+    a Steam Controller on the session's receiver are offered it while they are not connected; a connected controller
+    never is. What this does not show: the service carrying the request out (the registry and routing unit tests do) or
+    a real controller being turned off."""
 
     def pads(self, run):
         run.inventory.add(MAIN_PAD, 'Main controller', 'main', index=1, backend='generic-pad')
@@ -535,14 +536,26 @@ class ForgetTests(unittest.TestCase):
             run.logged('Devices: Turn it off or unplug it first.')
             self.assertFalse(self.request(run, ASLEEP_PAD).exists())
 
-    def test_a_connected_controller_and_a_receiver_have_no_forget_button(self):
+    def test_a_connected_controller_has_no_forget_button(self):
         with Run() as run:
             self.pads(run)
+            run.inventory.change(FREE_PAD, connected=True)
             origin = run.open_devices('main')
             for row in (0, 2):
                 run.click(forget_button(origin, row))
                 self.assertFalse(run.state()['overlay_confirmation'], f'row {row} offered Forget')
             self.assertEqual(list(run.inventory.directory.glob('*.forget')), [])
+
+    def test_a_steam_controller_that_is_asleep_is_forgotten_the_same_way(self):
+        # The owner asked for it: the list keeps the Steam Controllers that woke once, and only gamepads could be dropped.
+        with Run() as run:
+            self.pads(run)
+            origin = run.open_devices('main')
+            run.click(forget_button(origin, 2))
+            run.wait_for(lambda s: s['overlay_confirmation'], 'Forget asks for confirmation on a receiver row')
+            run.click(CONTINUE)
+            run.wait_until(lambda: self.request(run, FREE_PAD).exists(), 'Forget wrote no request')
+            self.assertEqual([p.name for p in run.inventory.directory.glob('*.forget')], [FREE_PAD + '.forget'])
 
     def test_guest_is_never_offered_forget(self):
         with Run() as run:

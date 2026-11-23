@@ -913,6 +913,9 @@ struct side_ctx {
     bool start_timing;
     struct timespec start_since;
     double start_progress;
+    /* The menu hint (render_menu_hint): where this side is on the way to showing it once, and since when. */
+    int hint_phase;
+    struct timespec hint_since;
     int activity; /* 0 active, 1 standby, 2 off; device ownership is retained. */
     struct auth_job *auth;
     bool auth_error;
@@ -1363,6 +1366,10 @@ struct compositor {
      * itself (closing_timer), for a stop that failed and left the session up. */
     char closing_notice[16];
     struct wl_event_source *closing_timer;
+    /* The menu hint: on or off for this run, its two times, and which player has opened the menu with the chord
+     * before ([0] Main, [1] Guest; kept in the controller directory, so an uninstall forgets it). */
+    bool menu_hint_on, menu_hint_learned[2];
+    int menu_hint_delay_ms, menu_hint_show_ms;
     char power_pid_action[16];
     char power_message[96];
     pid_t power_pid;
@@ -5396,10 +5403,13 @@ static bool request_controller_route(const char *key, const char *target) {
     return request_controller_assignment(key, target, NULL, NULL, false);
 }
 
-/* A controller that is off, and was listed by the generic pad service, may be forgotten: its record, its number and its
- * row go. Root asks the routing service, which is the one process that removes a record (under the lock of the
- * numbering), with an empty file `<id>.forget` in the controller directory; the row leaves the page on its next
- * publication. A connected controller is refused here and again by the service. Returns false with a line for the menu. */
+/* A controller that is off or asleep may be forgotten. A gamepad of the generic pad service loses its record, its
+ * number and its row. A Steam Controller is a slot of the session's receiver, which the session goes on holding: the
+ * slot becomes nobody's and waits like an empty one, so its row goes too, and the controller that next wakes on it
+ * comes back as a new one. Root asks the routing service, which is the one process that changes a record (under the
+ * lock of the numbering), with an empty file `<id>.forget` in the controller directory; the row leaves the page on its
+ * next publication. A connected controller is refused here and again by the service. Returns false with a line for
+ * the menu. */
 static void say_in_devices(struct compositor *comp, const char *text);
 static bool forget_controller(struct compositor *comp, const char *key) {
     if (!controller_key_valid(key)) return false;
@@ -5411,7 +5421,8 @@ static bool forget_controller(struct compositor *comp, const char *key) {
     }
     struct json_object *connected = NULL;
     bool online = row && json_object_object_get_ex(row, "connected", &connected) && json_object_get_boolean(connected);
-    bool offered = row && !online && !strcmp(controller_text(row, "backend"), "generic-pad");
+    bool offered = row && !online && (!strcmp(controller_text(row, "backend"), "generic-pad") ||
+        !strcmp(controller_text(row, "backend"), "native"));
     char name[128] = "";
     if (row) controller_display_name(row, name, sizeof(name));
     if (inventory) json_object_put(inventory);
@@ -5590,6 +5601,8 @@ static void render_power_progress(struct compositor *comp, struct wlr_scene_tree
         "Closing Steam on both sides, then shutting down…" :
         strcmp(action, "stop") == 0 ?
         "Closing Steam on both sides, then returning to SteamOS…" :
+        strcmp(action, "down") == 0 ?
+        "Closing Steam on both sides. The machine is going down…" :
         "Closing Steam on both sides, then restarting…";
     make_text_node(parent, 0, h / 2 - (int)(40 * scale), w, (int)(48 * scale), text, 26.0 * scale,
         0.96, 0.97, 1.0, 1.0, true);
@@ -6660,6 +6673,11 @@ static void render_management_overlay(struct compositor *comp,
             const char *requested = controller_text(d, "requested");
             if (!controller_key_valid(key)) continue;
             bool online = json_object_object_get_ex(d, "connected", &connected) && json_object_get_boolean(connected);
+            /* A slot of a Steam Controller receiver that no controller has woken on yet is nobody's controller and is
+             * not listed: nothing can be done with it, and seven such rows once kept a gamepad that had just been
+             * plugged in off the first page. It gets a row, and an owner, the moment a controller wakes on it. */
+            struct json_object *waiting = NULL;
+            if (!online && json_object_object_get_ex(d, "waiting", &waiting) && json_object_get_boolean(waiting)) continue;
             bool mine = !strcmp(requested, "guest");
             /* Guest lists its own controllers, to release them, and the free ones that are awake, to claim
              * them. Main's controllers and sleeping free ones are not Guest's to touch. */
@@ -6681,7 +6699,7 @@ static void render_management_overlay(struct compositor *comp,
             /* Main may forget a controller that is off and that the generic pad service keeps (a receiver of the session
              * stays listed). A connected one is released to Unassigned instead. */
             bool can_forget = owner->role == SIDE_ROLE_PRIMARY && can_move_controllers && !online &&
-                !strcmp(controller_text(d, "backend"), "generic-pad");
+                (!strcmp(controller_text(d, "backend"), "generic-pad") || !strcmp(controller_text(d, "backend"), "native"));
             if (number) {
                 char digits[16];
                 snprintf(digits, sizeof(digits), "%d", number);
@@ -6808,6 +6826,274 @@ static const char *side_state_name(enum side_state state) {
     }
 }
 
+/* === The menu hint ===
+ *
+ * A player who has never opened the DosPlex menu is shown how, once in each run: ten seconds after their side's Steam
+ * is on the screen a small card appears at the bottom of their part for twelve seconds, with a drawn controller whose
+ * two buttons of the chord are lit, and the keyboard's keys. It goes at once when a menu opens. The first time the
+ * player opens their menu with the chord (a controller's or the keyboard's), the fact is written down for that
+ * player and the card is never shown to them again: somebody who knows the chord is not told it at every start.
+ * The owner, 2026-11-23: "a little visual popup that you can activate the overlay ... a little gamepad where the
+ * buttons are highlighted ... stop doing it when the user successfully call up the menu using the combo".
+ *
+ * It costs nothing while it is not shown: one node in the modal tree for twelve seconds, drawn once. Under
+ * --test-hooks it is off unless DOSPLEX_MENU_HINT=1 asks for it (captures of the tests must not change with the
+ * clock); DOSPLEX_MENU_HINT=0 switches it off anywhere. */
+enum { MENU_HINT_NONE = 0, MENU_HINT_WAIT, MENU_HINT_SHOW, MENU_HINT_DONE };
+#define MENU_HINT_FILE "menu-hint"
+#define MENU_HINT_DELAY_MS 10000
+#define MENU_HINT_SHOW_MS 12000
+
+static int menu_hint_role(const struct side_ctx *ctx) { return ctx->role == SIDE_ROLE_PRIMARY ? 0 : 1; }
+
+static int menu_hint_env_ms(const char *name, int fallback) {
+    const char *text = getenv(name);
+    int value = text ? atoi(text) : 0;
+    return value >= 50 && value <= 600000 ? value : fallback;
+}
+
+static void menu_hint_load(struct compositor *comp) {
+    const char *force = getenv("DOSPLEX_MENU_HINT");
+    comp->menu_hint_on = !comp->config.test_hooks;
+    if (force && (!strcmp(force, "0") || !strcmp(force, "1"))) comp->menu_hint_on = force[0] == '1';
+    comp->menu_hint_delay_ms = MENU_HINT_DELAY_MS;
+    comp->menu_hint_show_ms = MENU_HINT_SHOW_MS;
+    if (comp->config.test_hooks) {
+        comp->menu_hint_delay_ms = menu_hint_env_ms("DOSPLEX_MENU_HINT_DELAY_MS", MENU_HINT_DELAY_MS);
+        comp->menu_hint_show_ms = menu_hint_env_ms("DOSPLEX_MENU_HINT_SHOW_MS", MENU_HINT_SHOW_MS);
+    }
+    int dir = controller_directory();
+    if (dir < 0) return;
+    int fd = openat(dir, MENU_HINT_FILE, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
+    close(dir);
+    if (fd < 0) return;
+    char data[64]; struct stat st; ssize_t n = -1;
+    if (!fstat(fd, &st) && S_ISREG(st.st_mode) && st.st_uid == geteuid() && !(st.st_mode & 0022))
+        n = read(fd, data, sizeof(data) - 1);
+    close(fd);
+    if (n <= 0) return;
+    data[n] = 0;
+    comp->menu_hint_learned[0] = strstr(data, "main") != NULL;
+    comp->menu_hint_learned[1] = strstr(data, "guest") != NULL;
+}
+
+static void menu_hint_save(struct compositor *comp) {
+    int dir = controller_directory();
+    if (dir < 0) return;
+    int fd = openat(dir, MENU_HINT_FILE ".new", O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC, 0600);
+    if (fd >= 0) {
+        char data[32];
+        int n = snprintf(data, sizeof(data), "%s%s", comp->menu_hint_learned[0] ? "main\n" : "",
+            comp->menu_hint_learned[1] ? "guest\n" : "");
+        bool ok = write(fd, data, (size_t)n) == n;
+        close(fd);
+        if (!ok || renameat(dir, MENU_HINT_FILE ".new", dir, MENU_HINT_FILE) != 0)
+            unlinkat(dir, MENU_HINT_FILE ".new", 0);
+    }
+    close(dir);
+}
+
+/* The player opened their menu with the chord: they know it. */
+static void menu_hint_learn(struct compositor *comp, struct side_ctx *ctx) {
+    int role = menu_hint_role(ctx);
+    ctx->hint_phase = MENU_HINT_DONE;
+    if (comp->menu_hint_learned[role]) return;
+    comp->menu_hint_learned[role] = true;
+    menu_hint_save(comp);
+    wlr_log(WLR_INFO, "Menu hint: %s opened the menu with the chord; the hint is not shown to them again",
+        role == 0 ? "Main" : "Guest");
+}
+
+static double menu_hint_elapsed_ms(const struct timespec *since) {
+    struct timespec now;
+    if (clock_gettime(CLOCK_MONOTONIC, &now) != 0) return 0;
+    return (now.tv_sec - since->tv_sec) * 1000.0 + (now.tv_nsec - since->tv_nsec) / 1e6;
+}
+
+/* Whether something is drawn over this side's part of the screen, where its hint would be: its own menu or Help,
+ * a menu of the other player's that is drawn over its picture (Main's in Guest full screen), or a panel over both
+ * sides. The other player's menu on the other half is nothing to this side: each hint goes its own way (the owner
+ * tried Main's menu while Guest's hint was up, and wants the two to be independent). */
+static bool menu_hint_covered(struct compositor *comp, const struct side_ctx *ctx) {
+    if (comp->power_action[0] || comp->closing_notice[0]) return true;
+    if (comp->panel_pid > 0 && comp->panel_side == ctx->id) return true;
+    if (!comp->management_overlay_visible) return false;
+    if (comp->management_overlay_owner == ctx->id) return true;
+    const struct side_ctx *shown = shown_side(comp);
+    return shown && shown->id == ctx->id;   /* one side has the whole screen and the other's menu is over it */
+}
+
+/* Called from the half-second poll: moves each side from waiting to showing to done. */
+static void menu_hint_tick(struct compositor *comp) {
+    if (!comp->menu_hint_on) return;
+    struct side_ctx *sides[] = {&comp->left, &comp->right};
+    bool changed = false;
+    for (int i = 0; i < 2; i++) {
+        struct side_ctx *ctx = sides[i];
+        if (ctx->hint_phase == MENU_HINT_DONE) continue;
+        bool covered = menu_hint_covered(comp, ctx);
+        /* Steam's own picture is on this player's part of the screen, and nobody has told them yet. */
+        bool ready = configured_steam_user(ctx) && ctx->app_surface && ctx->state == SIDE_CLAIMED &&
+            ctx->activity == 0 && !ctx->auth && !ctx->launch_pending && !ctx->recovery_required &&
+            side_is_shown(comp, ctx) && !comp->menu_hint_learned[menu_hint_role(ctx)];
+        if (ctx->hint_phase == MENU_HINT_NONE) {
+            if (ready && clock_gettime(CLOCK_MONOTONIC, &ctx->hint_since) == 0) ctx->hint_phase = MENU_HINT_WAIT;
+        } else if (ctx->hint_phase == MENU_HINT_WAIT) {
+            if (!ready) {
+                ctx->hint_phase = MENU_HINT_NONE;
+            } else if (!covered && menu_hint_elapsed_ms(&ctx->hint_since) >= comp->menu_hint_delay_ms) {
+                ctx->hint_phase = MENU_HINT_SHOW;
+                clock_gettime(CLOCK_MONOTONIC, &ctx->hint_since);
+                wlr_log(WLR_INFO, "Menu hint shown on %s side", side_name(ctx->id));
+                changed = true;
+            }
+        } else if (!ready || covered || menu_hint_elapsed_ms(&ctx->hint_since) >= comp->menu_hint_show_ms) {
+            ctx->hint_phase = MENU_HINT_DONE;
+            wlr_log(WLR_INFO, "Menu hint gone from %s side", side_name(ctx->id));
+            changed = true;
+        }
+    }
+    if (changed) request_redraw(comp);
+}
+
+static void hint_rounded_rect(cairo_t *cr, double x, double y, double w, double h, double r) {
+    cairo_new_sub_path(cr);
+    cairo_arc(cr, x + w - r, y + r, r, -M_PI / 2, 0);
+    cairo_arc(cr, x + w - r, y + h - r, r, 0, M_PI / 2);
+    cairo_arc(cr, x + r, y + h - r, r, M_PI / 2, M_PI);
+    cairo_arc(cr, x + r, y + r, r, M_PI, 3 * M_PI / 2);
+    cairo_close_path(cr);
+}
+
+/* A quadratic curve from the current point, which cairo does not have. */
+static void hint_quad_to(cairo_t *cr, double cx, double cy, double x, double y) {
+    double x0, y0;
+    cairo_get_current_point(cr, &x0, &y0);
+    cairo_curve_to(cr, x0 + 2.0 / 3.0 * (cx - x0), y0 + 2.0 / 3.0 * (cy - y0),
+        x + 2.0 / 3.0 * (cx - x), y + 2.0 / 3.0 * (cy - y), x, y);
+}
+
+/* The card: a controller with View and D-pad Up lit, and three lines of text. One buffer, drawn once per rebuild
+ * while the hint shows. The controller is the same drawing as the picture of the chord in the manual's menu
+ * chapter, in a box of 404 by 180 units. */
+static void make_menu_hint_node(struct wlr_scene_tree *parent, int x, int y, int w, int h, double scale) {
+    struct cairo_pixel_buf *cb = calloc(1, sizeof(*cb));
+    if (!cb) return;
+    cb->width = w;
+    cb->height = h;
+    cb->data = calloc(1, (size_t)w * h * 4);
+    if (!cb->data) { free(cb); return; }
+    wlr_buffer_init(&cb->base, &cairo_pixel_buf_impl, w, h);
+    cairo_surface_t *surf = cairo_image_surface_create_for_data(cb->data, CAIRO_FORMAT_ARGB32, w, h, w * 4);
+    if (cairo_surface_status(surf) != CAIRO_STATUS_SUCCESS) {
+        cairo_surface_destroy(surf);
+        wlr_buffer_drop(&cb->base);
+        return;
+    }
+    cairo_t *cr = cairo_create(surf);
+    cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+    cairo_set_source_rgba(cr, 0, 0, 0, 0);
+    cairo_paint(cr);
+    cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+
+    const double amber[3] = {0.973, 0.761, 0.110}, grey[3] = {0.353, 0.420, 0.510};
+    double line = 1.5 * scale;
+    hint_rounded_rect(cr, line, line, w - 2 * line, h - 2 * line, 14 * scale);
+    cairo_set_source_rgba(cr, 0.063, 0.094, 0.125, 0.95);
+    cairo_fill_preserve(cr);
+    cairo_set_source_rgba(cr, amber[0], amber[1], amber[2], 0.9);
+    cairo_set_line_width(cr, line);
+    cairo_stroke(cr);
+
+    /* The controller, in the left part of the card. */
+    double icon_w = 132 * scale, unit = icon_w / 404.0;
+    cairo_save(cr);
+    cairo_translate(cr, 16 * scale, (h - 180 * unit) / 2.0);
+    cairo_scale(cr, unit, unit);
+    cairo_translate(cr, -158, -70);
+    cairo_move_to(cr, 190, 96);
+    hint_quad_to(cr, 190, 70, 222, 70);
+    cairo_line_to(cr, 498, 70);
+    hint_quad_to(cr, 530, 70, 530, 96);
+    cairo_line_to(cr, 556, 214);
+    hint_quad_to(cr, 562, 250, 528, 250);
+    hint_quad_to(cr, 506, 250, 494, 228);
+    cairo_line_to(cr, 478, 204);
+    cairo_line_to(cr, 242, 204);
+    cairo_line_to(cr, 226, 228);
+    hint_quad_to(cr, 214, 250, 192, 250);
+    hint_quad_to(cr, 158, 250, 164, 214);
+    cairo_close_path(cr);
+    cairo_set_source_rgba(cr, 0.110, 0.149, 0.200, 1);
+    cairo_fill_preserve(cr);
+    cairo_set_source_rgba(cr, grey[0], grey[1], grey[2], 1);
+    cairo_set_line_width(cr, 6);
+    cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
+    cairo_stroke(cr);
+    /* D-pad: Up is lit. */
+    const double pad[4][2] = {{252, 112}, {252, 164}, {226, 138}, {278, 138}};
+    for (int i = 0; i < 4; i++) {
+        const double *c = i == 0 ? amber : grey;
+        hint_rounded_rect(cr, pad[i][0], pad[i][1], 26, 26, 5);
+        cairo_set_source_rgba(cr, c[0], c[1], c[2], 1);
+        cairo_fill(cr);
+    }
+    cairo_rectangle(cr, 252, 138, 26, 26);
+    cairo_set_source_rgba(cr, 0.227, 0.275, 0.345, 1);
+    cairo_fill(cr);
+    /* View is lit, Menu is not. */
+    hint_rounded_rect(cr, 322, 98, 36, 20, 10);
+    cairo_set_source_rgba(cr, amber[0], amber[1], amber[2], 1);
+    cairo_fill(cr);
+    hint_rounded_rect(cr, 368, 98, 36, 20, 10);
+    cairo_set_source_rgba(cr, grey[0], grey[1], grey[2], 1);
+    cairo_fill(cr);
+    const double face[4][2] = {{452, 126}, {452, 176}, {427, 151}, {477, 151}};
+    for (int i = 0; i < 4; i++) {
+        cairo_arc(cr, face[i][0], face[i][1], 12, 0, 2 * M_PI);
+        cairo_fill(cr);
+    }
+    cairo_restore(cr);
+
+    /* The words, to the right of it. */
+    struct { const char *text; double size; bool bold; double shade; } lines[] = {
+        {"Open the DosPlex menu", 15.0, true, 0.97},
+        {"Hold View + D-pad Up for one second", 13.0, false, 0.92},
+        {"Keyboard: Ctrl+Shift+M", 12.0, false, 0.72},
+    };
+    double tx = 16 * scale + icon_w + 16 * scale, ty = h / 2.0 - 30 * scale;
+    for (int i = 0; i < 3; i++) {
+        cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL,
+            lines[i].bold ? CAIRO_FONT_WEIGHT_BOLD : CAIRO_FONT_WEIGHT_NORMAL);
+        cairo_set_font_size(cr, lines[i].size * scale);
+        cairo_set_source_rgba(cr, lines[i].shade, lines[i].shade, lines[i].shade + 0.02, 1);
+        cairo_font_extents_t fe;
+        cairo_font_extents(cr, &fe);
+        cairo_move_to(cr, tx, ty + fe.ascent);
+        cairo_show_text(cr, lines[i].text);
+        ty += 24 * scale;
+    }
+    cairo_destroy(cr);
+    cairo_surface_destroy(surf);
+    struct wlr_scene_buffer *node = wlr_scene_buffer_create(parent, &cb->base);
+    wlr_buffer_drop(&cb->base);
+    if (node) wlr_scene_node_set_position(&node->node, x, y);
+}
+
+static void render_menu_hints(struct compositor *comp, struct wlr_scene_tree *parent) {
+    struct side_ctx *sides[] = {&comp->left, &comp->right};
+    for (int i = 0; i < 2; i++) {
+        struct side_ctx *ctx = sides[i];
+        if (ctx->hint_phase != MENU_HINT_SHOW || !side_is_shown(comp, ctx) || menu_hint_covered(comp, ctx)) continue;
+        double scale = fmax(1.0, fmin(comp->output_height / 1080.0, ctx->width / 640.0));
+        int w = (int)(456 * scale), h = (int)(104 * scale);
+        if (w > ctx->width - 24) w = ctx->width - 24;
+        if (w < 200 || h > ctx->height / 2) continue;
+        make_menu_hint_node(parent, ctx->x + (ctx->width - w) / 2, ctx->y + ctx->height - h - (int)(88 * scale),
+            w, h, scale);
+    }
+}
+
 static void rebuild_scene(struct compositor *comp) {
     int w = comp->output_width;
     int h = comp->output_height;
@@ -6866,6 +7152,7 @@ static void rebuild_scene(struct compositor *comp) {
 
     if (comp->modal_tree) {
         render_management_overlay(comp, comp->modal_tree);
+        render_menu_hints(comp, comp->modal_tree);   /* each side's own; the other player's menu does not end it */
         screen_bl_note_shown(comp, comp->screen_bl_drawn);
         wlr_scene_node_raise_to_top(&comp->modal_tree->node);
         /* A pixel-visible token lets test captures verify the actual
@@ -9395,6 +9682,9 @@ static void request_overlay(struct compositor *comp, struct side_ctx *target, co
 
 static void request_overlay_chord(struct compositor *comp, struct side_ctx *target, const char *source) {
     request_overlay(comp, target, source, true);
+    /* The chord opened this player's menu: they know it, and the hint has done its work (menu_hint_learn). */
+    if (comp->management_overlay_visible && comp->management_overlay_owner == target->id)
+        menu_hint_learn(comp, target);
 }
 
 /* The power progress panel went up. Both sides' applications lose the keyboard focus, so that what they
@@ -10189,20 +10479,25 @@ static bool apply_layout_request(struct compositor *comp, enum layout_mode layou
 #define CONTROL_CMD_SET_LAYOUT 1
 #define CONTROL_CMD_SET_BRIGHTNESS 2
 #define CONTROL_CMD_GET_BRIGHTNESS 3
-#define CONTROL_CMD_CLOSING 4           /* 1: a stop from outside begins, 0: it ended and the session stays */
+/* 1: a stop from outside begins; 2, 3, 4: the machine restarts, shuts down, goes down (the power guard, from
+ * logind's announcement); 0: it ended and the session stays. */
+#define CONTROL_CMD_CLOSING 4
 
 /* `dosplex stop` and an uninstall say so before they ask the sides' Steam to quit, and take it back when the session
  * stays after all. While it is said, the closing panel covers both sides (render_power_progress). */
-static void closing_notice_set(struct compositor *comp, bool on) {
+static void closing_notice_set(struct compositor *comp, int kind) {
+    static const char *const kinds[] = {"", "stop", "reboot", "poweroff", "down"};
+    bool on = kind >= 1 && kind <= 4;
     if (on) {
-        snprintf(comp->closing_notice, sizeof(comp->closing_notice), "stop");
+        snprintf(comp->closing_notice, sizeof(comp->closing_notice), "%s", kinds[kind]);
         if (!comp->closing_timer) {
             comp->closing_timer = wl_event_loop_add_timer(wl_display_get_event_loop(comp->display),
                 closing_notice_expire, comp);
         }
         if (comp->closing_timer) wl_event_source_timer_update(comp->closing_timer, CLOSING_NOTICE_MS);
         if (comp->management_overlay_visible) close_management_overlay(comp);
-        wlr_log(WLR_INFO, "Closing notice: a stop is carried out from outside; input to both sides is held");
+        wlr_log(WLR_INFO, "Closing notice (%s): it is carried out from outside; input to both sides is held",
+            comp->closing_notice);
     } else {
         if (comp->closing_notice[0]) wlr_log(WLR_INFO, "Closing notice ended");
         comp->closing_notice[0] = '\0';
@@ -10252,8 +10547,8 @@ static int handle_control_readable(int fd, uint32_t mask, void *data) {
             reply[5] = percent < 0 ? CONTROL_UNAVAILABLE : CONTROL_OK;
             reply[6] = percent < 0 ? 0 : (unsigned char)percent;
             wlr_log(WLR_INFO, "Control socket: brightness %d -> %d", request[6], percent);
-        } else if (request[5] == CONTROL_CMD_CLOSING && request[6] <= 1) {
-            closing_notice_set(comp, request[6] == 1);
+        } else if (request[5] == CONTROL_CMD_CLOSING && request[6] <= 4) {
+            closing_notice_set(comp, request[6]);
             reply[5] = CONTROL_OK;
         } else if (request[5] == CONTROL_CMD_GET_BRIGHTNESS && request[6] == 0) {
             brightness_reply = true;
@@ -10613,8 +10908,8 @@ static int handle_hud_ipc_readable(int fd, uint32_t mask, void *data) {
         /* `dosplex stop` and an uninstall say so before they ask the sides' Steam to quit ("CLOSING stop"), and take
          * it back when the session stays after all ("CLOSING end"). */
         const char *what = buf + 8;
-        if (strcmp(what, "stop") == 0) closing_notice_set(comp, true);
-        else if (strcmp(what, "end") == 0) closing_notice_set(comp, false);
+        if (strcmp(what, "stop") == 0) closing_notice_set(comp, 1);
+        else if (strcmp(what, "end") == 0) closing_notice_set(comp, 0);
         else wlr_log(WLR_ERROR, "Invalid CLOSING command: %s", what);
     } else if (strncmp(buf, "ROUTE ", 6) == 0) {
         char *device_name = buf + 6;
@@ -13853,6 +14148,7 @@ static int auth_timer_callback(void *data) {
     }
 
     if (monitor_changed) write_runtime_state(comp);
+    menu_hint_tick(comp);
     /* What the open overlay shows that changes with time alone: on the Devices tab the controllers the broker
      * marks active (for about half a second after a press, so the tab reads them every 250 ms), and in its header
      * the Wine or Scaled notice until it expires. A client's commits do not rebuild the overlay. */
@@ -14141,6 +14437,7 @@ int main(int argc, char *argv[]) {
     perf_init(comp);
     screen_brightness_init(comp);
     init_control_socket(comp);
+    menu_hint_load(comp);
 
     if (config.idle_policy == IDLE_POLICY_DIM) {
         comp->idle_dim_timer = wl_event_loop_add_timer(

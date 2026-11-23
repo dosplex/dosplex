@@ -1,11 +1,32 @@
 # Update, roll back, uninstall
 
-Every command needs `sudo` and runs from `/opt/dosplex/bin/dosplex`.
+Every command needs `sudo`.
 
-**Update.** Run `sudo /opt/dosplex/bin/dosplex update`. It looks for a newer signed release, checks the signature and every file, and installs it. The release it replaces is kept; the one before that is deleted. If DosPlex was running, it stops and restarts on the new release with the same layout. Use `--no-restart` to stay on the current release until you stop and start manually.
+| You want to | Run |
+|---|---|
+| Update | `sudo /opt/dosplex/bin/dosplex update` |
+| Roll back | `sudo /opt/dosplex/bin/dosplex rollback` |
+| Uninstall | `sudo /opt/dosplex/bin/dosplex uninstall` |
 
-**Roll back.** Run `sudo /opt/dosplex/bin/dosplex rollback`. Nothing is downloaded. It switches back to the kept release and restarts DosPlex if it was running. The release you left is kept, so a second rollback goes forward again. It refuses if the kept release was changed or if your SteamOS version is not in its tested set.
+## Update
 
-**Uninstall.** Run `sudo /opt/dosplex/bin/dosplex uninstall`. It stops DosPlex, removes the boot-start unit if you turned that on, undoes the install from the journal, and removes `/opt/dosplex`. The `guest` account and its files are kept because they hold the second player's Steam library and saves. To remove them as well, run `sudo /opt/dosplex/bin/dosplex uninstall --remove-guest`. It prints the home path and asks you to type it before deleting anything. After a plain uninstall the installed program is gone; to remove Guest then, take the `dosplex` program out of the release archive as you did for the install and run `sudo ./dosplex-VERSION/dosplex uninstall --remove-guest`. DosPlex never removes a guest account that was already on the device, and never touches Main's files. When you ask for `--remove-guest`, Guest is removed before the program is, and the uninstall waits up to 20 seconds for Guest's processes to end first. If it stops with `Guest still has running processes`, something of Guest's is still running; if it says Guest's account is set to keep running after sign-out (linger), switch that off with `sudo loginctl disable-linger guest`. The program is still installed then, and `sudo /opt/dosplex/bin/dosplex repair` finishes the uninstall and keeps Guest; remove Guest afterwards with the program from the release archive, as above. At the end the uninstall lists what is still on the machine and what to do about it: the DosPlex shortcut in Steam's library (remove it there yourself), the shared library folder, two Steam settings that DosPlex switched on, and DosPlex's own folder `/var/lib/dosplex`. That folder stays while Guest is kept, because its journal records that DosPlex created Guest. When Guest is removed, it is removed too, except `perf`, the recordings you made from the menu.
+It finds a newer signed release, checks it and installs it. The release it replaces is kept. A running DosPlex restarts on the new release. Add `--no-restart` to stay on the current one until you stop and start DosPlex.
 
-If you used the shared game library, turn it off before you uninstall (see the chapter on experimental features). Its folder, `/home/dosplex-library`, stays after the uninstall. It holds no games any more, only what the library set aside instead of overwriting, in `conflicts`. Nothing of DosPlex needs it; delete it when you have what you want from it.
+## Roll back
+
+Nothing is downloaded. It switches back to the kept release and restarts DosPlex if it was running. A second rollback goes forward again. It refuses if the kept release was changed or your SteamOS version is not in its tested set.
+
+## Uninstall
+
+It stops DosPlex, removes the boot-start unit if you turned it on, undoes the install and removes `/opt/dosplex`.
+
+> [!WARNING]
+> The `guest` account and its files stay, because they hold the second player's library and saves. To remove them, run `sudo /opt/dosplex/bin/dosplex uninstall --remove-guest`. It asks you to type Guest's home path first.
+
+- After a plain uninstall the program is gone. Take it out of the release archive as at install, then run `sudo ./dosplex-VERSION/dosplex uninstall --remove-guest`.
+- DosPlex never removes a guest account that was already there, and never touches Main's files.
+- It stops with `Guest still has running processes`? If Guest's account keeps running after sign-out, run `sudo loginctl disable-linger guest`. Then `sudo /opt/dosplex/bin/dosplex repair` finishes the uninstall and keeps Guest.
+- At the end it lists what is left. Remove the DosPlex shortcut in Steam's library yourself.
+- Turn the shared library off before you uninstall. Its folder `/home/dosplex-library` stays: delete it when you have what you want from `conflicts`.
+
+More: [the installation guide](../steamos-installation.md#uninstall).

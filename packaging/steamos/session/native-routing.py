@@ -102,6 +102,8 @@ class Router:
     # A transfer that keeps failing is tried again after 2, 4, 8, 16 and then every 30 seconds (INP-N-08): each
     # try takes the controller from its owner for a moment. A new choice, or a controller that wakes, is tried at once.
     RETRY_WAITS=(2,4,8,16,30)
+    AWAKE_GRACE=30  # seconds a controller still counts as its player's after it was last seen awake (first_owners)
+    recently_awake=frozenset();waiting=frozenset()
     ERROR_LINE_EVERY=60  # seconds between two equal error lines in the log
     failures=0;failed_desired=None;failed_connected=None;error_said=None;error_said_at=0
     held_said=None  # the last hold of Main's controllers that the log named (said once, and again when it changes or ends)
@@ -227,18 +229,31 @@ class Router:
         empty slot is nobody's controller and nothing waits for it. The first one that wakes is Main's; the next is the
         second player's while they are on the screen with none. Counted are the controllers that are awake and have an
         owner: the receivers' own, the Steam Deck's controls and the other gamepads."""
-        if not hasattr(self.registry,'pending'):return
         awake=lambda key:statuses[key] is not None and statuses[key]['connected']
+        # A controller counts for the others while it is awake and for AWAKE_GRACE seconds after it was last seen awake.
+        # Seen on the Steam Machine with 0.1.0-alpha.6: a gamepad plugged into USB was given to Main although Main's
+        # Steam Controller was in use; at that instant the Steam Controller's status was missing or said asleep (a USB
+        # device that arrives can hold up the others on the bus for a moment), so Main seemed to have nothing.
+        now=time.monotonic();seen=self.__dict__.setdefault('awake_at',{})
+        for key in self.devices:
+            if awake(key):seen[key]=now
+        self.recently_awake=frozenset(key for key in self.devices if now-seen.get(key,-1e9)<self.AWAKE_GRACE)
+        if not hasattr(self.registry,'pending'):
+            self.waiting=frozenset();return
         pads=getattr(self,'pads',None)
         for key in sorted(self.devices,key=lambda key:(self.index(key) or 0,key)):
             if not awake(key) or not self.registry.pending(key):continue
             owners=[self.registry.target(other) for other in self.devices
-                    if other!=key and awake(other) and not self.registry.pending(other)]
+                    if other!=key and other in self.recently_awake and not self.registry.pending(other)]
             if pads is not None and hasattr(pads,'awake_owners'):owners+=pads.awake_owners()
             owner=registry.first_owner(state,'main' in owners,'guest' in owners)
             self.registry.decide(key,owner)
+            # What the decision saw goes into the log with it: a first owner that surprises somebody can be explained.
             print(json.dumps({'native_first_owner':{'id':key[:8],'number':self.index(key),
-                                                    'name':self.devices[key].get('name'),'owner':owner}}),flush=True)
+                'name':self.devices[key].get('name'),'owner':owner,'layout':state.get('layout'),
+                'main_has':'main' in owners,'guest_has':'guest' in owners}}),flush=True)
+        # The receiver slots that still wait for a controller: Devices lists them after the real controllers (tick).
+        self.waiting=frozenset(key for key in self.devices if self.registry.pending(key))
 
     def tick(self):
         self.systemd_error=None
@@ -308,6 +323,8 @@ class Router:
             target=requested[key] if target==desired[key] else (
                 'unassigned' if target=='unassigned' else 'main' if target==state['primary_side'] else 'guest')
             rows.append(dict(id=key,name=device['name'],index=self.index(key),connected=status['connected'],
+                awake_recently=bool(status['connected'] or key in self.recently_awake),
+                waiting=bool(key in self.waiting and not status['connected']),
                 target=target,requested=requested[key],active=status.get('active',False),node='',backend='native',
                 input_status=dict(shortcut_ready=status['connected'],captured=status['captured']),
                 routing_error=self.row_error(key)))
@@ -315,6 +332,14 @@ class Router:
         if pads is not None:
             # Generic pads: they take a first owner by ADR-014 counting the rows above, and are listed beside them.
             pads.tick(state,rows);rows.extend(pads.rows(state))
+        # Devices shows the rows in this order, five to a page: the controllers that are connected first, then the ones
+        # DosPlex knows that are asleep or off, then the receiver slots no controller has woken on yet; by their number
+        # within each. Seen on the Steam Machine with 0.1.0-alpha.6: seven empty slots filled the first page and the
+        # gamepad that had just been plugged in was on the second, where its owner did not look (the owner: "can we
+        # show connected controllers first in the list"). A row moves when its controller wakes or sleeps; a move in
+        # Devices names the controller in its question, so a press that lands on a row that just moved can be undone.
+        rows.sort(key=lambda row:(0 if row.get('connected') else 2 if row.get('waiting') else 1,
+                                  row.get('index') or 10**6))
         registry.write_json(self.runtime/'controllers-native.json',
                             dict(updated=time.time(),assignment_preview=2,devices=rows))
 
@@ -334,13 +359,19 @@ class Router:
             'asleep_wanted_by_main':[name(key) for key in waited_for]}}),flush=True)
 
     def forget_requests(self):
-        """Carry out the forget requests in the controller directory: a controller that is off, and not a receiver of this
-        session, loses its record (its number is free again) and its row."""
+        """Carry out the forget requests in the controller directory, for controllers that are off or asleep. A gamepad loses
+        its record (its number is free again) and its row. A slot of this session's receiver cannot lose its record while the
+        session holds it: it becomes nobody's and waits for its first owner again, so its row leaves the page like an empty
+        slot's and the controller that next wakes on it comes back as a new one (the owner asked for a way to drop a Steam
+        Controller from the list, and what happens when it is turned on again)."""
         if not hasattr(self.registry,'forget_requests'):return
         pads=getattr(self,'pads',None)
         connected={key for key in self.devices if (self.fresh_status(key) or {}).get('connected')}
         connected.update(getattr(pads,'pads',()))
-        for key in self.registry.forget_requests(connected,protected=self.devices):
+        for key in self.registry.forget_requests(connected,session=self.devices):
+            if key in self.devices:
+                print(json.dumps({'native_controller_waits_again':key,'name':self.devices[key].get('name')}),flush=True)
+                continue
             if hasattr(pads,'forget'):pads.forget(key)
             print(json.dumps({'native_controller_forgotten':key}),flush=True)
 

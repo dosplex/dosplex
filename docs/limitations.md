@@ -340,6 +340,11 @@ Machine. What the number means:
   on, and the installer refuses others unless told to go on. A SteamOS update can therefore make DosPlex
   refuse to start until a release has been tested on it.
 - **One earlier release is kept.** `dosplex rollback` returns to it. Older ones are removed.
+- **While DosPlex runs, the main player's account may restart and shut down the machine without a password.**
+  Steam's own power menu needs that (inside DosPlex a side's Steam is not a login at the screen, and the system
+  would refuse it). The power guard writes one polkit rule for it under `/run/polkit-1/rules.d`, for that account
+  and the two actions only, and removes it when DosPlex stops; a restart clears `/run` in any case. Any program of
+  that account can use it while DosPlex runs, as it can on plain SteamOS from the account's own session.
 - **Recovery is a reboot.** DosPlex starts only when asked, so a restart of the machine brings stock SteamOS
   back whatever state a session was in. `dosplex repair` finishes or undoes an install, update or uninstall
   that was interrupted.

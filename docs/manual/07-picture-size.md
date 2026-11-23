@@ -1,27 +1,32 @@
 # Picture size
 
-The picture size decides what resolution your game sees and how the picture fills your part of the screen. Open **Display** in your menu.
+Open **Display** in your menu. The size decides what resolution your game sees.
 
 | Setting | What it does |
-| --- | --- |
-| **Native** | Gives your game the pixels of your allocated part of the screen. |
-| **1:1** | Gives the game the largest square resolution that fits your part of the screen. |
-| **4:3** | Gives the game the largest 4:3 resolution that fits your part of the screen. |
-| **16:9** | Gives the game the largest 16:9 resolution that fits your part of the screen. |
-| **Keep ratio** | Fits the picture into your space, adding bars when needed. |
-| **Stretch** | Fills your space with the game's picture, changing its proportions. Steam's own menus always keep their proportions. |
-| **Fit** | Crops the picture to the shape of your space and fills it. For games that show black bars. Nothing is stretched, and the edges that do not fit are hidden. DosPlex never picks it for you. |
+|---|---|
+| **Native** | The pixels of your part of the screen. The default in every layout. |
+| **1:1**, **4:3**, **16:9** | The largest such size that fits. Each button shows its size, for example **1:1 1920x1920**. |
+| **Keep ratio** | Fits the picture and adds bars when needed. |
+| **Stretch** | Fills your space and changes the proportions. |
+| **Fit** | Crops the picture to fill your space. For games with black bars. Only you choose it. |
 
-**Native** is always the first button. The **1:1**, **4:3** and **16:9** buttons follow it, ordered from the one that fills your part of the screen most to the one that fills it least in your current layout. Each button shows the size it gives, for example **1:1 1920x1920**.
+- Choose **Apply** to use a new size. It takes effect once no game is running. **Up to date** means nothing is left to apply.
+- A running game keeps its monitor, and Gamescope scales it. To fill the new area, change the game's resolution in its video settings, or restart it.
 
-In Full screen your part is the whole output: on 4K, **Native** and **16:9** are 3840x2160, **4:3** is 2880x2160 and **1:1** is 2160x2160. DosPlex recalculates the largest fitting size when you change the layout, and the overlay shows the selected size.
+## A game does not start or looks wrong
 
-**When you would change it.** The default is **Native** in every layout, so a game gets every pixel of your part of the screen. In Side by side that is a tall picture. A game that does not start, shows bars or looks wrong in it needs **16:9** (or **4:3**, or **1:1**) from the menu. A game saves the size it ran at, so after you play in a tall half it may need its resolution set again in Full screen. If a game will not start with the default, try the other choices with **Keep ratio**: in Side by side, **1:1** then **4:3** then **16:9**; in Top / bottom and Full screen, **16:9** then **4:3** then **1:1**. **Fit** is the choice for a game that draws black bars inside its picture; it crops them away. Choose it yourself with **Apply**; DosPlex never does.
+Native is a tall picture in Side by side. Choose **Keep ratio**, then **Apply** each size in this order:
 
-**Apply** changes your game monitor as soon as no game is running. When there is nothing to apply, the button reads **Up to date**. A game that is running keeps the monitor it started with, and Gamescope scales its picture into your new area. To make the running game fill the new area, change its resolution in its own video settings, or close it and start it again.
+| Layout | Try |
+|---|---|
+| Side by side | **1:1**, then **4:3**, then **16:9** |
+| Top / bottom, Full screen | **16:9**, then **4:3**, then **1:1** |
 
-If a size above 1920x1200 pixels does not stay, Steam has set it back. Newer Steam clients do that unless Steam's setting "Enable Native Resolution on External Displays" is on. DosPlex switches it on for you before Steam starts, the first time. If you switched it off, it is in Steam under Settings, System, Enable Developer Mode, and then Settings, Developer. A side that has just been created gets the setting at its second start. Until it is on, DosPlex gives you the largest picture of the same shape that Steam leaves alone and scales it to your area.
+> [!NOTE]
+> A game saves the size it ran at. After a tall half it may need its resolution set again in Full screen.
 
-With that setting on, Steam switches its own screen to the full size of your area a few seconds after DosPlex starts. DosPlex puts the size from your menu back within a few seconds, so the picture can change once shortly after a start.
+## A size above 1920x1200 does not stay
 
-Steam's own resolution settings work in each part of the screen, as on SteamOS: Settings → Display → Maximum Game Resolution for all games, and the game's Properties → General → Game Resolution for one game. Steam's list starts from your part of the screen and offers smaller sizes. A smaller size makes a heavy game lighter in a split, and Gamescope scales it up.
+Steam set it back. Steam's setting "Enable Native Resolution on External Displays" must be on. DosPlex switches it on at the first start. If you switched it off, it is under Settings, System, Enable Developer Mode, then Settings, Developer in Steam. A new side gets it at its second start.
+
+More: [the user guide](../user-guide.md#choose-a-picture-size).
