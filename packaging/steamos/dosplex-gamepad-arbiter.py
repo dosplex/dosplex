@@ -4,7 +4,7 @@
 """Grab external gamepads and expose one routed virtual gamepad.
 
 Steam keeps existing evdev/hidraw file descriptors open across chmod/chgrp
-changes, so Dosplex cannot reliably move a physical controller between Main and
+changes, so DosPlex cannot reliably move a physical controller between Main and
 Guest with permissions alone. This daemon owns external joystick event devices,
 grabs them, hides the physical family, and forwards events into a uinput clone
 whose device node is made readable only by the selected side. Changing sides
@@ -42,7 +42,7 @@ _registry_module = importlib.util.module_from_spec(_registry_spec)
 _registry_spec.loader.exec_module(_registry_module)
 REGISTRY = None
 ROUTE_DIR = Path("/run/dosplex/gamepad-routes")
-IGNORE_NAMES = ("Valve Software Steam Controller", "Steam Deck", "Dosplex routed")
+IGNORE_NAMES = ("Valve Software Steam Controller", "Steam Deck", "DosPlex routed")
 TARGET_GROUP = {"main": os.environ.get("DOSPLEX_MAIN_GROUP", "deck"), "guest": os.environ.get("DOSPLEX_GUEST_GROUP", "guest")}
 
 
@@ -113,7 +113,7 @@ def is_external_gamepad(path):
         return False
     # Steam Input creates game-facing virtual Xbox pads with Valve's vendor ID.
     # Those must stay visible to the game session; only physical external pads
-    # should be owned by the Dosplex arbiter.
+    # should be owned by the DosPlex arbiter.
     if vendor == 0x28DE and product == 0x11FF:
         return False
     if any(token in name for token in IGNORE_NAMES):
@@ -626,7 +626,7 @@ class RoutedGamepad:
             self.target = target
             self.ensure_reader()
             return
-        virtual_name = f"Dosplex routed {target} {self.base}"
+        virtual_name = f"DosPlex routed {target} {self.base}"
         virtual_phys = "dosplex-gamepad-arbiter/" + uuid.uuid4().hex
         wireless_steam = (self.dev.info.vendor, self.dev.info.product) in ((0x28de, 0x1304), (0x28de, 0x1305))
         identity = virtual_identity(self.dev.info, virtual_name, virtual_phys, wireless_steam)

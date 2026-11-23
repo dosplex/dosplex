@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in Dosplex does not work as it should.
+description: Something in DosPlex does not work as it should.
 labels: [bug]
 body:
   - type: markdown
@@ -27,7 +27,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: Dosplex version
+      label: DosPlex version
       description: The version line of `sudo dosplex status`.
     validations:
       required: true

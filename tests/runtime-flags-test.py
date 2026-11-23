@@ -20,7 +20,7 @@ effect from outside:
   DOSPLEX_POWER_COMMAND  with --test-hooks, the power helper runs it instead of systemctl;
                     without --test-hooks it is ignored
   DOSPLEX_POWER_PANEL_TIMEOUT_MS  with --test-hooks, shortens the time after which the Restart and
-                    Shut down progress panel comes down when Dosplex was not stopped
+                    Shut down progress panel comes down when DosPlex was not stopped
   --idle-policy     none never blanks the output; dim does, and restores it on input
   --audio-router    audio exists only where a router is configured; the option wins
                     over DOSPLEX_AUDIO_ROUTER and an empty value turns audio off
@@ -73,7 +73,7 @@ SESSION_TAB = centre(CONTENT_X + 3 * (TAB_W + 8), PANEL_Y + 70, TAB_W, 30)
 SLEEP = centre(CONTENT_X, CONTENT_Y + 136, THIRD, 32)
 RESTART = centre(CONTENT_X + THIRD + 8, CONTENT_Y + 136, THIRD, 32)
 SHUT_DOWN = centre(CONTENT_X + 2 * (THIRD + 8), CONTENT_Y + 136, THIRD, 32)
-TURN_OFF = centre(CONTENT_X, CONTENT_Y + 210, CONTENT_W, 30)    # Turn off Dosplex: a row of its own below Reset
+TURN_OFF = centre(CONTENT_X, CONTENT_Y + 210, CONTENT_W, 30)    # Turn off DosPlex: a row of its own below Reset
 CONTINUE = centre(CONTENT_X + HALF + 8, CONTENT_Y + 88, HALF, 34)
 
 POLICY_DEFAULTS = {'backend': 'headless', 'real_sessions': '0', 'test_hooks': '0', 'allow_power': '0',
@@ -476,7 +476,7 @@ class RuntimeFlagTests(unittest.TestCase):
             # down, says so, and Main's overlay is open again on the Session tab with the message.
             state = run.wait_for(lambda s: s['power_action'] == '', 'the progress panel never came down', timeout=6)
             self.assertEqual(state['power_message'], 'Restart did not finish. See the log.')
-            self.assertIn('Restart did not stop Dosplex within', run.log_text())
+            self.assertIn('Restart did not stop DosPlex within', run.log_text())
             self.assertTrue(state['overlay_visible'] and state['overlay_owner'] == 'left' and state['overlay_tab'] == 2,
                             state)
             # The overlay is Main's, so Main's own chord closes it.
@@ -520,7 +520,7 @@ class RuntimeFlagTests(unittest.TestCase):
 
                     run.open_power_confirmation(RESTART, 'Restart')
                     run.click_until(CONTINUE, lambda s: s['power_action'] == 'reboot', 'Continue did not start Restart')
-                    self.assertIn('Power action reboot: input to both sides is held until Dosplex stops', run.log_text())
+                    self.assertIn('Power action reboot: input to both sides is held until DosPlex stops', run.log_text())
                     since = len(events())
                     run.send_pointer('M 310 310\nM 320 320\nB 272 1\nB 272 0\nW 0 1\nR 4 4\nK 30 1\nK 30 0\n')
                     time.sleep(.5)
@@ -556,21 +556,21 @@ class RuntimeFlagTests(unittest.TestCase):
                     output.close()
 
     def test_turn_off_dosplex_asks_first_and_runs_the_helper_with_stop(self):
-        # Main's Session tab has "Turn off Dosplex": both sessions close and the stock Steam comes back, with no
+        # Main's Session tab has "Turn off DosPlex": both sessions close and the stock Steam comes back, with no
         # restart. It asks first, then runs the power helper with the action `stop`, which runs no power command.
         # Here the helper cannot leave the compositor's service (no systemd-run), so its first stage fails: that
         # shows which action was started and that a failure is said under the action's own name.
         with Run(['--test-hooks', '--allow-power'], tools=RECORD_POWER, helper=True, recorder=True) as run:
-            run.open_power_confirmation(TURN_OFF, 'Turn off Dosplex')
+            run.open_power_confirmation(TURN_OFF, 'Turn off DosPlex')
             self.assertEqual(run.state()['power_action'], '')           # nothing runs before Continue
             self.assertNotIn('Power helper for stop', run.log_text())
             run.click(CONTINUE)
-            state = run.wait_for(lambda s: s['power_message'] == 'Turn off Dosplex failed. See the log.',
-                                 'the failed first stage of Turn off Dosplex was not reported', timeout=5)
+            state = run.wait_for(lambda s: s['power_message'] == 'Turn off DosPlex failed. See the log.',
+                                 'the failed first stage of Turn off DosPlex was not reported', timeout=5)
             self.assertEqual(state['power_action'], '')
             self.assertIn('Power helper for stop finished: exit status 1', run.log_text())
-            self.assertEqual(run.recorded('command.log'), [], 'Turn off Dosplex ran a power command')
-            self.assertEqual(run.recorded('power.log'), [], 'Turn off Dosplex ran systemctl')
+            self.assertEqual(run.recorded('command.log'), [], 'Turn off DosPlex ran a power command')
+            self.assertEqual(run.recorded('power.log'), [], 'Turn off DosPlex ran systemctl')
             self.assertTrue(state['overlay_visible'] and state['overlay_owner'] == 'left' and state['overlay_tab'] == 2,
                             state)
 
@@ -612,7 +612,7 @@ class RuntimeFlagTests(unittest.TestCase):
             self.assertTrue(state['overlay_visible'] and state['overlay_owner'] == 'left' and state['overlay_tab'] == 2,
                             state)
             self.assertIn('Power helper for reboot finished: exit status 1', run.log_text())
-            self.assertNotIn('did not stop Dosplex within', run.log_text())
+            self.assertNotIn('did not stop DosPlex within', run.log_text())
             self.assertEqual(run.recorded('command.log'), [])
             self.assertEqual(run.recorded('power.log'), [])
 
@@ -780,7 +780,7 @@ class RuntimeFlagTests(unittest.TestCase):
     def test_restart_and_shut_down_never_run_a_bare_systemctl(self):
         # Without the helper there is nothing that closes the sides first, so nothing runs at all.
         with Run(['--allow-power'], tools={**RECORD_POWER, **FAKE_SYSTEMD_RUN}) as run:
-            for button, label in ((RESTART, 'Restart'), (SHUT_DOWN, 'Shut down'), (TURN_OFF, 'Turn off Dosplex')):
+            for button, label in ((RESTART, 'Restart'), (SHUT_DOWN, 'Shut down'), (TURN_OFF, 'Turn off DosPlex')):
                 run.open_power_confirmation(button, label)
                 run.click_until(CONTINUE, lambda s: s['power_message'] == 'Power helper missing' and
                                 not s['overlay_confirmation'], f'{label} did not say the helper is missing')
@@ -810,7 +810,7 @@ class RuntimeFlagTests(unittest.TestCase):
             # Where Main's tab has Sleep, Restart and Shut down there is nothing to press.
             for column in range(3):
                 run.click(centre(x + column * (third + 8), y + 136, third, 32))
-            run.click(centre(x, y + 210, width, 30))        # and nothing where Main has Turn off Dosplex
+            run.click(centre(x, y + 210, width, 30))        # and nothing where Main has Turn off DosPlex
             run.stays(lambda s: s['overlay_visible'] and not s['overlay_confirmation'],
                       "Guest's Session tab offered a power action")
             for log in ('power.log', 'command.log', 'unit.log'):

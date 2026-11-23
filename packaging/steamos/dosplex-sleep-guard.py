@@ -3,7 +3,7 @@
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
 """Freeze both sides before the machine sleeps, and thaw them when it wakes.
 
-A side's Steam polls the controller nodes that Dosplex's native relays provide inside the side's sandbox. A relay is a
+A side's Steam polls the controller nodes that DosPlex's native relays provide inside the side's sandbox. A relay is a
 CUSE server: the kernel hands every poll of its node to the relay and the polling thread waits for the answer where
 the freezer cannot reach it. When the machine suspends, the kernel freezes user space in no particular order. A relay
 that is frozen before it has answered a pending poll leaves that Steam thread stuck in fuse_file_poll: the thread can
@@ -22,7 +22,7 @@ gone, and it ends when the machine is awake), handles the wake as if it had been
 The settle is there so that a side's Steam can take the announcement itself. On the Steam Deck (2026-10-24) the guard
 froze Main's side within milliseconds of PrepareForSleep(true): Steam logged "Suspending" at the announcement but ran
 OnSystemPowerStateSuspend only after the wake, in the same second as OnSystemPowerStateResume, and on 2 of 5 wakes the
-client crashed in steamclient.so between the two. On the same Deck without Dosplex (stock SteamOS, same client) the
+client crashed in steamclient.so between the two. On the same Deck without DosPlex (stock SteamOS, same client) the
 suspend is handled at suspend time and 0 of 5 wakes crashed. 1.5 seconds is what another project waits before it
 freezes the same client; how little would do is not measured.
 
@@ -72,7 +72,7 @@ SLEEP_JOB = re.compile(r'(?:sleep|suspend|hibernate|hybrid-sleep|suspend-then-hi
                        r'|systemd-(?:suspend|hibernate|hybrid-sleep|suspend-then-hibernate)\.service')
 # What the guard froze, for a guard that starts again. /run is empty after a boot, when no unit is frozen either.
 STATE_PATH = '/run/dosplex-sleep-guard.json'
-LOCK_WHO = 'Dosplex'
+LOCK_WHO = 'DosPlex'
 LOCK_WHY = 'Freeze both sides before the machine sleeps'
 # Held by a shell that says so once logind has the lock, then by cat, which ends when its input closes.
 LOCK_COMMAND = ['systemd-inhibit', '--what=sleep', '--mode=delay', '--who=' + LOCK_WHO, '--why=' + LOCK_WHY,
@@ -865,7 +865,7 @@ class Guard:
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description='Freeze both Dosplex sides before the machine sleeps.')
+    parser = argparse.ArgumentParser(description='Freeze both DosPlex sides before the machine sleeps.')
     parser.add_argument('--manager', choices=('system', 'user'), default='system',
                         help='which systemd manager runs the sides (user: for the tests, without root)')
     parser.add_argument('--settle-seconds', type=float, default=SETTLE_SECONDS,

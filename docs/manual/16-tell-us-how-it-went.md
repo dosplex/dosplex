@@ -1,12 +1,12 @@
 # Tell us how it went
 
-Dosplex is an alpha. The fastest way to make it better is to hear from you, in your own words. Say it the way you would say it on the couch.
+DosPlex is an alpha. The fastest way to make it better is to hear from you, in your own words. Say it the way you would say it on the couch.
 
-This release has no feedback form in the menu. Dosplex sends nothing anywhere by itself, so telling us is something you do from a phone or a computer.
+This release has no feedback form in the menu. DosPlex sends nothing anywhere by itself, so telling us is something you do from a phone or a computer.
 
 ## Where to write
 
-- **Discord.** The channel `#alpha-testers` on the Dosplex server is the place for how it went, what you played and what surprised you. The invite is discord.gg/HSBJhQPA6A.
+- **Discord.** The channel `#alpha-testers` on the DosPlex server is the place for how it went, what you played and what surprised you. The invite is discord.gg/HSBJhQPA6A.
 - **GitHub.** For a defect you want to follow until it is fixed, open an issue at github.com/dosplex/dosplex/issues.
 
 Both are public: other people can read what you write there. Each is a service of its own with its own account and its own privacy terms.
@@ -30,4 +30,4 @@ A security problem does not belong in a public channel. The file `SECURITY.md` o
 
 We read every one. What turns out to be a defect becomes an issue, and the good ideas shape what we build next.
 
-Thank you. Feedback like this is what makes Dosplex better, and it is greatly appreciated.
+Thank you. Feedback like this is what makes DosPlex better, and it is greatly appreciated.

@@ -1,6 +1,6 @@
 # Current limitations
 
-This page lists what Dosplex 0.1.0 alpha does not do, or does not do well yet, in engineering detail. The
+This page lists what DosPlex 0.1.0 alpha does not do, or does not do well yet, in engineering detail. The
 manual has the short form for users: [Limits of the alpha](manual/15-limits-of-the-alpha.md).
 
 ## Input ownership and controller support
@@ -12,28 +12,29 @@ per-user device views use acknowledged assignment. Automatic native discovery is
 not complete.
 Do not start both native and generic owners for one device.
 
-A Steam Controller and the Steam Deck's own controls open the Dosplex menu without side effects. A DualShock 4, a
-DualSense, an Xbox or a Switch Pro controller is handed to its side as it is, so Dosplex cannot filter it. It can
+A Steam Controller and the Steam Deck's own controls open the DosPlex menu without side effects. A DualShock 4, a
+DualSense, an Xbox or a Switch Pro controller is handed to its side as it is, so DosPlex cannot filter it. It can
 open and drive its player's menu with the same chord, experimentally: the chord also reaches the game, and the
 player's side is paused while the menu is open because of that controller. A keyboard opens the menu without that.
 Its right button or the chord also closes a menu that something else opened; the side is not paused then, so the
 game gets that press too.
 
 Such a controller reaches a side's Steam through a mount in each of that Steam's namespaces. A mount that exists
-when Steam makes its client's container is copied into the container and cannot be replaced there. Dosplex
+when Steam makes its client's container is copied into the container and cannot be replaced there. DosPlex
 therefore waits for the client before it hands a controller over at start. When Steam starts its client again
 later in the same session (after it updated itself, for example), the controllers the side holds are copied all
 the same, and one of them that then reconnects, or goes to the other player and comes back, does not reach that
-Steam until Dosplex is turned off and started again.
+Steam until DosPlex is turned off and started again.
 
 The Steam Controller puck 28de:1305 is carried the same as the 1304 puck, including the firmware-update
 guard. The older Steam Controller dongle 28de:1142 is not supported.
 
-A controller with no saved owner belongs to Main, and a
-controller that appears never changes the layout. `dosplex start` enrolls every other
-slot of the receivers of Main's and Guest's controllers, awake or not, up to eight
-slots in all; each starts as Main's. The user can release one (Unassigned) or give it
-to Guest, and the owner is kept in `/var/lib/dosplex/controllers` across a stop and
+A controller gets its first owner when it is first awake: the first one is Main's, and
+while the second player is on the screen with no controller that is awake, the next one
+is theirs. A controller that appears never changes the layout. `dosplex start` enrolls every
+slot of the receivers that are plugged in, awake or not, up to eight slots in all, on a
+Steam Deck as well; an empty slot belongs to nobody until a controller wakes on it. The
+user can release a controller (Unassigned) or give it to the other player, and the owner is kept in `/var/lib/dosplex/controllers` across a stop and
 a reboot. Each controller has a stable number that the Devices page shows. Which
 interfaces of a real receiver are controller slots, and that a second pad reaches a
 game, are not checked on the hardware. Deck plus two identical wireless
@@ -58,16 +59,16 @@ from its own menu; keyboards, mice and other input devices are still assigned by
 Main, which can also share a mouse or keyboard between both sides (Shared). That
 choice has been run in a nested X11 session, not with physical devices.
 
-Only one Dosplex menu is shown at a time. Native overlay capture and immediate
+Only one DosPlex menu is shown at a time. Native overlay capture and immediate
 handback have tests and limited human acceptance, but simultaneous physical
 players, game input, optional gyro/pad/haptics features and controller sleep/wake
 need broader coverage.
 
 **Steam's "Steam Controller detected!" tour.** Steam shows this tour per account, and
-it cannot finish inside a Dosplex side: Steam's firmware check fails there, so Steam
+it cannot finish inside a DosPlex side: Steam's firmware check fails there, so Steam
 never saves that the tour is done. It comes back at every Steam start and every
 controller wake, and while it is up it takes the input from games and installers.
-Escape or B only hides it until the next start. Dosplex does not change Steam's files.
+Escape or B only hides it until the next start. DosPlex does not change Steam's files.
 When a Steam Controller is routed to a side and the tour is on for one of the side
 owner's accounts, `dosplex status` lists the account and the journal says so once.
 Switch the tour off once per account, in that side's Steam: Settings → Developer →
@@ -78,7 +79,7 @@ SteamOS signed in as that account. The setting is stored with the account
 Cloud carries it to other devices.
 
 **Controller firmware updates.** Update the firmware of a Steam Controller and its
-Puck receiver in stock SteamOS, not while Dosplex runs. Steam can offer an update
+Puck receiver in stock SteamOS, not while DosPlex runs. Steam can offer an update
 inside a side, but its firmware check fails there, so an update could be left half
 done. The controller relay therefore refuses the command that starts one (the
 reboot into the bootloader), for the receiver and for a pad behind it, so an
@@ -106,10 +107,10 @@ picture and the resizing of game windows to the monitor have not had their
 hardware check. Each game still needs its own Native, 1:1, 4:3 and 16:9 and
 proportion/stretch checks.
 
-Fit is a third way to fill your area (Zoom inside Dosplex), drawn by the Dosplex compositor and not by
+Fit is a third way to fill your area (Zoom inside DosPlex), drawn by the DosPlex compositor and not by
 Gamescope: it crops the game's picture to the shape of your area and fills it,
 so nothing is stretched and no bars are left. You pick it on the Display page, in
-every layout, and Dosplex never picks it for you, because it can crop a game that
+every layout, and DosPlex never picks it for you, because it can crop a game that
 really uses its whole monitor. It is meant for a game that draws black bars inside
 its monitor, such as a 16:9 picture letterboxed in a 1920x2160 monitor that has
 become a full 3840x2160 screen. While a game keeps its monitor, your menu then says
@@ -148,10 +149,10 @@ was not run.
 
 A game that starts while Steam on its side is idle (the screensaver is up and the
 account shows as Away) can stay behind Steam's window. When Steam is still in
-front of a new game three seconds later, Dosplex sends one Escape key press to wake
+front of a new game three seconds later, DosPlex sends one Escape key press to wake
 it. That needs `xdotool` in the player's session, which SteamOS ships; without it
 nothing is sent and the log says so. One Escape wakes an idle Steam on the Deck;
-Dosplex's own sending of it has tests with stand-in X tools and no hardware run yet.
+DosPlex's own sending of it has tests with stand-in X tools and no hardware run yet.
 
 Alien Breed Impact's fixed window renders without forced resizing at 1080p with
 proportions preserved. Quake's portrait-mode enumeration
@@ -186,7 +187,7 @@ probe client and has not been run with the Machine's Gamescope or on the Machine
 yet. Gamescope 3.16.30, the Deck's, does not do it.
 
 KDE's own display scale setting (System Settings, Display) has no effect in a side's
-nested Desktop mode: Dosplex sets the scale when the desktop starts, and the
+nested Desktop mode: DosPlex sets the scale when the desktop starts, and the
 `desktop-scale` file described in the user guide is the way to change it.
 
 **Storage.** In Main's side, Main's own removable drives are writable, as on stock
@@ -200,24 +201,24 @@ home folder or on a drive that SteamOS mounts. A drive mounted anywhere else aft
 side has started keeps the settings it was mounted with, in both sides, until that
 side restarts, and only its file permissions decide who can use it. Guest cannot
 reach Main's drives under `/run/media/deck`. A side that was already running when
-Dosplex was updated keeps its earlier view until its next restart. Each account keeps its own
+DosPlex was updated keeps its earlier view until its next restart. Each account keeps its own
 game library unless you turn on the experimental shared library (see [Experimental features](manual/17-experimental.md)).
 
 A newer Steam client sets a side's screen back to 1920x1080 by itself whenever it has more pixels than 1920x1200,
 unless Steam's own setting "Enable Native Resolution on External Displays" (Settings, Developer) is on. A half of a 4K
-screen is 1920x2160, so Native, 1:1 and 4:3 are above that. Dosplex switches the setting on once for each account's
+screen is 1920x2160, so Native, 1:1 and 4:3 are above that. DosPlex switches the setting on once for each account's
 Steam, before Steam starts; a player who switches it off in Steam keeps that. A Steam that has never run gets it at its
-second start. When Steam still undoes a size, Dosplex puts the largest size of the same shape that Steam leaves alone
+second start. When Steam still undoes a size, DosPlex puts the largest size of the same shape that Steam leaves alone
 in its place, and Gamescope scales that picture to the area. Seen with the Steam Deck beta client 1795048523.
 With the setting on, Steam sets a side's screen to the area's full size once, a few seconds after the side starts;
-Dosplex looks at the screen every two seconds while no game runs and sets the menu's size again, at most three times
+DosPlex looks at the screen every two seconds while no game runs and sets the menu's size again, at most three times
 for one choice, and then says that Steam keeps changing it.
 
 ## Audio and trust
 
 Claimed outputs and the shared-speaker settings are kept in `/var/lib/dosplex/audio.json`
 and survive restarts and reboots; microphone claims are not kept. An unreadable file is
-renamed to `audio.json.corrupt-<time>` and Dosplex starts from the defaults. The
+renamed to `audio.json.corrupt-<time>` and DosPlex starts from the defaults. The
 stable device identity (so a renamed device keeps its claim) is not done yet: the claim
 is the device's node name. Guest has no default output on a first run.
 
@@ -234,7 +235,7 @@ both Steam namespaces and the installed overlay. Positioned stereo mix changes s
 balance according to screen position; it does not create private sound zones.
 Physical listening remains separate acceptance. Startup now waits for the
 enrolled Unix audio endpoint so Steam containers do not lose game audio during
-a full Dosplex update.
+a full DosPlex update.
 
 Separate Linux users and Wayland seat/output filtering do not make this a security
 sandbox. Privileged authentication, helper write paths, admission policy, partial
@@ -244,7 +245,7 @@ routine diagnostics.
 
 ## Security and isolation
 
-Dosplex keeps the two players apart in ordinary use: each has their own Unix account, Steam, games, saves,
+DosPlex keeps the two players apart in ordinary use: each has their own Unix account, Steam, games, saves,
 controllers and sound. It is not yet a wall against a player who sets out to cross it. The alpha is
 published with the gaps below stated, not fixed. Run it only with people you trust at the same screen.
 
@@ -264,7 +265,7 @@ The shared game library and the start at boot are off unless you turn them on, a
 library has known open defects in code that runs as root; [Experimental features](manual/17-experimental.md)
 lists them. Do not turn the library on where an account on the machine is not trusted.
 
-The repository also holds systemd units of an earlier, never released way to run Dosplex as a system service
+The repository also holds systemd units of an earlier, never released way to run DosPlex as a system service
 (`packaging/steamos/usr/lib/systemd/system/`). A release does not install them. One of them creates a runtime
 directory that every account can write to; do not install these units by hand.
 
@@ -279,10 +280,10 @@ Machine. Known limits:
   mangoapp, no log.
 - **File names and one file per run.** MangoHud names the CSV files and decides
   when a file ends. Logging starts when mangoapp starts, so one run may give one
-  file for several games, not one per game. Dosplex does not rename the files.
+  file for several games, not one per game. DosPlex does not rename the files.
 - **Which columns exist** (power, temperatures) depends on what MangoHud reads
   on the machine.
-- **If mangoapp stops, it is not restarted** by Dosplex. Gamescope starts it
+- **If mangoapp stops, it is not restarted** by DosPlex. Gamescope starts it
   again only on 3.16.30 and later, when the overlay is shown after a hide.
 - **The queue that carries the frame data is separated by directory, not by
   namespace.** The two sides and SteamOS itself would otherwise share one System V
@@ -292,14 +293,14 @@ Machine. Known limits:
 - **MANGOHUD_CONFIG reaches Steam and its games** when logging is on, because
   Gamescope hands its environment to everything it starts.
 
-## Dosplex's own FPS counter
+## DosPlex's own FPS counter
 
-The counter and the CSV recording in Dosplex's menu (see the user guide) have
+The counter and the CSV recording in DosPlex's menu (see the user guide) have
 only been checked with test programs so far, not on a Steam Deck or a Steam
 Machine. What the number means:
 
-- **It counts frames the side's Gamescope delivers to Dosplex.** Each commit
-  with a new buffer on the side's window is one frame, timed when Dosplex
+- **It counts frames the side's Gamescope delivers to DosPlex.** Each commit
+  with a new buffer on the side's window is one frame, timed when DosPlex
   handles it. That is the picture the player sees. It is not the game's own
   frame rate. Gamescope repeats a frame when the game is slower than Gamescope's
   output, and drops frames when the game is faster. A game that renders 30 FPS
@@ -309,9 +310,9 @@ Machine. What the number means:
 - **A still picture reads low.** Gamescope may not commit when nothing changes.
   The counter then shows 0 or a low number, and the first frame after a pause
   carries the pause in its frame time (and in `frametime_ms_p99` of that second).
-- **It is the time Dosplex saw the commit, not the time the frame reached the
-  glass.** It leaves out Dosplex's own composition and the display's refresh. If
-  Dosplex itself runs late, commits are handled late, and the numbers show it
+- **It is the time DosPlex saw the commit, not the time the frame reached the
+  glass.** It leaves out DosPlex's own composition and the display's refresh. If
+  DosPlex itself runs late, commits are handled late, and the numbers show it
   only as bunched frames.
 - **Windows of the numbers.** FPS and the average frame time cover the last
   second. The p99 on screen covers the last five seconds, and the p99 in the CSV
@@ -326,7 +327,7 @@ Machine. What the number means:
   does not have is left empty. A Steam Machine has no battery. The power on a
   Deck is the chip's average, not the whole device.
 - **Only root writes the files.** They go to `/var/lib/dosplex/perf/`, so a
-  side's account cannot write there. Dosplex keeps the newest 20 files and
+  side's account cannot write there. DosPlex keeps the newest 20 files and
   deletes older ones without asking.
 - **Steam's own overlay is not replaced.** Steam's Performance panel in a side
   does not work yet; see the section above.
@@ -334,12 +335,12 @@ Machine. What the number means:
 ## Distribution and recovery
 
 - **One way to install.** A release is a signed archive, installed with `dosplex install --release`. There is
-  no package for a package manager, and Dosplex is not in any store.
+  no package for a package manager, and DosPlex is not in any store.
 - **Tested versions only.** A release lists the SteamOS, Gamescope and Steam client versions it was tested
-  on, and the installer refuses others unless told to go on. A SteamOS update can therefore make Dosplex
+  on, and the installer refuses others unless told to go on. A SteamOS update can therefore make DosPlex
   refuse to start until a release has been tested on it.
 - **One earlier release is kept.** `dosplex rollback` returns to it. Older ones are removed.
-- **Recovery is a reboot.** Dosplex starts only when asked, so a restart of the machine brings stock SteamOS
+- **Recovery is a reboot.** DosPlex starts only when asked, so a restart of the machine brings stock SteamOS
   back whatever state a session was in. `dosplex repair` finishes or undoes an install, update or uninstall
   that was interrupted.
 - **Devices.** The alpha was tested on a Steam Deck and on a Steam Machine. Other SteamOS devices have not

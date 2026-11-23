@@ -7,10 +7,10 @@ Do not include account passwords, Steam Guard codes or QR screenshots.
 ## Quick sequence
 
 1. Launch the game on Main. Check menus, movement, camera and the usual buttons.
-2. Open Dosplex: hold **Select/Back first**, add **D-pad Up**, hold about one second,
+2. Open DosPlex: hold **Select/Back first**, add **D-pad Up**, hold about one second,
    then release both. Check that the game stops receiving input while the menu
    is open and responds immediately after closing it.
-3. Set Steam Properties → General → Game Resolution to Default. Try Dosplex
+3. Set Steam Properties → General → Game Resolution to Default. Try DosPlex
    Native, 1:1, 4:3 and 16:9 with Keep ratio. Check the game's own resolution
    setting; it may retain an earlier setting or need a relaunch. If you also
    test a custom Steam resolution, record it as a separate run.
@@ -24,16 +24,16 @@ Do not include account passwords, Steam Guard codes or QR screenshots.
 ## Copy for each result
 
 ```text
-Date / Dosplex build:
+Date / DosPlex build:
 Device / SteamOS version:
 TV output resolution / refresh rate:
 Steam Properties → General → Game Resolution: Default / custom (value):
 Game / Steam app ID / game build:
 Native Linux or Proton version:
 Main or Guest / other activity running:
-Dosplex layout, picture choice (Native / 1:1 / 4:3 / 16:9) and virtual resolution:
+DosPlex layout, picture choice (Native / 1:1 / 4:3 / 16:9) and virtual resolution:
 Keep ratio, Stretch or Fit (Fit crops the picture to your area's shape, for a
-game that shows black bars; you pick it yourself on the Display page and Dosplex never chooses it, and the overlay
+game that shows black bars; you pick it yourself on the Display page and DosPlex never chooses it, and the overlay
 then says Fitted):
 Game resolution / windowed, borderless or exclusive fullscreen:
 Controller model / USB, receiver or Bluetooth / Steam Input template:
@@ -56,4 +56,4 @@ horizontal (top/bottom) split gives 3840×1080 or 1920×540. The 1:1, 4:3 and
 in a 4K vertical split they are 1920×1920, 1920×1440 and 1920×1080. Some games
 choose a different internal resolution. Steam's per-game Game Resolution is a
 separate variable and can limit the modes presented to a game. Record the
-Dosplex choice, Steam setting, virtual monitor and in-game setting separately.
+DosPlex choice, Steam setting, virtual monitor and in-game setting separately.

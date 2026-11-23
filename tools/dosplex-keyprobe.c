@@ -568,7 +568,7 @@ int main(int argc, char **argv) {
     xdg_surface_add_listener(app.xdg_surface, &xdg_surface_listener, &app);
     app.xdg_toplevel = xdg_surface_get_toplevel(app.xdg_surface);
     xdg_toplevel_add_listener(app.xdg_toplevel, &xdg_toplevel_listener, &app);
-    xdg_toplevel_set_title(app.xdg_toplevel, "Dosplex Key Probe");
+    xdg_toplevel_set_title(app.xdg_toplevel, "DosPlex Key Probe");
 
     wl_surface_commit(app.surface);
 
@@ -607,7 +607,7 @@ int main(int argc, char **argv) {
                 wl_surface_commit(app.surface);
             } else if (command == 'R') {
                 app.configured = false;
-                xdg_toplevel_set_title(app.xdg_toplevel, "Dosplex Key Probe");
+                xdg_toplevel_set_title(app.xdg_toplevel, "DosPlex Key Probe");
                 wl_surface_commit(app.surface);
             } else if (command == 'D') {
                 probe_draw_frame(&app);

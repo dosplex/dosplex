@@ -33,7 +33,8 @@ def device_specs(transaction):
         if not re.fullmatch('[a-f0-9]{8}',token) or not isinstance(entry,dict):
             raise ValueError('invalid native slot identity')
         default=entry.get('default_target','main')  # (ADR-014: a controller nobody named belongs to Main)
-        if default not in ('main','guest','unassigned'):raise ValueError('invalid native default owner')
+        # 'auto' (ADR-014 as amended 2026-11-23): the owner is decided when the controller is first awake.
+        if default not in ('main','guest','unassigned','auto'):raise ValueError('invalid native default owner')
         result.append(('controller-'+token,entry.get('name','Steam Controller'), default))
     return result
 

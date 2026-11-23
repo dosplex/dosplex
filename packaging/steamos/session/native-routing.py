@@ -104,6 +104,7 @@ class Router:
     RETRY_WAITS=(2,4,8,16,30)
     ERROR_LINE_EVERY=60  # seconds between two equal error lines in the log
     failures=0;failed_desired=None;failed_connected=None;error_said=None;error_said_at=0
+    held_said=None  # the last hold of Main's controllers that the log named (said once, and again when it changes or ends)
     # The controllers whose Devices rows show self.error. None: every row, for an error that is the adapter's own.
     error_keys=None
     # What the systemctl that did not answer in this tick said, or None. systemd is one process: when it does not answer for the
@@ -219,16 +220,40 @@ class Router:
         # controller no longer holds; the Devices row must not go on saying that the transfer failed.
         if wait or not process:self.delivery_errors.pop(key,None)
 
+    def first_owners(self,state,statuses):
+        """Give each controller that is awake for the first time its first owner (registry.first_owner).
+
+        A receiver slot that was enrolled without a named owner belongs to nobody until a controller wakes on it: an
+        empty slot is nobody's controller and nothing waits for it. The first one that wakes is Main's; the next is the
+        second player's while they are on the screen with none. Counted are the controllers that are awake and have an
+        owner: the receivers' own, the Steam Deck's controls and the other gamepads."""
+        if not hasattr(self.registry,'pending'):return
+        awake=lambda key:statuses[key] is not None and statuses[key]['connected']
+        pads=getattr(self,'pads',None)
+        for key in sorted(self.devices,key=lambda key:(self.index(key) or 0,key)):
+            if not awake(key) or not self.registry.pending(key):continue
+            owners=[self.registry.target(other) for other in self.devices
+                    if other!=key and awake(other) and not self.registry.pending(other)]
+            if pads is not None and hasattr(pads,'awake_owners'):owners+=pads.awake_owners()
+            owner=registry.first_owner(state,'main' in owners,'guest' in owners)
+            self.registry.decide(key,owner)
+            print(json.dumps({'native_first_owner':{'id':key[:8],'number':self.index(key),
+                                                    'name':self.devices[key].get('name'),'owner':owner}}),flush=True)
+
     def tick(self):
         self.systemd_error=None
         state=registry.read_json(self.runtime/'state.json')
         self.forget_requests()
+        statuses={key:self.fresh_status(key) for key in self.devices}
+        try:self.first_owners(state,statuses)
+        except Exception as error:  # (a record that cannot be written: the controller waits, the others are routed)
+            print(json.dumps({'native_first_owner_wait':str(error)[:160]}),flush=True)
         requested={key:self.registry.target(key) for key in self.devices}
         desired={key:effective_side(target,state) for key,target in requested.items()}
-        statuses={key:self.fresh_status(key) for key in self.devices}
         self.current={key:self.plan(key).get('routing_side',self.devices[key]['plan']['side']) for key in self.devices}
         order=transfer_order(self.current,desired,state['primary_side'])
-        connected=frozenset(key for key in order if statuses[key] is not None and statuses[key]['connected'])
+        # Every controller counts, not only those that are to move: one of Main's that wakes lets a held one leave (below).
+        connected=frozenset(key for key in self.devices if statuses[key] is not None and statuses[key]['connected'])
         if not order:self.error='';self.error_keys=None;self.failures=0;self.error_said=None;self.retry_at=0
         changed=bool(self.failures) and (desired!=self.failed_desired or connected!=self.failed_connected)
         if order and (changed or time.monotonic()>=self.retry_at):
@@ -240,10 +265,18 @@ class Router:
                 # its controls may be the ones Main gets for those it gives away. Everything else moves. Seen on the
                 # Deck and on the Steam Machine: sleeping spare slots, which are Main's by default, kept every other
                 # controller where it was.
+                # That hold is for a Main that would be left with nothing: when another controller that is awake is Main's
+                # and stays (or comes to Main in this same tick, before anything leaves), a controller leaves Main at once.
+                # Seen on the Steam Machine with 0.1.0-alpha.5, first start after a new install: six empty receiver slots,
+                # unassigned and Main's by default, never wake, and no controller could be given to Guest ("Transfer
+                # failed; controls returned") although Main kept another one.
                 asleep={key for key in order if statuses[key] is None or not statuses[key]['connected']}
                 held=set(asleep)
-                if any(desired[key]==state['primary_side'] for key in asleep):
+                main_keeps_one=any(desired[key]==state['primary_side'] and statuses[key] is not None
+                                   and statuses[key]['connected'] for key in self.devices)
+                if not main_keeps_one and any(desired[key]==state['primary_side'] for key in asleep):
                     held.update(key for key in order if self.current[key]==state['primary_side'])
+                self.say_held(sorted(held-asleep),sorted(key for key in asleep if desired[key]==state['primary_side']))
                 for key in order:
                     if key in held:continue
                     failing=key
@@ -284,6 +317,21 @@ class Router:
             pads.tick(state,rows);rows.extend(pads.rows(state))
         registry.write_json(self.runtime/'controllers-native.json',
                             dict(updated=time.time(),assignment_preview=2,devices=rows))
+
+    def say_held(self,kept,waited_for):
+        """One log line when controllers that are awake are kept on Main, naming them and the sleeping ones Main waits for.
+
+        The row of such a controller says only that its transfer failed; the log must say which controllers the router
+        kept and why. Said once for each distinct hold, and once when it ends."""
+        name=lambda key:dict(id=key[:8],number=self.index(key),name=self.devices[key].get('name'))
+        note=(tuple(kept),tuple(waited_for)) if kept else None
+        if note==self.held_said:return
+        self.held_said=note
+        if note is None:print(json.dumps({'native_routing_hold_ended':True}),flush=True)
+        else:print(json.dumps({'native_routing_hold':{
+            'kept_on_main':[name(key) for key in kept],
+            'reason':'Main has no other controller that is awake, and these are asleep and wanted by Main',
+            'asleep_wanted_by_main':[name(key) for key in waited_for]}}),flush=True)
 
     def forget_requests(self):
         """Carry out the forget requests in the controller directory: a controller that is off, and not a receiver of this

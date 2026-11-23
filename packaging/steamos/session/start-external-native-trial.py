@@ -33,10 +33,10 @@ import uuid
 MAX_ENROLLED_SLOTS = 8
 # A relay that fails is started again a second later, so that one failed slot does not stop the others. It has no
 # start limit: with systemd's default (five starts in ten seconds) a relay that fails at once, a refused repin for
-# example, would stay dead until Dosplex is stopped and started.
+# example, would stay dead until DosPlex is stopped and started.
 RELAY_RESTART = ('--property=Restart=on-failure', '--property=RestartSec=1', '--property=StartLimitIntervalSec=0')
 # The capture router, the output watcher and the slot guards start again after a failure (one uncaught exception would
-# otherwise end routing, the menu chord or pad delivery until Dosplex is started again). Unlike the relays they have a start
+# otherwise end routing, the menu chord or pad delivery until DosPlex is started again). Unlike the relays they have a start
 # limit: one that fails ten times in two minutes stays failed, where the journal shows it, and does not spin.
 SERVICE_RESTART=('--property=Restart=on-failure','--property=RestartSec=2','--property=StartLimitIntervalSec=120','--property=StartLimitBurst=10')
 
@@ -345,9 +345,10 @@ def run(root, main_hid, guest_hid, builtin_deck=False):
             return load('enroll', tool).enroll_locked
         # The other slots of the receiver(s) start Unassigned. enroll_locked writes transaction.json itself,
         # so the copy read below is the one that holds them.
-        # With no slot given (and no Deck), every slot of every receiver that is plugged in joins. No receiver is fine.
+        # With no slot given, every slot of every receiver that is plugged in joins, on a Steam Deck as well (its own
+        # controls are no receiver): nobody has to name a slot to use a Steam Controller. No receiver is fine.
         unassigned = enroll_unassigned_slots(root, load_enroll, main_hid, guest_hid, lambda: routing_ready(root),
-                                             all_receivers=not slots and not builtin_deck)
+                                             all_receivers=not slots)
         audio.run(root, 'start')
         # Audio socket startup writes its endpoint into the same transaction.
         tx = json.loads((root / 'transaction.json').read_text())

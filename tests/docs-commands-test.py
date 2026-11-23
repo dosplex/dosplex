@@ -294,7 +294,7 @@ class CollectorTest(unittest.TestCase):
 
     def test_not_a_command(self):
         self.assertEqual(self.make('```\ndosplex-compositor --help\n```'), [])
-        self.assertEqual(self.make('Dosplex starts when you start it.'), [])
+        self.assertEqual(self.make('DosPlex starts when you start it.'), [])
         self.assertEqual(self.make('```\ndosplex-VERSION.tar.gz\n```'), [])
         self.assertEqual(self.make('```\ncp BUNDLE /opt/dosplex/bin\n```'), [])
 

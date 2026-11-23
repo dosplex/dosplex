@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
-"""release.py: build, sign and check Dosplex release archives (T-702, PKG-011).
+"""release.py: build, sign and check DosPlex release archives (T-702, PKG-011).
 
 A release is made from a prepared bundle: the directory with a manifest.json that the bundle builder writes
 from the payload of packaging/release-build/build.sh. Standard library only; signing needs the `minisign`

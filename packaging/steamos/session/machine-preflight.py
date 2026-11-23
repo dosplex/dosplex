@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
-"""Read-only target inventory before a private Dosplex human-test deployment.
+"""Read-only target inventory before a private DosPlex human-test deployment.
 
 No Steam profile, login token, controller serial or HID payload is retained.
 Optional root HID sampling counts protocol/length pairs for at most five seconds;

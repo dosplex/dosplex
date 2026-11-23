@@ -44,7 +44,7 @@ struct side_ctx {
     struct {char *display_name;} *xwayland;
 };
 static const char *side_role_name(int role) { return "primary"; }
-static const char *side_output_name(struct side_ctx *s) { return "Dosplex-left"; }
+static const char *side_output_name(struct side_ctx *s) { return "dosplex-left"; }
 static int side_logical_width(struct side_ctx *s) { return 960; }
 static int side_logical_height(struct side_ctx *s) { return 1080; }
 static int side_physical_origin_x(struct side_ctx *s) { return 0; }

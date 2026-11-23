@@ -170,7 +170,7 @@ class SidePane(Gtk.Box):
             self.status_title.set_text("Status: unclaimed")
             self.status_body.set_text(
                 "This side is waiting for login.\n"
-                "After sign-in, Dosplex will launch a real Unix-user-owned side worker "
+                "After sign-in, DosPlex will launch a real Unix-user-owned side worker "
                 "with that user's home-backed workspace and state."
             )
             self.sign_in_button.set_sensitive(True)
@@ -200,7 +200,7 @@ class SidePane(Gtk.Box):
 
 class DosplexWindow(Gtk.ApplicationWindow):
     def __init__(self, app, demo_timeout=None):
-        super().__init__(application=app, title="Dosplex VM Prototype")
+        super().__init__(application=app, title="DosPlex VM Prototype")
         log("window_init_start")
         self.demo_timeout = demo_timeout
         self.set_default_size(1280, 720)
@@ -214,7 +214,7 @@ class DosplexWindow(Gtk.ApplicationWindow):
 
         title = Gtk.Label()
         title.set_xalign(0)
-        title.set_markup("<span size='32000' weight='800'>Dosplex</span>")
+        title.set_markup("<span size='32000' weight='800'>DosPlex</span>")
         
         subtitle = Gtk.Label(label=(
             "Split-login VM prototype. Each half can authenticate a real local user "

@@ -14,5 +14,5 @@ fi
 workspace_root="${HOME}/dosplex-workspaces/${side}"
 mkdir -p "$workspace_root"
 
-exec weston-terminal --shell=/bin/bash --title="Dosplex ${side} shell (${owner})" -e \
-  "cd '$workspace_root'; printf 'Dosplex %s side shell for %s\nworkspace=%s\n' '$side' '$owner' '$workspace_root'; exec bash -l"
+exec weston-terminal --shell=/bin/bash --title="DosPlex ${side} shell (${owner})" -e \
+  "cd '$workspace_root'; printf 'DosPlex %s side shell for %s\nworkspace=%s\n' '$side' '$owner' '$workspace_root'; exec bash -l"

@@ -609,7 +609,7 @@ enum modal_action {
     MODAL_ACTION_POWER_SLEEP,
     MODAL_ACTION_POWER_RESTART,
     MODAL_ACTION_POWER_SHUTDOWN,
-    MODAL_ACTION_POWER_EXIT,      /* Turn off Dosplex: both sessions close, stock Steam returns, the machine stays on */
+    MODAL_ACTION_POWER_EXIT,      /* Turn off DosPlex: both sessions close, stock Steam returns, the machine stays on */
     MODAL_ACTION_RESET_SIDE,
     MODAL_ACTION_RESET_ALL,
     /* Retired 2026-10-08: manual Active/Standby/Off controls. Splitting always runs
@@ -870,7 +870,7 @@ struct input_device_ctx {
 /* Per-side context */
 struct eis_input;
 /* === Per-side performance numbers (T-434) ===
- * Every commit that carries a buffer on a side's toplevel is a frame the side delivers to Dosplex; its monotonic
+ * Every commit that carries a buffer on a side's toplevel is a frame the side delivers to DosPlex; its monotonic
  * time goes into a ring. FPS, frame times and the percentiles are computed from the ring when they are shown or
  * logged. A side's counter mode and its recording are its own. */
 #define PERF_RING 2048
@@ -908,6 +908,11 @@ struct side_ctx {
     bool wine_notice_is_scaled, scaled_notice_given;
     unsigned scaled_notice_revision;
     bool auto_login_suppressed;
+    /* The "Starting Steam…" screen (side_is_starting): since when it has been up, and how far its bar got. The bar
+     * never goes back while the screen stays; both are cleared when the side shows something else. */
+    bool start_timing;
+    struct timespec start_since;
+    double start_progress;
     int activity; /* 0 active, 1 standby, 2 off; device ownership is retained. */
     struct auth_job *auth;
     bool auth_error;
@@ -1118,7 +1123,7 @@ static bool present_order_others_pending(const struct present_order *order, uint
 
 /* What a Restart or Shut down leads to, as the launcher says (--boots-into). The confirmations say it, because only
  * the launcher knows: after a retained trial or the installed `dosplex start` the machine comes back as normal
- * SteamOS (Dosplex is off until `dosplex start`), after the display-manager installation it comes back as Dosplex. */
+ * SteamOS (DosPlex is off until `dosplex start`), after the display-manager installation it comes back as DosPlex. */
 enum boots_into {
     BOOTS_INTO_UNKNOWN,   /* not said: the confirmations say nothing about the next boot */
     BOOTS_INTO_STEAMOS,
@@ -1184,7 +1189,7 @@ static void dosplex_usage(FILE *out, const char *prog) {
         "  --allow-power         Sleep, Restart and Shut down act (default off)\n"
         "  --boots-into=BOOT     what the machine boots into after Restart or Shut down, for the\n"
         "                        confirmations: steamos (normal SteamOS; a trial, `dosplex start`) or\n"
-        "                        dosplex (a display manager starts Dosplex); unsaid, they do not say\n"
+        "                        dosplex (a display manager starts DosPlex); unsaid, they do not say\n"
         "  --idle-policy=POLICY  none (default), or dim: switch the output off after 5 minutes\n"
         "                        without input (DOSPLEX_IDLE_DIM_TIMEOUT_MS changes the time)\n"
         "  --host-keyboards      count keyboards that are neither libinput nor X11 devices as\n"
@@ -1346,12 +1351,18 @@ struct compositor {
     enum input_route_mode device_move_other_previous;
     struct wl_event_source *device_move_timer;
 
-    /* Machine power. power_action is "reboot", "poweroff" or "stop" (Turn off Dosplex) from Continue until the helper's
+    /* Machine power. power_action is "reboot", "poweroff" or "stop" (Turn off DosPlex) from Continue until the helper's
      * escaped unit stops this compositor, or until power_panel_deadline_ms has passed; while it is
      * set a full-screen panel says so, the overlay does not open and no input reaches either side's
      * applications. power_pid is the helper's first stage, reaped by power_timer. */
     char power_helper[512];
     char power_action[16];
+    /* A stop that somebody else carries out (`dosplex stop`, an uninstall, typed in a terminal): the same panel as for
+     * the menu's own power actions covers both sides while it lasts, so that nobody looks at two halves that say
+     * "Starting Steam…" while Steam is in fact being closed. Set and cleared by the CLOSING command; it also ends by
+     * itself (closing_timer), for a stop that failed and left the session up. */
+    char closing_notice[16];
+    struct wl_event_source *closing_timer;
     char power_pid_action[16];
     char power_message[96];
     pid_t power_pid;
@@ -1392,6 +1403,9 @@ struct compositor {
     /* Auth polling */
     struct wl_event_source *auth_poll_timer;
     struct wl_event_source *auto_login_timer;
+    /* Draws the "Starting Steam…" screens again while a bar still moves (start_progress_arm). */
+    struct wl_event_source *start_progress_timer;
+    bool start_progress_armed;
     struct wl_event_source *idle_dim_timer;
     int idle_dim_timeout_ms;
     int map_watchdog_ms;          /* how long a side's new toplevel may stay unmapped before the watchdog logs and reconfigures it */
@@ -2292,7 +2306,7 @@ static bool init_remote_keyboard(struct compositor *comp) {
         return false;
     }
 
-    wlr_log(WLR_INFO, "Initialized Dosplex remote keyboard");
+    wlr_log(WLR_INFO, "Initialized DosPlex remote keyboard");
     return true;
 }
 
@@ -2322,6 +2336,10 @@ static struct side_ctx *resolve_remote_input_target(struct compositor *comp);
 static bool side_has_app_for_surface(struct side_ctx *ctx, struct wlr_surface *surface);
 static void request_redraw(struct compositor *comp);
 static void side_clear_xdg_windows(struct side_ctx *ctx);
+static bool side_is_starting(struct side_ctx *ctx);
+static void side_start_progress_clear(struct side_ctx *ctx);
+static void render_side_starting(struct compositor *comp, struct side_ctx *ctx, struct wlr_scene_tree *parent,
+        double scale, int pw, int ph);
 static struct side_ctx *side_at_point(struct compositor *comp, int x, int y);
 static void write_runtime_state(struct compositor *comp);
 
@@ -4228,6 +4246,11 @@ static void render_side_greeter(struct compositor *comp,
 
     /* Build clickable regions */
     build_side_regions(ctx, scale);
+    if (side_is_starting(ctx)) {
+        render_side_starting(comp, ctx, parent, scale, pw, ph);
+        return;
+    }
+    side_start_progress_clear(ctx);
     if (ctx->auth || ctx->launch_pending) {
         greeter_rect(ctx, scale, parent, ox + 20, oy + 20, pw - 40, ph - 40, MODAL_PANEL_COLOR);
         greeter_text(ctx, scale, parent, ox + 20, oy + ph / 2 - 30, pw - 40, 60,
@@ -4269,7 +4292,7 @@ static void render_side_greeter(struct compositor *comp,
             1.0, 1.0, 1.0, 1.0, true);
         if (!ctx->auth_error && !ctx->recovery_required && (ctx->activity == 2 || ctx->activity == 1)) {
             greeter_text(ctx, scale, parent, ox + 20, oy + ph / 2 + 30, pw - 40, 48,
-                "Start it from the Dosplex menu: Session, Session states, Active.",
+                "Start it from the DosPlex menu: Session, Session states, Active.",
                 14.0, .8, .83, .9, 1.0, false);
         }
 
@@ -4300,9 +4323,9 @@ static void render_side_greeter(struct compositor *comp,
             ctx->id == SIDE_LEFT ? "LEFT" : "RIGHT",
             18.0, 1.0, 1.0, 1.0, 1.0, true);
 
-        /* "Dosplex" title above inputs */
+        /* "DosPlex" title above inputs */
         greeter_text(ctx, scale, parent, ox + 20, oy + 62, pw - 40, 24,
-            "Dosplex", 16.0, 0.7, 0.7, 0.85, 1.0, false);
+            "DosPlex", 16.0, 0.7, 0.7, 0.85, 1.0, false);
 
         /* Username label */
         greeter_text(ctx, scale, parent, ox + 30, oy + 72, 120, 18,
@@ -4352,6 +4375,94 @@ static void render_side_greeter(struct compositor *comp,
         greeter_text(ctx, scale, parent, ox + 30, oy + 200, pw - 60, 44,
             "SIGN IN", 18.0, 1.0, 1.0, 1.0, 1.0, true);
     }
+}
+
+/* A side on its way to Steam's own picture: there is nothing for the player to do but wait. From the queue for the
+ * automatic start to Steam's first window it is one screen, "Starting Steam…" with a bar. Before, the same wait
+ * was four screens ("START STEAM" with a button nobody had to press, "Preparing Steam...", "Starting session...",
+ * "Waiting for Steam..."), each of them still, and a new Guest account's first start (Steam installs its client,
+ * about two minutes) looked like a machine that had stopped. A side that the player ended, one that failed, one in
+ * standby or off, and a session without Steam keep their own screens. */
+static bool side_is_starting(struct side_ctx *ctx) {
+    if (!configured_steam_user(ctx) || ctx->auth_error || ctx->recovery_required || ctx->activity != 0) return false;
+    if (ctx->comp->power_action[0] || ctx->comp->closing_notice[0]) return false;   /* Steam is being closed */
+    if (ctx->auth) return strcmp(ctx->auth->action, "logout") != 0;
+    if (ctx->launch_pending || ctx->state == SIDE_CLAIMED) return true;
+    return ctx->state == SIDE_GREETER && !ctx->auto_login_suppressed;
+}
+
+static void side_start_progress_clear(struct side_ctx *ctx) {
+    ctx->start_timing = false;
+    ctx->start_progress = 0;
+}
+
+#define START_PROGRESS_TICK_MS 250
+#define START_PROGRESS_MOVES_S 240.0    /* after this the bar stands near its end and nothing is drawn again for it */
+
+static int start_progress_tick(void *data) {
+    struct compositor *comp = data;
+    comp->start_progress_armed = false;
+    request_redraw(comp);   /* the screen is drawn again, and asks for the next tick while its bar still moves */
+    return 0;
+}
+
+static void start_progress_arm(struct compositor *comp) {
+    if (comp->start_progress_armed) return;
+    if (!comp->start_progress_timer) {
+        comp->start_progress_timer = wl_event_loop_add_timer(wl_display_get_event_loop(comp->display),
+            start_progress_tick, comp);
+    }
+    if (comp->start_progress_timer &&
+            wl_event_source_timer_update(comp->start_progress_timer, START_PROGRESS_TICK_MS) == 0) {
+        comp->start_progress_armed = true;
+    }
+}
+
+/* How far the bar is: the step the start has reached, and time on top of it. Nobody can know how long Steam takes
+ * (a second for a warm client, minutes for a first install), so the bar approaches its end and never claims it:
+ * the screen goes away the moment Steam's window is there. */
+static double side_start_progress(struct side_ctx *ctx, double *elapsed_out) {
+    struct timespec now;
+    double elapsed = 0;
+    if (clock_gettime(CLOCK_MONOTONIC, &now) == 0) {
+        if (!ctx->start_timing) {
+            ctx->start_timing = true;
+            ctx->start_since = now;
+            ctx->start_progress = 0;
+        }
+        elapsed = (double)(now.tv_sec - ctx->start_since.tv_sec) + (now.tv_nsec - ctx->start_since.tv_nsec) / 1e9;
+        if (elapsed < 0) elapsed = 0;
+    }
+    double step = ctx->auth ? 0.12 : ctx->launch_pending ? 0.25 : ctx->state == SIDE_CLAIMED ? 0.38 : 0.04;
+    double by_time = 0.95 * (1.0 - exp(-elapsed / 45.0));
+    double progress = fmax(step, by_time);
+    if (progress > ctx->start_progress) ctx->start_progress = progress;
+    if (elapsed_out) *elapsed_out = elapsed;
+    return ctx->start_progress;
+}
+
+static void render_side_starting(struct compositor *comp, struct side_ctx *ctx, struct wlr_scene_tree *parent,
+        double scale, int pw, int ph) {
+    static const float track[4] = {0.20, 0.22, 0.27, 1.0};
+    double elapsed = 0;
+    double progress = side_start_progress(ctx, &elapsed);
+    int bar_w = pw - 120 > 400 ? 400 : pw - 120, bar_h = 6;
+    if (bar_w < 40) bar_w = 40;
+    int bar_x = (pw - bar_w) / 2, bar_y = ph / 2 + 18;
+    int filled = (int)(bar_w * progress + 0.5);
+    ctx->num_regions = 0;   /* nothing to press */
+    greeter_rect(ctx, scale, parent, 20, 20, pw - 40, ph - 40, MODAL_PANEL_COLOR);
+    greeter_text(ctx, scale, parent, 20, ph / 2 - 46, pw - 40, 48, "Starting Steam…", 22.0, 1.0, 1.0, 1.0, 1.0, true);
+    greeter_rect(ctx, scale, parent, bar_x, bar_y, bar_w, bar_h, track);
+    if (filled > 0) {
+        greeter_rect(ctx, scale, parent, bar_x, bar_y, filled, bar_h,
+            ctx->id == SIDE_LEFT ? BUTTON_LEFT_COLOR : BUTTON_RIGHT_COLOR);
+    }
+    if (elapsed >= 20.0) {
+        greeter_text(ctx, scale, parent, 20, bar_y + 22, pw - 40, 44,
+            "A first start takes a few minutes: Steam sets itself up.", 14.0, .8, .83, .9, 1.0, false);
+    }
+    if (elapsed < START_PROGRESS_MOVES_S) start_progress_arm(comp);
 }
 
 static void add_modal_region(struct compositor *comp, enum modal_action action,
@@ -4426,31 +4537,31 @@ static double monotonic_seconds(void);
 
 static const char *power_action_label(const char *action) {
     return strcmp(action, "suspend") == 0 ? "Sleep" : strcmp(action, "reboot") == 0 ? "Restart" :
-        strcmp(action, "stop") == 0 ? "Turn off Dosplex" : "Shut down";
+        strcmp(action, "stop") == 0 ? "Turn off DosPlex" : "Shut down";
 }
 
 /* What the confirmation of Restart or Shut down says: both sessions close, and what the machine boots into only
  * when the launcher told the compositor (--boots-into): the trial and `dosplex start` leave normal SteamOS behind,
- * the display-manager installation starts Dosplex again. Sleep's text does not depend on it. */
+ * the display-manager installation starts DosPlex again. Sleep's text does not depend on it. */
 static const char *power_confirmation_text(enum modal_action action, enum boots_into boots) {
     switch (action) {
     case MODAL_ACTION_POWER_RESTART:
         return boots == BOOTS_INTO_STEAMOS ?
             "Close both sessions and restart? Save first. The machine starts in normal SteamOS; "
-                "start Dosplex from Steam's library to bring it back." :
+                "start DosPlex from Steam's library to bring it back." :
             boots == BOOTS_INTO_DOSPLEX ?
-            "Close both sessions and restart? Save first. The machine starts Dosplex again." :
+            "Close both sessions and restart? Save first. The machine starts DosPlex again." :
             "Close both sessions and restart? Save first.";
     case MODAL_ACTION_POWER_SHUTDOWN:
         return boots == BOOTS_INTO_STEAMOS ?
             "Close both sessions and shut down? Save first. The machine turns off. "
                 "Next start is normal SteamOS." :
             boots == BOOTS_INTO_DOSPLEX ?
-            "Close both sessions and shut down? Save first. The machine turns off. Next start is Dosplex." :
+            "Close both sessions and shut down? Save first. The machine turns off. Next start is DosPlex." :
             "Close both sessions and shut down? Save first. The machine turns off.";
     case MODAL_ACTION_POWER_EXIT:
         /* The machine stays on and nothing about the next boot changes, so the text is the same everywhere. */
-        return "Turn off Dosplex? Both players' games close. Save first. The screen returns to normal SteamOS.";
+        return "Turn off DosPlex? Both players' games close. Save first. The screen returns to normal SteamOS.";
     default:
         return "";
     }
@@ -4498,7 +4609,7 @@ static int power_poll(void *data) {
         wl_event_source_timer_update(comp->power_timer, 250);
         return 0;
     }
-    wlr_log(WLR_ERROR, "%s did not stop Dosplex within %.0f s; taking the progress panel down "
+    wlr_log(WLR_ERROR, "%s did not stop DosPlex within %.0f s; taking the progress panel down "
         "(see journalctl -u 'dosplex-power-*')", power_action_label(comp->power_action), waited);
     snprintf(comp->power_message, sizeof(comp->power_message), "%s did not finish. See the log.",
         power_action_label(comp->power_action));
@@ -4544,7 +4655,7 @@ static bool launch_power_action(struct compositor *comp, const char *action) {
 
     pid_t pid = fork();
     if (pid < 0) {
-        wlr_log(WLR_ERROR, "Failed to fork the Dosplex power helper: %s", strerror(errno));
+        wlr_log(WLR_ERROR, "Failed to fork the DosPlex power helper: %s", strerror(errno));
         snprintf(comp->power_message, sizeof(comp->power_message), "Power action failed. See the log.");
         return false;
     }
@@ -4567,11 +4678,11 @@ static bool launch_power_action(struct compositor *comp, const char *action) {
     if (machine) {
         snprintf(comp->power_action, sizeof(comp->power_action), "%s", action);
         comp->power_started = monotonic_seconds();
-        wlr_log(WLR_INFO, "Power action %s: input to both sides is held until Dosplex stops", action);
+        wlr_log(WLR_INFO, "Power action %s: input to both sides is held until DosPlex stops", action);
         power_panel_input_off(comp);
     }
     wl_event_source_timer_update(comp->power_timer, 100);
-    wlr_log(WLR_INFO, "Requested Dosplex power action: %s via %s (pid=%d)", action,
+    wlr_log(WLR_INFO, "Requested DosPlex power action: %s via %s (pid=%d)", action,
         helper ? comp->power_helper : "systemctl", pid);
     return true;
 }
@@ -4725,7 +4836,7 @@ static void external_gamepad_base_name(const char *name, char *out, size_t out_s
         return;
     }
     snprintf(out, out_size, "%s", name ? name : "");
-    const char *routed = "Dosplex routed ";
+    const char *routed = "DosPlex routed ";
     size_t routed_len = strlen(routed);
     if (strncmp(out, routed, routed_len) == 0) {
         char *rest = out + routed_len;
@@ -4773,7 +4884,7 @@ static bool input_device_should_show_in_overlay(struct input_device_ctx *input) 
     if (input_name_contains_ci(name, "Lid Switch") ||
             input_name_contains_ci(name, "AT Translated Set 2 keyboard") ||
             input_name_contains_ci(name, "steamos-manager") ||
-            input_name_contains_ci(name, "Dosplex passthrough steamos-manager") ||
+            input_name_contains_ci(name, "DosPlex passthrough steamos-manager") ||
             input_name_contains_ci(name, "FTS3528:00 2808:1015 UNKNOWN")) {
         return false;
     }
@@ -5442,11 +5553,24 @@ static int *owner_device_page(struct compositor *comp) {
     return &comp->overlay_device_page[comp->management_overlay_owner == SIDE_RIGHT ? 1 : 0];
 }
 
+#define CLOSING_NOTICE_MS (6 * 60 * 1000)   /* longer than the stop's own wait for both sides' Steam (260 s) */
+
+static int closing_notice_expire(void *data) {
+    struct compositor *comp = data;
+    if (comp->closing_notice[0]) {
+        wlr_log(WLR_ERROR, "Closing notice expired: the stop did not end the session; input is given back");
+        comp->closing_notice[0] = '\0';
+        request_redraw(comp);
+        write_runtime_state(comp);
+    }
+    return 0;
+}
+
 /* Whether this side's applications get no input: its own player has the management overlay
- * open, or the power progress panel covers both sides. Input that Dosplex does not route itself (a
+ * open, or the power progress panel covers both sides. Input that DosPlex does not route itself (a
  * controller passed straight to a side) is not held here. */
 static bool side_input_held(struct compositor *comp, enum side_id id) {
-    if (comp->power_action[0]) return true;
+    if (comp->power_action[0] || comp->closing_notice[0]) return true;
     if (!comp->management_overlay_visible) return false;
     if (comp->management_overlay_owner == id) return true;
     /* Main's overlay is drawn over Guest's picture in Guest full screen: the picture it covers gets no input. */
@@ -5454,16 +5578,17 @@ static bool side_input_held(struct compositor *comp, enum side_id id) {
     return shown && shown->id == id && comp->management_overlay_owner != id;
 }
 
-/* The whole output, above both sides: Steam closes on both sides, then Dosplex stops and the
+/* The whole output, above both sides: Steam closes on both sides, then DosPlex stops and the
  * machine restarts or turns off. Nothing on it can be pressed, and side_input_held() keeps the
  * pointer, keyboards and touch away from the applications under it. */
 static void render_power_progress(struct compositor *comp, struct wlr_scene_tree *parent) {
     int w = comp->output_width, h = comp->output_height;
     double scale = fmax(1.0, h / 1080.0);
     make_rect(parent, 0, 0, w, h, MODAL_PANEL_COLOR);
-    const char *text = strcmp(comp->power_action, "poweroff") == 0 ?
+    const char *action = comp->power_action[0] ? comp->power_action : comp->closing_notice;
+    const char *text = strcmp(action, "poweroff") == 0 ?
         "Closing Steam on both sides, then shutting down…" :
-        strcmp(comp->power_action, "stop") == 0 ?
+        strcmp(action, "stop") == 0 ?
         "Closing Steam on both sides, then returning to SteamOS…" :
         "Closing Steam on both sides, then restarting…";
     make_text_node(parent, 0, h / 2 - (int)(40 * scale), w, (int)(48 * scale), text, 26.0 * scale,
@@ -5475,7 +5600,7 @@ static void render_power_progress(struct compositor *comp, struct wlr_scene_tree
 /* === Performance numbers: FPS counter, recording, host sensors (T-434) ===
  *
  * What is measured: the commits that carry a buffer on a side's toplevel, timed on CLOCK_MONOTONIC when the
- * compositor handles them. That is the stream of frames the side's Gamescope delivers to Dosplex, which is what the
+ * compositor handles them. That is the stream of frames the side's Gamescope delivers to DosPlex, which is what the
  * player sees. A game's own frame rate can differ: Gamescope repeats a frame when the game is slower than its output,
  * and drops frames when it is faster. Nothing here is drawn into or sent to the side, so the numbers cost the side
  * nothing but the ring write.
@@ -5636,7 +5761,7 @@ static void perf_settings_load(struct compositor *comp) {
 /* --- The built-in screen's brightness (T-436) ---
  *
  * Steam's brightness slider inside a side does not reach the panel, so Main (the driver) sets it here: one control
- * in the Dosplex menu's Display tab, and the control socket. The compositor runs as root and writes the kernel's
+ * in the DosPlex menu's Display tab, and the control socket. The compositor runs as root and writes the kernel's
  * backlight class directly. The device is the first of the types raw, firmware, platform that has a
  * max_brightness above 0 (the Steam Deck's is amdgpu_bl0, a raw device); among equals the smallest name wins. The
  * value never goes below 5 % of max, so the screen cannot be set to black. The last percentage is remembered in
@@ -6257,7 +6382,7 @@ static void render_management_overlay(struct compositor *comp,
     if (!comp || !parent) return;
     comp->modal_region_count = 0;
     comp->screen_bl_drawn = false;
-    if (comp->power_action[0]) {
+    if (comp->power_action[0] || comp->closing_notice[0]) {
         render_power_progress(comp, parent);
         return;
     }
@@ -6285,7 +6410,7 @@ static void render_management_overlay(struct compositor *comp,
     make_rect(parent, owner->x, owner->y, owner->width, owner->height, MODAL_SCRIM_COLOR);
     modal_rect(comp, parent, px, py, pw, ph, MODAL_PANEL_COLOR);
     modal_text(comp, parent, x, py + 12, width - 42 - 150, 28,
-        owner->role == SIDE_ROLE_PRIMARY ? "Dosplex · Main" : "Dosplex · Guest",
+        owner->role == SIDE_ROLE_PRIMARY ? "DosPlex · Main" : "DosPlex · Guest",
         21, .96, .97, 1, 1, true);
     render_modal_button(comp, parent, MODAL_ACTION_CLOSE, px + pw - 44, py + 12, 28, 28, "X", false);
     char status[128];
@@ -6322,7 +6447,17 @@ static void render_management_overlay(struct compositor *comp,
 
     if (comp->device_move_active) {
         modal_text(comp, parent, x, y, width, 24, comp->device_move_other[0] ? "Keep swapped controls?" : "Keep this device assignment?", 17, .96, .97, 1, 1, true);
-        modal_text(comp, parent, x, y + 30, width, 24, comp->device_move_label, 13, .85, .87, .92, 1, false);
+        /* In words: the arrow of the label (and of the log line) has no glyph in the font of some SteamOS builds,
+         * where the line read "Controller 4 [] Guest". */
+        char shown[sizeof(comp->device_move_label) + 8];
+        const char *arrow = strstr(comp->device_move_label, " \xe2\x86\x92 ");
+        if (arrow) {
+            snprintf(shown, sizeof(shown), "%.*s to %s", (int)(arrow - comp->device_move_label),
+                comp->device_move_label, arrow + 5);
+        } else {
+            snprintf(shown, sizeof(shown), "%s", comp->device_move_label);
+        }
+        modal_text(comp, parent, x, y + 30, width, 24, shown, 13, .85, .87, .92, 1, false);
         modal_text(comp, parent, x, y + 58, width, 48,
             "Confirm here using your remaining controls. If you cannot, the device returns automatically after 15 seconds.",
             12, .85, .87, .92, 1, false);
@@ -6646,7 +6781,7 @@ static void render_management_overlay(struct compositor *comp,
         }
         /* A row of its own below the others, so that the rows above keep their places: both sessions close and
          * stock Steam comes back, without a restart of the machine. */
-        render_modal_button(comp, parent, MODAL_ACTION_POWER_EXIT, x, y + 210, width, 30, "Turn off Dosplex", false);
+        render_modal_button(comp, parent, MODAL_ACTION_POWER_EXIT, x, y + 210, width, 30, "Turn off DosPlex", false);
         } else {
             modal_text(comp, parent, x, y, width, 18, "Your session", 13, .9, .92, .96, 1, true);
             render_modal_button(comp, parent, MODAL_ACTION_RESET_SIDE, x, y + 22, width, 32, "Reset my side", false);
@@ -6707,6 +6842,7 @@ static void rebuild_scene(struct compositor *comp) {
         render_side_greeter(comp, &comp->left, comp->overlay_tree);
     } else {
         comp->left.num_regions = 0;
+        side_start_progress_clear(&comp->left);
     }
 
     /* Right side greeter (only if no app surface is running there) */
@@ -6714,6 +6850,7 @@ static void rebuild_scene(struct compositor *comp) {
         render_side_greeter(comp, &comp->right, comp->overlay_tree);
     } else {
         comp->right.num_regions = 0;
+        side_start_progress_clear(&comp->right);
     }
 
     if (!shown_side(comp)) {
@@ -6759,7 +6896,7 @@ static void map_touch_to_layout(struct compositor *comp, double raw_x, double ra
         return;
     }
 
-    /* The Deck panel is physically portrait (800x1280), but Dosplex rotates it
+    /* The Deck panel is physically portrait (800x1280), but DosPlex rotates it
      * into a logical 1280x800 landscape scene. libinput touch coordinates stay
      * in panel space, so rotate them into scene space here. */
     if (comp->output && comp->output->transform == WL_OUTPUT_TRANSFORM_270) {
@@ -6802,9 +6939,9 @@ static void position_side_cursor(struct compositor *comp, struct side_ctx *ctx, 
         wlr_scene_node_set_position(&ctx->cursor_tree->node, x - 9, y - 9);
     }
     /* A side's nested Gamescope (cursor_composite=2) or nested KWin draws its
-     * own cursor for every pointer event Dosplex forwards, including a
-     * controller's emulated mouse that Dosplex never sees. Dosplex's per-side
-     * marker therefore shows only where Dosplex itself draws: an empty side, or
+     * own cursor for every pointer event DosPlex forwards, including a
+     * controller's emulated mouse that DosPlex never sees. DosPlex's per-side
+     * marker therefore shows only where DosPlex itself draws: an empty side, or
      * this side's own menu. Over a mapped application it was a stray arrow
      * that belonged to nobody. */
     bool visible = ctx->pointer_seen && side_is_shown(comp, ctx) &&
@@ -8185,9 +8322,9 @@ static void apply_layout(struct compositor *comp) {
     refresh_side_game_resolution(&comp->left);
     refresh_side_game_resolution(&comp->right);
 
-    init_side_logical_output(&comp->left, "dosplex-left", "Dosplex left logical output",
+    init_side_logical_output(&comp->left, "dosplex-left", "DosPlex left logical output",
         comp->left.x, comp->left.y, comp->left.width, comp->left.height);
-    init_side_logical_output(&comp->right, "dosplex-right", "Dosplex right logical output",
+    init_side_logical_output(&comp->right, "dosplex-right", "DosPlex right logical output",
         comp->right.x, comp->right.y, comp->right.width, comp->right.height);
 
     /* Reapply scale_mode after layout update may have changed viewport dimensions */
@@ -9847,7 +9984,7 @@ static bool handle_management_overlay_click(struct compositor *comp, int x, int 
         case MODAL_ACTION_POWER_RESTART:
         case MODAL_ACTION_POWER_SHUTDOWN:
         case MODAL_ACTION_POWER_EXIT:
-            /* Restart, Shut down and Turn off Dosplex leave power_action set: the full-screen panel
+            /* Restart, Shut down and Turn off DosPlex leave power_action set: the full-screen panel
              * replaces the overlay until the helper's own unit has stopped this compositor. When
              * nothing was started, the Session tab stays open and says why. */
             if (launch_power_action(comp, action == MODAL_ACTION_POWER_SLEEP ? "suspend" :
@@ -10052,6 +10189,28 @@ static bool apply_layout_request(struct compositor *comp, enum layout_mode layou
 #define CONTROL_CMD_SET_LAYOUT 1
 #define CONTROL_CMD_SET_BRIGHTNESS 2
 #define CONTROL_CMD_GET_BRIGHTNESS 3
+#define CONTROL_CMD_CLOSING 4           /* 1: a stop from outside begins, 0: it ended and the session stays */
+
+/* `dosplex stop` and an uninstall say so before they ask the sides' Steam to quit, and take it back when the session
+ * stays after all. While it is said, the closing panel covers both sides (render_power_progress). */
+static void closing_notice_set(struct compositor *comp, bool on) {
+    if (on) {
+        snprintf(comp->closing_notice, sizeof(comp->closing_notice), "stop");
+        if (!comp->closing_timer) {
+            comp->closing_timer = wl_event_loop_add_timer(wl_display_get_event_loop(comp->display),
+                closing_notice_expire, comp);
+        }
+        if (comp->closing_timer) wl_event_source_timer_update(comp->closing_timer, CLOSING_NOTICE_MS);
+        if (comp->management_overlay_visible) close_management_overlay(comp);
+        wlr_log(WLR_INFO, "Closing notice: a stop is carried out from outside; input to both sides is held");
+    } else {
+        if (comp->closing_notice[0]) wlr_log(WLR_INFO, "Closing notice ended");
+        comp->closing_notice[0] = '\0';
+        if (comp->closing_timer) wl_event_source_timer_update(comp->closing_timer, 0);
+    }
+    request_redraw(comp);
+    write_runtime_state(comp);
+}
 enum { CONTROL_OK = 0, CONTROL_BAD_REQUEST = 1, CONTROL_DENIED = 2, CONTROL_BAD_VERSION = 3, CONTROL_UNAVAILABLE = 4 };
 
 static int control_layout_number(enum layout_mode layout) {
@@ -10093,6 +10252,9 @@ static int handle_control_readable(int fd, uint32_t mask, void *data) {
             reply[5] = percent < 0 ? CONTROL_UNAVAILABLE : CONTROL_OK;
             reply[6] = percent < 0 ? 0 : (unsigned char)percent;
             wlr_log(WLR_INFO, "Control socket: brightness %d -> %d", request[6], percent);
+        } else if (request[5] == CONTROL_CMD_CLOSING && request[6] <= 1) {
+            closing_notice_set(comp, request[6] == 1);
+            reply[5] = CONTROL_OK;
         } else if (request[5] == CONTROL_CMD_GET_BRIGHTNESS && request[6] == 0) {
             brightness_reply = true;
             screen_bl_panel_refresh(comp);
@@ -10447,6 +10609,13 @@ static int handle_hud_ipc_readable(int fd, uint32_t mask, void *data) {
          * device move end), Guest never takes or keeps Main's, Full screen shows only Main, and the power
          * progress panel stays. */
         request_overlay(comp, target, "OVERLAY command", false);
+    } else if (strncmp(buf, "CLOSING ", 8) == 0) {
+        /* `dosplex stop` and an uninstall say so before they ask the sides' Steam to quit ("CLOSING stop"), and take
+         * it back when the session stays after all ("CLOSING end"). */
+        const char *what = buf + 8;
+        if (strcmp(what, "stop") == 0) closing_notice_set(comp, true);
+        else if (strcmp(what, "end") == 0) closing_notice_set(comp, false);
+        else wlr_log(WLR_ERROR, "Invalid CLOSING command: %s", what);
     } else if (strncmp(buf, "ROUTE ", 6) == 0) {
         char *device_name = buf + 6;
         char *space = strrchr(device_name, ' ');
@@ -11124,7 +11293,7 @@ static bool side_pointer_locked(const struct side_ctx *side) {
  * 1:1, centred when the game monitor is smaller than the region. Zoom shows the centred rectangle of the
  * monitor that has the region's shape (zoom_source_rect), so a region point is a point of that rectangle.
  * Gamescope's Fill scaler is not
- * offered by Dosplex, so it is not modelled. The result is clamped into the game monitor. */
+ * offered by DosPlex, so it is not modelled. The result is clamped into the game monitor. */
 static void __attribute__((unused)) eis_map_point(enum output_scale_mode mode, int region_w,
         int region_h, int game_w, int game_h, double sx, double sy, double *nx, double *ny) {
     double w = game_w > 0 ? game_w : 1, h = game_h > 0 ? game_h : 1;
@@ -12177,7 +12346,7 @@ static void handle_keyboard_input_for_side(struct compositor *comp,
     if (ctx->auth || ctx->launch_pending) return;
     if (configured_steam_user(ctx) && ctx->state == SIDE_GREETER) {
         ctx->focused = UIelem_SIGNIN;
-        /* No Dosplex credential fields in the native Steam flow. */
+        /* No DosPlex credential fields in the native Steam flow. */
         if (sym != XKB_KEY_Return && sym != XKB_KEY_KP_Enter) {
             request_redraw(comp);
             return;
@@ -12464,7 +12633,7 @@ static void setup_output(struct compositor *comp, struct wlr_output *output) {
     /* Mark dirty — the first frame event from wl_display_run will commit */
     comp->scene_dirty = true;
 
-    wlr_log(WLR_INFO, "Dosplex output ready: %dx%d", output->width, output->height);
+    wlr_log(WLR_INFO, "DosPlex output ready: %dx%d", output->width, output->height);
 }
 
 static void handle_new_output(struct wl_listener *listener, void *data) {
@@ -12493,7 +12662,7 @@ static void handle_new_output(struct wl_listener *listener, void *data) {
         }
         side->wlr_output = output;
         wlr_output_set_name(output, side == &comp->left ? "dosplex-left" : "dosplex-right");
-        wlr_output_set_description(output, side == &comp->left ? "Dosplex main monitor" : "Dosplex guest monitor");
+        wlr_output_set_description(output, side == &comp->left ? "DosPlex main monitor" : "DosPlex guest monitor");
         /* Assign before publishing: the global filter needs the side identity. */
         wlr_output_layout_add(comp->output_layout, output, 0, 0);
         update_side_logical_dimensions(side, side->scale_mode);
@@ -12840,7 +13009,7 @@ static void handle_routed_pointer_motion_event(struct wl_listener *listener, voi
 
 /* === Host pointer re-centring under a lock (T-423) ===
  *
- * The X11 backend, which is how Dosplex runs as a client of SteamOS's own Gamescope, has a pointer that only reports
+ * The X11 backend, which is how DosPlex runs as a client of SteamOS's own Gamescope, has a pointer that only reports
  * where it is. A client that holds a pointer lock takes relative motion only, so handle_routed_pointer_absolute()
  * works that motion out from consecutive positions. The host pointer is a real X pointer with screen edges: once it
  * reaches one, its position stops changing, the motion worked out from it is zero, and the camera of the game stops
@@ -14178,7 +14347,7 @@ int main(int argc, char *argv[]) {
     comp->new_xdg_surface.notify = handle_new_xdg_surface;
     wl_signal_add(&comp->xdg_shell->events.new_surface, &comp->new_xdg_surface);
 
-    /* XWayland — allow X11 clients to run inside Dosplex. 
+    /* XWayland — allow X11 clients to run inside DosPlex. 
      * We spawn TWO separate XWayland servers, one for each side. */
     /*
     struct side_ctx *sides[2] = {&comp->left, &comp->right};
@@ -14319,7 +14488,7 @@ int main(int argc, char *argv[]) {
         }
         /* create emits new_output synchronously; that handler publishes the
          * output global. Its protocol name can no longer be changed here. */
-        wlr_x11_output_set_title(x11_output, "Dosplex");
+        wlr_x11_output_set_title(x11_output, "DosPlex");
         wlr_log(WLR_INFO, "Created X11 output, waiting for new_output event");
     }
 
@@ -14330,7 +14499,7 @@ int main(int argc, char *argv[]) {
         wl_event_source_timer_update(comp->auth_poll_timer, 500);
     }
 
-    wlr_log(WLR_INFO, "Dosplex compositor running on %s (backend=%s)",
+    wlr_log(WLR_INFO, "DosPlex compositor running on %s (backend=%s)",
         SOCKET_NAME, config.backend);
 
     struct wl_event_source *term_signal = wl_event_loop_add_signal(loop, SIGTERM, handle_termination_signal, comp);

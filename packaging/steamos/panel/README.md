@@ -1,4 +1,4 @@
-# The Dosplex panel
+# The DosPlex panel
 
 The panel is a small QML program for the jobs the overlay menu hands over: **Help** (the manual, one chapter at a
 time) and, in this source tree, **Feedback** (a three-step form with its own on-screen keyboard; a release does not
@@ -20,7 +20,7 @@ this directory.
 ## How it is started
 
 Not by hand. `dosplex-panel-launch.py` runs as the player's own account, collects the facts the form shows (the
-Dosplex version, the device, the SteamOS version, the layout, the account's Steam ID), and starts:
+DosPlex version, the device, the SteamOS version, the layout, the account's Steam ID), and starts:
 
 ```sh
 qml6 Panel.qml -- --feedback --context JSON --manual-dir DIR --endpoint URL

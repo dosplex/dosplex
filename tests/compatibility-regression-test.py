@@ -2,7 +2,7 @@
 # dosplex-test: tier=lint needs=python-yaml
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
-"""Validate Dosplex configuration invariants.
+"""Validate DosPlex configuration invariants.
 
 compatibility/game-compatibility.yaml lists the settings that games rely on as
 named configuration invariants. This test checks them against the repository's

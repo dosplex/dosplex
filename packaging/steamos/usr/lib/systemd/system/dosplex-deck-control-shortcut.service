@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
 [Unit]
-Description=Dosplex Steam Deck Hardware Shortcut Watcher
+Description=DosPlex Steam Deck Hardware Shortcut Watcher
 After=dosplex-compositor.service
 Requires=dosplex-compositor.service
 PartOf=dosplex-compositor.service

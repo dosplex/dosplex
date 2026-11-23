@@ -1,6 +1,6 @@
 # License of the documentation
 
-The documentation of Dosplex is licensed under the Creative Commons Attribution 4.0
+The documentation of DosPlex is licensed under the Creative Commons Attribution 4.0
 International license (CC BY 4.0). You may share and adapt it for any purpose, including
 commercially, if you give appropriate credit, link to the license and say if you made changes.
 

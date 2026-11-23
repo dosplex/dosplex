@@ -257,7 +257,7 @@ Item {
         }
         Text {
             width: parent.width; wrapMode: Text.WordWrap
-            text: "Thank you. Feedback like this is what makes Dosplex better, and it is greatly appreciated."
+            text: "Thank you. Feedback like this is what makes DosPlex better, and it is greatly appreciated."
             color: "#b8c0cc"; font.pixelSize: 20 * u
         }
         Row {

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
-# Builds the Dosplex release payload from a commit, in a pinned container. README.md describes what comes out.
+# Builds the DosPlex release payload from a commit, in a pinned container. README.md describes what comes out.
 #
 #   packaging/release-build/build.sh --out DIR [--rev REV] [--version NAME] [--runtime docker|podman] [--no-cache]
 #
@@ -18,7 +18,7 @@ set -euo pipefail
 
 die() { echo "build.sh: $*" >&2; exit 1; }
 # The help is the comment block that starts with "# Builds" (the license header above it is not part of it).
-usage() { sed -n '/^# Builds the Dosplex release payload/,/^set -euo pipefail/{/^set -euo pipefail/d;s/^# \{0,1\}//;p;}' "${BASH_SOURCE[0]}"; }
+usage() { sed -n '/^# Builds the DosPlex release payload/,/^set -euo pipefail/{/^set -euo pipefail/d;s/^# \{0,1\}//;p;}' "${BASH_SOURCE[0]}"; }
 
 out='' rev=HEAD version='' runtime=${DOSPLEX_CONTAINER_RUNTIME:-}
 nocache=()

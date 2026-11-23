@@ -20,7 +20,7 @@ LAYER_LIBRARY_32 = "lib/libVkLayer_FROG_gamescope_wsi_x86.so"
 
 
 def layer_manifest(family, name=None, disable="DOSPLEX_DISABLE_GAMESCOPE_WSI", also_disable=None):
-    """A manifest like the one assemble.py makes: the Dosplex name and off switch unless told otherwise.
+    """A manifest like the one assemble.py makes: the DosPlex name and off switch unless told otherwise.
     `also_disable` adds a second variable to disable_environment."""
     switches = {disable: "1", **({also_disable: "1"} if also_disable else {})}
     return json.dumps({"file_format_version": "1.0.0", "layer": {
@@ -280,8 +280,8 @@ class SessionLaunch(unittest.TestCase):
             "the name of the other family": {
                 LAYER_MANIFEST_32: layer_manifest("x86", name="VK_LAYER_DOSPLEX_gamescope_wsi_x86_64")},
             "an empty manifest": {LAYER_MANIFEST: ""},
-            # The Dosplex name and switch, but the host's switch as well: DISABLE_GAMESCOPE_WSI=1 would turn it off.
-            "the Dosplex switch and the upstream one": {
+            # The DosPlex name and switch, but the host's switch as well: DISABLE_GAMESCOPE_WSI=1 would turn it off.
+            "the DosPlex switch and the upstream one": {
                 LAYER_MANIFEST: layer_manifest("x86_64", also_disable="DISABLE_GAMESCOPE_WSI")},
         }
         for label, manifests in cases.items():
@@ -294,7 +294,7 @@ class SessionLaunch(unittest.TestCase):
                     self.assertNotIn(name, self.seen)
                 self.assertRegex(self.log, r"vulkan_layer=host \(the bundled manifest <run>/bundle/share/vulkan/"
                                            r"implicit_layer\.d/VkLayer_FROG_gamescope_wsi\.x86(_64)?\.json is not "
-                                           r"the Dosplex layer VK_LAYER_DOSPLEX_gamescope_wsi_x86(_64)?\)")
+                                           r"the DosPlex layer VK_LAYER_DOSPLEX_gamescope_wsi_x86(_64)?\)")
                 self.assertEqual(args[args.index("--") + 1], "steam")
 
     def test_the_container_paths_keep_what_was_there_and_are_not_repeated(self):
@@ -470,7 +470,7 @@ class SessionLaunch(unittest.TestCase):
     def test_unknown_payload_does_not_open_shell(self):
         result, args = self.launch(1280, 720, payload='typo')
         self.assertEqual(result.returncode, 1)
-        self.assertIn('Unsupported Dosplex session payload', result.stderr)
+        self.assertIn('Unsupported DosPlex session payload', result.stderr)
         self.assertIsNone(args)
 
 

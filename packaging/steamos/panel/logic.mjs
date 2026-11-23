@@ -263,7 +263,7 @@ export function summaryLines(payload, moodLabel) {
     lines.push(payload.name ? "Signed: " + payload.name : "Not signed");
     lines.push(payload.steam_id ? "Steam ID is included" : "Steam ID is not included");
     const bits = [];
-    if (payload.dosplex) bits.push("Dosplex " + payload.dosplex);
+    if (payload.dosplex) bits.push("DosPlex " + payload.dosplex);
     if (payload.device) bits.push(payload.device);
     if (payload.steamos) bits.push("SteamOS " + payload.steamos);
     if (payload.layout) bits.push(payload.layout);

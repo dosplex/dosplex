@@ -11,10 +11,10 @@ fi
 
 case "$side" in
   left)
-    pane_title="Dosplex Left Login"
+    pane_title="DosPlex Left Login"
     ;;
   right)
-    pane_title="Dosplex Right Login"
+    pane_title="DosPlex Right Login"
     ;;
   *)
     echo "invalid side: $side" >&2
@@ -62,7 +62,7 @@ prompt_with_zenity() {
 
   zenity --list \
     --title="$pane_title" \
-    --text="Choose the user who should own the ${side} side of Dosplex." \
+    --text="Choose the user who should own the ${side} side of DosPlex." \
     --column="username" \
     --column="account" \
     --hide-column=1 \
@@ -78,7 +78,7 @@ prompt_with_xterm() {
 
   xterm -T "$pane_title" -fa Monospace -fs 11 -e bash -lc '
     mapfile -t rows < "'"$menu_file"'"
-    printf "Claim the '"$side"' side of Dosplex\n\n"
+    printf "Claim the '"$side"' side of DosPlex\n\n"
     for i in "${!rows[@]}"; do
       username="${rows[$i]%%|*}"
       desc="${rows[$i]#*|}"
@@ -122,11 +122,11 @@ launch_owned_session() {
   case "$side" in
     left)
       bg_color="#123c73"
-      title_prefix="Dosplex Left"
+      title_prefix="DosPlex Left"
       ;;
     right)
       bg_color="#6b1f1f"
-      title_prefix="Dosplex Right"
+      title_prefix="DosPlex Right"
       ;;
     *)
       return 1
@@ -138,7 +138,7 @@ if command -v xsetroot >/dev/null 2>&1; then
   xsetroot -solid '$bg_color' || true
 fi
 if command -v xterm >/dev/null 2>&1; then
-  exec xterm -T '${title_prefix} - ${username}' -fa Monospace -fs 11 -e "printf 'Dosplex ${side} side is now owned by ${username} on %s\n' \"\$DISPLAY\"; printf 'Exit this shell to return to the chooser.\n'; exec bash -l"
+  exec xterm -T '${title_prefix} - ${username}' -fa Monospace -fs 11 -e "printf 'DosPlex ${side} side is now owned by ${username} on %s\n' \"\$DISPLAY\"; printf 'Exit this shell to return to the chooser.\n'; exec bash -l"
 fi
 if command -v glxgears >/dev/null 2>&1; then
   exec glxgears
@@ -183,6 +183,6 @@ while true; do
   fi
 
   if ! launch_owned_session "$username"; then
-    show_error "Failed to start a Dosplex session for $username."
+    show_error "Failed to start a DosPlex session for $username."
   fi
 done

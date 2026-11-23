@@ -265,7 +265,7 @@ class PayloadTests(unittest.TestCase):
 
     def test_the_launcher_looks_for_each_manifest_with_its_library_and_the_name_the_build_gives_it(self):
         # The launcher turns off the installed Gamescope's layer only when every bundled manifest is there with its
-        # library and answers to Dosplex's name and switch, so its table has to be what sources.json builds.
+        # library and answers to DosPlex's name and switch, so its table has to be what sources.json builds.
         products = next(source for source in json.loads((RECIPE / 'sources.json').read_text())['sources']
                         if source['name'] == 'gamescope')['products']
         built = sorted((path, facts['library'], facts['layer_name']) for path, facts in products.items()

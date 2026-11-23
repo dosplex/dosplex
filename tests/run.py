@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
-"""Discover the Dosplex tests, run them by tier and keep evidence of the run.
+"""Discover the DosPlex tests, run them by tier and keep evidence of the run.
 
 Run it from a checkout or from an exported tree; it uses the Python standard library only.
 

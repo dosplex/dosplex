@@ -121,7 +121,7 @@ launch_left_x11() {
 
     DISPLAY="$host_display" Xephyr "$nested_display" \
         -screen "$((screen_width / 2))x${screen_height}" \
-        -title "Dosplex Left" \
+        -title "DosPlex Left" \
         -resizeable \
         -fakexa \
         -softCursor \
@@ -277,7 +277,7 @@ sleep 1
 supervise_right "$right_dir" &
 RIGHT_SUPERVISOR_PID=$!
 
-echo "Dosplex hybrid sessions active"
+echo "DosPlex hybrid sessions active"
 echo "left=${left_user} display=${left_display} input-leap=enabled"
 echo "right=${right_user} wayland=${host_wayland_socket}"
 

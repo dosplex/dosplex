@@ -99,7 +99,7 @@ def is_internal_input_name(name):
         "PC Speaker",
         "AT Translated Set 2 keyboard",
         "steamos-manager",
-        "Dosplex passthrough steamos-manager",
+        "DosPlex passthrough steamos-manager",
         "FTS3528:00 2808:1015 UNKNOWN",
         "HD-Audio Generic HDMI/DP",
     ]

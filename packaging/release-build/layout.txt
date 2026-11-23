@@ -69,12 +69,15 @@ share/dosplex/panel/Panel.qml            packaging/steamos/panel/Panel.qml
 share/dosplex/panel/Help.qml             packaging/steamos/panel/Help.qml
 share/dosplex/panel/KeyGrid.qml          packaging/steamos/panel/KeyGrid.qml
 share/dosplex/panel/logic.mjs            packaging/steamos/panel/logic.mjs
+# The icon of the application entry and of the launcher on the main user's desktop.
+share/dosplex/icons/dosplex.png          packaging/steamos/icons/dosplex.png
+share/dosplex/icons/dosplex.svg          packaging/steamos/icons/dosplex.svg
 
 # Not listed here, because they are not files of the repository: the compositor, the private libraries and what is
 # built from Gamescope (lib/libVkLayer_FROG_gamescope_wsi_x86_64.so and its manifest, share/vulkan/implicit_layer.d/).
 # sources.json says where they come from, payload-build.sh builds them and assemble.py places them.
 
-# The project's own license texts, named by every SBOM record of a Dosplex file.
+# The project's own license texts, named by every SBOM record of a DosPlex file.
 licenses/dosplex-LICENSE                 LICENSE
 licenses/dosplex-NOTICE                  NOTICE
 # licenses/dosplex-THIRD-PARTY-NOTICES.md is not copied from the repository: assemble.py generates it from the SBOM

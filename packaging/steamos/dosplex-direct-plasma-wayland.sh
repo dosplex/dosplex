@@ -112,7 +112,7 @@ launch_side left "$left_user" "$left_dir"
 sleep 2
 launch_side right "$right_user" "$right_dir"
 
-echo "Dosplex direct Plasma Wayland sessions active on ${host_wayland_socket}"
+echo "DosPlex direct Plasma Wayland sessions active on ${host_wayland_socket}"
 echo "left=${left_user}"
 echo "right=${right_user}"
 

@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
-# Dosplex owns the built-in Steam Deck controller while its compositor is active.
+# DosPlex owns the built-in Steam Deck controller while its compositor is active.
 # If the deck user's Steam process can open Valve hidraw directly, it bypasses
-# Dosplex routing and the primary Steam session can receive hover while ignoring
+# DosPlex routing and the primary Steam session can receive hover while ignoring
 # routed clicks. Keep the hardware interface root-only; routed virtual devices
 # below are what side sessions should consume.
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="28de", ATTRS{idProduct}=="1205", TAG-="uaccess", GROUP="root", MODE="0600", RUN+="/usr/bin/setfacl -b /dev/%k"
 
-# External gamepads default to the main user. Dosplex changes ownership when
+# External gamepads default to the main user. DosPlex changes ownership when
 # the overlay assigns the controller to Guest, and revokes existing opens so
 # only the selected side can consume it.
 SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_INPUT_JOYSTICK}=="1", TAG-="uaccess", GROUP="deck", MODE="0660"
@@ -26,6 +26,6 @@ SUBSYSTEM=="input", KERNEL=="event*", ATTRS{id/vendor}=="28de", ATTRS{id/product
 SUBSYSTEM=="input", KERNEL=="event*", ATTRS{id/vendor}=="28de", ATTRS{id/product}=="11ff", RUN+="/usr/bin/setfacl -b /dev/%k"
 
 # Routed virtual controllers are the devices Steam should consume. Keep them
-# owned by the selected Dosplex side even if generic joystick rules run later.
-SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="Dosplex routed main*", TAG-="uaccess", GROUP="deck", MODE="0660"
-SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="Dosplex routed guest*", TAG-="uaccess", GROUP="guest", MODE="0660"
+# owned by the selected DosPlex side even if generic joystick rules run later.
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="DosPlex routed main*", TAG-="uaccess", GROUP="deck", MODE="0660"
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="DosPlex routed guest*", TAG-="uaccess", GROUP="guest", MODE="0660"

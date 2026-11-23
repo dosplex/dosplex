@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
-"""Sleep, Restart, Shut down and Turn off Dosplex for the Dosplex management overlay.
+"""Sleep, Restart, Shut down and Turn off DosPlex for the DosPlex management overlay.
 
 The compositor runs this helper from $DOSPLEX_ROOT/libexec/dosplex-power-action when Main confirms a
 power action and the compositor was started with --allow-power.
@@ -26,15 +26,15 @@ stage, and the compositor takes its progress panel down and says so. That copy t
      is over, Guest's side first when both are ready (a supervisor starts a side again whose Steam exited,
      unless it was asked to stop), which stops whatever is left of the side's unit,
   c) waits for each side's session.json to say it stopped (45 s per side),
-  d) stops Dosplex: `dosplex stop` when the installed state names this trial, otherwise the trial's own
+  d) stops DosPlex: `dosplex stop` when the installed state names this trial, otherwise the trial's own
      `root-session-trial.py recover --root`, at most 600 s (recover alone may take 300 s inside dosplex
      stop, which then restores the display and the session mode). When that says a recovery already runs
      (the trial's watcher or its deadline timer holds the lock), it waits up to 300 s for the trial
      directory to disappear: rebooting under a recovery would lose the records it needs to undo the changes,
   e) runs `systemctl reboot|poweroff`, even when d) failed: the next `dosplex start` clears a stale run.
 
-stop (Turn off Dosplex) is steps a) to d) and nothing after them: both players' Steam clients quit cleanly,
-Dosplex stops, the stock Steam comes back and the machine stays on. It runs no power command, so
+stop (Turn off DosPlex) is steps a) to d) and nothing after them: both players' Steam clients quit cleanly,
+DosPlex stops, the stock Steam comes back and the machine stays on. It runs no power command, so
 --power-command plays no part in it. When step d) fails the helper exits with status 1, so that the
 compositor, which then still runs, takes its progress panel down and says so.
 Every step is logged (journalctl -u 'dosplex-power-*'); a Steam that was asked to quit says one of
@@ -510,7 +510,7 @@ def wait_for_recovery(trial_root, wait):
 
 
 def stop_dosplex(trial_root, state_file, dosplex, recovery_wait=RECOVERY_WAIT, deadline=None):
-    """Step d. Returns True when Dosplex stopped (or there was nothing to stop). `deadline` is a time.monotonic()
+    """Step d. Returns True when DosPlex stopped (or there was nothing to stop). `deadline` is a time.monotonic()
     value that the wait for another recovery must not pass."""
     if trial_root is None:
         log('stop: no trial root; nothing to stop')
@@ -548,12 +548,12 @@ def sequence(args):
     side_root = Path(args.side_root) if args.side_root else None
     # Opened before anything stops and kept open: step d) deletes the trial directory, which holds the
     # trial's power command, and a dry run must never turn into the real systemctl.
-    leaving = args.action == 'stop'        # Turn off Dosplex: no power step follows, so no power command is opened
+    leaving = args.action == 'stop'        # Turn off DosPlex: no power step follows, so no power command is opened
     fd, refused = (None, False) if leaving else \
         open_for_action(args.action, args.power_command, args.power_command_required)
     if refused:
         return 1
-    log('%s: closing both sides, then stopping Dosplex (trial %s)' % (args.action, trial_root or 'none'))
+    log('%s: closing both sides, then stopping DosPlex (trial %s)' % (args.action, trial_root or 'none'))
     started = time.monotonic()
     try:
         asked = close_sides(side_root, args)
@@ -563,7 +563,7 @@ def sequence(args):
                                started + SEQUENCE_BUDGET)
         if leaving:
             log('stop: %s' % ('done; the stock Steam is back' if stopped else
-                              'Dosplex did not stop; see the lines above'))
+                              'DosPlex did not stop; see the lines above'))
             return 0 if stopped else 1
         if not stopped:
             log('stop failed; running %s anyway (the next dosplex start clears the stale run)' % args.action)
@@ -629,7 +629,7 @@ def escape(args, here, required):
     side_root = os.environ.get('DOSPLEX_SIDE_ROOT') or (str(trial_root / 'sides') if trial_root else SIDE_ROOT)
     unit = 'dosplex-power-%s-%s' % (args.action, uuid.uuid4().hex[:8])
     argv = ['systemd-run', '--quiet', '--collect', '--wait', '--service-type=exec', '--expand-environment=no',
-            '--unit=' + unit, '--description=Dosplex ' + args.action, '--property=RuntimeMaxSec=%d' % UNIT_RUNTIME,
+            '--unit=' + unit, '--description=DosPlex ' + args.action, '--property=RuntimeMaxSec=%d' % UNIT_RUNTIME,
             '--', sys.executable, str(here), '--escaped', '--trial-root', str(trial_root or ''),
             '--side-root', side_root, '--supervisor', str(bundle / 'bin/dosplex-side-supervisor.py'),
             '--state-file', args.state_file, '--dosplex', args.dosplex, '--steam', args.steam,
@@ -644,7 +644,7 @@ def escape(args, here, required):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description='Dosplex machine power for the management overlay.')
+    parser = argparse.ArgumentParser(description='DosPlex machine power for the management overlay.')
     parser.add_argument('action', choices=ACTIONS)
     parser.add_argument('--power-command', default='')
     parser.add_argument('--state-file', default=STATE_FILE)

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
 # virgl-enable-qemu-args.sh
-# Add these QEMU args to enable virgl GPU acceleration for the Dosplex VM.
+# Add these QEMU args to enable virgl GPU acceleration for the DosPlex VM.
 # Requires host GPU with OpenGL 3+ support.
 
 # These args should be ADDED to your existing QEMU command (or replace virtio-vga):

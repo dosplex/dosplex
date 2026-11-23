@@ -26,9 +26,9 @@ import uuid
 # The compositor's runtime policy is chosen by its flags, never by its backend. The product runs it as a
 # nested X11 client with real side sessions (-s), host keyboards counted as menu controls (--host-keyboards) and
 # machine power (--allow-power): Main's Sleep, Restart and Shut down run bundle/libexec/dosplex-power-action,
-# which closes both sides and stops Dosplex before a restart or shutdown. Their confirmations say what the
+# which closes both sides and stops DosPlex before a restart or shutdown. Their confirmations say what the
 # machine comes back as (--boots-into): a trial, and `dosplex start`, which runs this file, leave normal SteamOS
-# behind; nothing starts Dosplex at boot. The display is never blanked (no --idle-policy).
+# behind; nothing starts DosPlex at boot. The display is never blanked (no --idle-policy).
 # update-retained-session.py repeats this list (it is staged separately); a test keeps the two equal.
 COMPOSITOR_FLAGS = ('-b', 'x11', '-s', '--host-keyboards', '--allow-power', '--boots-into=steamos')
 # Engineering only (start(test_hooks=True), kept in the transaction): the DEV_FRAME and CHORD hooks the
@@ -118,7 +118,7 @@ def wait_idle_steam(user, seconds):
 
 def windows(user):
     tree=run(as_user(user,'xwininfo','-display',':0','-root','-tree')).stdout
-    return set(re.findall(r'^\s+(0x[0-9a-f]+) "Dosplex":',tree,re.MULTILINE))
+    return set(re.findall(r'^\s+(0x[0-9a-f]+) "DosPlex":',tree,re.MULTILINE))
 
 
 def present_window(user, previous):
@@ -270,7 +270,7 @@ def sleep_guard_command(root, transaction):
 def start_sleep_guard(root, transaction):
     """Run the sleep guard. The unit is journaled before it starts: recovery stops what the journal names, and
     refuses a dependency of the compositor that it does not know. A guard that cannot start costs the trial nothing
-    it had: Dosplex starts, Sleep goes unguarded as it did before, and `dosplex status` says so."""
+    it had: DosPlex starts, Sleep goes unguarded as it did before, and `dosplex status` says so."""
     unit,command=sleep_guard_command(root,transaction)
     transaction['sleep_guard_unit']=unit
     save(root,transaction)
@@ -414,7 +414,7 @@ def recover_locked(root):
         spec=importlib.util.spec_from_file_location('native_pads',root/'bundle/libexec/native-pads.py')
         pads=importlib.util.module_from_spec(spec);spec.loader.exec_module(pads)
         kept=pads.recover(root)
-        if kept:print('pads files changed since Dosplex wrote them; kept for inspection: '+', '.join(kept),file=sys.stderr)
+        if kept:print('pads files changed since DosPlex wrote them; kept for inspection: '+', '.join(kept),file=sys.stderr)
     for entry in transaction.get('native_extra_controllers',{}).values():
         native_module(root).restore(entry['plan'])
     if transaction.get('native_controller_plan'):
@@ -445,7 +445,7 @@ def recover_locked(root):
         pins=importlib.util.module_from_spec(spec);spec.loader.exec_module(pins)
         for side in ('left','right'):
             try: pins.unpin(Path('/sys/fs/bpf/dosplex')/side)
-            except OSError as error: print('Dosplex recovery: loopback programs of '+side+' remain: '+str(error),file=sys.stderr)
+            except OSError as error: print('DosPlex recovery: loopback programs of '+side+' remain: '+str(error),file=sys.stderr)
         try: Path('/sys/fs/bpf/dosplex').rmdir()
         except OSError: pass
     put_game_libraries_away(root,transaction)
@@ -461,7 +461,7 @@ def recover_locked(root):
         # (TRL-07). Carry on, and do not claim the home screen was seen.
         if run(as_user(user,'systemctl','--user','is-active','steam-launcher.service'),check=False).returncode:
             raise RuntimeError('normal Steam did not start again; trial evidence retained. Try again in a minute')
-        print('Dosplex recovery: stock Steam was started but did not show its home screen within '
+        print('DosPlex recovery: stock Steam was started but did not show its home screen within '
               +str(STEAM_RETURN_SECONDS)+' seconds; it is probably still coming up.',file=sys.stderr,flush=True)
     transaction.update(phase='restored', steam_foreground_only=foreground, stopped_children=children)
     save(root,transaction)
@@ -490,7 +490,7 @@ def recovery_hook_name(transaction):
 
 def recovery_hook_text(root, transaction):
     return (
-        '[Unit]\nDescription=Dosplex: bring stock Steam back after the compositor ended\n'
+        '[Unit]\nDescription=DosPlex: bring stock Steam back after the compositor ended\n'
         'ConditionPathExists='+str(root/'transaction.json')+'\n\n'
         '[Service]\nType=oneshot\nSyslogIdentifier=dosplex-recovery\n'
         'ExecStart=/usr/bin/python3 '+str(root/'root-session-trial.py')+' ended --root '+str(root)+'\n'
@@ -516,7 +516,7 @@ def disarm_recovery_hook(transaction, directory=None):
         (( directory or RUNTIME_UNIT_DIR)/name).unlink(missing_ok=True)
         run(['systemctl','daemon-reload'],check=False)
     except (OSError,subprocess.SubprocessError) as error:
-        print('Dosplex recovery: could not remove the unit '+name+': '+str(error),file=sys.stderr)
+        print('DosPlex recovery: could not remove the unit '+name+': '+str(error),file=sys.stderr)
 
 
 def unit_running(unit):
@@ -708,16 +708,16 @@ def game_store_slot(root,transaction):
         module=game_store_module(root);layout=module.Layout(store)
         if not module.permanent(layout):return False
     except Exception as error:
-        print('Dosplex: shared game store slot failed: '+str(error),file=sys.stderr);return False
+        print('DosPlex: shared game store slot failed: '+str(error),file=sys.stderr);return False
     try:report=module.slot(layout)
     except Exception as error:
         # A permanent store that could not have its slot now (a Steam of an account still runs: a start that failed
         # while it stopped the stock Steam) keeps its libraries mounted and listed as they are. Returning False here
         # had the recovery put them away: Main's library stayed on its Steam list and was unmounted, and every
         # shared game looked uninstalled (seen on the Steam Machine, p60).
-        print('Dosplex: shared game store slot failed, the libraries stay as they are: '+str(error),file=sys.stderr);return True
-    try:print('Dosplex: shared game store: '+json.dumps(report),file=sys.stderr)
-    except Exception as error:print('Dosplex: shared game store: slot ran, report not printable: '+str(error),file=sys.stderr)
+        print('DosPlex: shared game store slot failed, the libraries stay as they are: '+str(error),file=sys.stderr);return True
+    try:print('DosPlex: shared game store: '+json.dumps(report),file=sys.stderr)
+    except Exception as error:print('DosPlex: shared game store: slot ran, report not printable: '+str(error),file=sys.stderr)
     # The slot finished leaving: there is no store any more, so the sides must not be told about one.
     if isinstance(report,dict) and report.get('left') is True:transaction.pop('game_store',None)
     return True
@@ -737,14 +737,14 @@ def put_game_libraries_away(root,transaction):
     try:
         module=game_store_module(root);layout=module.Layout(store)
     except Exception as error:
-        print('Dosplex recovery: shared game store not put away: '+str(error),file=sys.stderr);return
+        print('DosPlex recovery: shared game store not put away: '+str(error),file=sys.stderr);return
     try:stores=module.listed_layouts(layout)
     except Exception as error:
-        print('Dosplex recovery: shared game store disks not listed, the main store only: '+str(error),file=sys.stderr);stores=[layout]
+        print('DosPlex recovery: shared game store disks not listed, the main store only: '+str(error),file=sys.stderr);stores=[layout]
     for store_layout in stores:
         for user in (transaction['main_user'],transaction['guest_user']):
             try:module.unmount(store_layout,user)
-            except Exception as error:print('Dosplex recovery: shared game library of '+user+' ('+str(store_layout.root)+'): '+str(error),file=sys.stderr)
+            except Exception as error:print('DosPlex recovery: shared game library of '+user+' ('+str(store_layout.root)+'): '+str(error),file=sys.stderr)
 
 
 def start(bundle, manifest, seconds, main_user, guest_user, device_view=False, native_deck=None, native_relay=False, native_test=False, keep_session=False, game_store=None, layout='vertical', test_hooks=False):

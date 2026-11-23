@@ -208,8 +208,8 @@ left_auth="$runtime_dir/left.Xauthority"
 right_auth="$runtime_dir/right.Xauthority"
 left_display="$(find_free_display 101)"
 right_display="$(find_free_display $(( ${left_display#:} + 1 )))"
-left_title="Dosplex Left"
-right_title="Dosplex Right"
+left_title="DosPlex Left"
+right_title="DosPlex Right"
 
 cleanup() {
   set +e

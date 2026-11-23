@@ -150,7 +150,7 @@ class SlowSystemd(unittest.TestCase):
         self.assertEqual(run.snapshot()['restart_count'], 0)
         self.assertTrue(run.end())
         said = run.said.getvalue()
-        self.assertIn('Dosplex supervisor: left: systemctl is-active timed out after 5 s (1 in a row); asking again', said)
+        self.assertIn('DosPlex supervisor: left: systemctl is-active timed out after 5 s (1 in a row); asking again', said)
         self.assertIn('systemd answers again after 3 timeout(s)', said)
 
     def test_a_long_stall_is_said_once_and_the_supervisor_waits_it_out(self):

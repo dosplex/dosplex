@@ -285,7 +285,7 @@ def guest_endpoint_checks(router, root, env, start, pactl, log):
     # Everything the endpoint is built from is validated before anything starts.
     base = dict(upstream='tcp:127.0.0.1:4713', side='right', latency_ms=60)
     config = router.guest_pipewire_config(**base)
-    for wanted in ('"dosplex_right"', '"dosplex_right_mic"', '"dosplex_right_mic.monitor"', '"Dosplex sound"', '"Dosplex microphone"',
+    for wanted in ('"dosplex_right"', '"dosplex_right_mic"', '"dosplex_right_mic.monitor"', '"DosPlex sound"', '"DosPlex microphone"',
                    'tunnel.mode = sink', 'tunnel.mode = source', 'reconnect.interval.ms = 1000'):
         assert wanted in config, wanted
     assert 'dosplex_left' not in config
@@ -413,8 +413,8 @@ def guest_endpoint_checks(router, root, env, start, pactl, log):
         assert names(guest, 'sources') == ['dosplex_right.monitor', 'dosplex_right_mic']
         described = {item['name']: item['description'] for kind in ('sinks', 'sources')
                      for item in json.loads(on(guest, '-f', 'json', 'list', kind).stdout)}
-        assert described['dosplex_right'] == 'Dosplex sound', described
-        assert described['dosplex_right_mic'] == 'Dosplex microphone', described
+        assert described['dosplex_right'] == 'DosPlex sound', described
+        assert described['dosplex_right_mic'] == 'DosPlex microphone', described
         info = on(guest, 'info').stdout
         assert 'Default Sink: dosplex_right' in info and 'Default Source: dosplex_right_mic\n' in info, info
         # Nothing of the shared server shows anywhere in what Guest can list.

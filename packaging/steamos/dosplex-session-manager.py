@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
-"""Expose SteamOS activity switching on one private Dosplex session bus.
+"""Expose SteamOS activity switching on one private DosPlex session bus.
 
 Never forwards calls to the host manager. Steam owns its login/PIN UI; this
 adapter scopes the resulting activity request to the caller's supervisor.
@@ -73,7 +73,7 @@ class Manager(dbus.service.Object):
 
 def main():
     if os.environ.get('DOSPLEX_SESSION_RUNTIME') != '1' or os.environ.get('DOSPLEX_SIDE') not in ('left', 'right'):
-        raise RuntimeError('requires a private Dosplex side')
+        raise RuntimeError('requires a private DosPlex side')
     endpoint = os.environ['DOSPLEX_SESSION_CONTROL']
     instance = os.environ['DOSPLEX_SESSION_INSTANCE']
     client = Path(os.environ['DOSPLEX_SESSION_CONTROL_CLIENT'])

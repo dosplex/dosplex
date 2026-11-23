@@ -64,5 +64,5 @@ if __name__ == "__main__":
             raise ValueError("usage: dosplex-display-state.py STATE_FILE left|right")
         print(*read_configuration(sys.argv[1], sys.argv[2]))
     except (OSError, ValueError, KeyError, TypeError) as error:
-        print(f"Cannot read Dosplex display configuration: {error}", file=sys.stderr)
+        print(f"Cannot read DosPlex display configuration: {error}", file=sys.stderr)
         sys.exit(1)

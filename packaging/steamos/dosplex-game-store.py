@@ -56,7 +56,7 @@ no Steam uses the store, changes it (see dosplex-game-store-tidy.py).
     dosplex-game-store.py release [--wait SECONDS] shutdown: unmount every overlay on every disk and stash (root)
     dosplex-game-store.py arrive [--device NAME] [--wait SECONDS]   a disk appeared or went: detach what is left of a
                                                    gone one, mount the overlays on every listed disk that is mounted
-    dosplex-game-store.py eject --mount PATH       release a card and have udisks unmount it (the Dosplex-side eject)
+    dosplex-game-store.py eject --mount PATH       release a card and have udisks unmount it (the DosPlex-side eject)
     dosplex-game-store.py share --new [--user USER]...   check new or changed games of the accounts and record them
 
 register and unregister refuse while that account's Steam runs: Steam writes the list when it exits. They change
@@ -206,7 +206,7 @@ class Layout:
                     self.provisioned(name))
 
     def retired_libraries(self, name):
-        """The library folders that were Dosplex's own overlays (the primary's and every disk's), present or not.
+        """The library folders that were DosPlex's own overlays (the primary's and every disk's), present or not.
         They are taken off the account's Steam list by the migration, and are never an account's real library."""
         primary = self.primary or self
         found = {primary.side(name).retired.library}
@@ -225,7 +225,7 @@ class Side:
     """The folders of one account in one store.
 
     library is the account's real Steam library folder on this store's disk, as the account reaches it (what its
-    library list names); real is the same folder as root reaches it. They differ only for a library that Dosplex
+    library list names); real is the same folder as root reaches it. They differ only for a library that DosPlex
     gave an account on a disk it cannot enter: there the account's folder on the disk is bound below the account's own
     drives folder, and a rename between two mounts is refused, so root works at `real`.
 
@@ -332,7 +332,7 @@ def overlay_command(side):
     # account's folder holds whole files and the store may change between mounts (the tidy-up does exactly that).
     # uuid=off: the overlay sits on the filesystem of its own upper directory and must not take over its identity.
     # The upper directory is named as root reaches it (real_steamapps): the kernel wants it under the same mount as the
-    # work directory. For a library Dosplex gave an account on a card the account sees it through a bind of its own,
+    # work directory. For a library DosPlex gave an account on a card the account sees it through a bind of its own,
     # another mount of the same filesystem, and the overlay was refused there ("workdir and upperdir must reside under
     # the same mount", Deck, 2026-11-18). The overlay is still mounted where the account sees the folder.
     options = (f'nosuid,nodev,index=off,metacopy=off,redirect_dir=off,xino=off,uuid=off,'
@@ -600,8 +600,8 @@ def change_library(entry, library, add):
 def resolve_library(layout, name, entry=None):
     """(visible, real) of the account's own Steam library on this store's disk, or None.
 
-    The first library of the account's list that is on the store's filesystem; none of Dosplex's earlier library
-    folders counts. A disk where the list has none gives the library Dosplex made there (provisioned), if it exists.
+    The first library of the account's list that is on the store's filesystem; none of DosPlex's earlier library
+    folders counts. A disk where the list has none gives the library DosPlex made there (provisioned), if it exists.
     """
     entry = entry or account(name)
     vdf = depot_module()
@@ -674,7 +674,7 @@ def resolve_side(layout, name, entry, *, provisioning=False, runner=subprocess.r
         steps = provision(layout, name, entry, runner=runner, mountinfo=mountinfo, proc=proc)
         found = resolve_library(layout, name, entry)
     elif found is not None and provisioning and given is not None and found[0] == given[0]:
-        # The library Dosplex made: its bind is gone after a reboot, and the list may have lost the entry.
+        # The library DosPlex made: its bind is gone after a reboot, and the list may have lost the entry.
         steps = provision(layout, name, entry, runner=runner, mountinfo=mountinfo, proc=proc)
     else:
         steps = []
@@ -766,7 +766,7 @@ def unmount(layout, name, *, runner=subprocess.run, mountinfo='/proc/self/mounti
     With stash, the account's app manifests for the games the store holds, and the whiteouts for them, go out of its
     real library into a stash of root's on the same filesystem (stock Steam would offer to download those games
     again); the next mount puts them back. The slot does not stash: it commits and mounts again with no Steam between.
-    The account's media bind of a library Dosplex made stays, because the tidy work between an unmount and the next
+    The account's media bind of a library DosPlex made stays, because the tidy work between an unmount and the next
     mount needs it; layer=True takes it away too (the store is leaving).
     """
     side = layout.side(name)
@@ -779,7 +779,7 @@ def unmount(layout, name, *, runner=subprocess.run, mountinfo='/proc/self/mounti
     places += [('view', side.view), ('real', side.reach), ('earlier', side.retired.library)]
     if side.retired.bound is not None:
         places.append(('earlier layer', side.retired.bound))
-    # The media bind is Dosplex's only for an account SteamOS does not mount the disk for. For the account it mounts
+    # The media bind is DosPlex's only for an account SteamOS does not mount the disk for. For the account it mounts
     # the disk for (Main) the same path is the disk's own mount point: unmounting it there would eject the card, and
     # at shutdown it was tried and refused as busy, which ended the release before the rest (Deck, 2026-11-18).
     if layer and side.provisioned is not None and Path(side.provisioned[2][1]) != layout.mount_point:
@@ -1698,7 +1698,7 @@ def mount_all(primary, name, *, runner=subprocess.run, mountinfo='/proc/self/mou
 
 
 def forget(primary, root, *, mountinfo='/proc/self/mountinfo', proc=Path('/proc')):
-    """Take a disk that is not connected off the list for good, and the library Dosplex gave an account there off its
+    """Take a disk that is not connected off the list for good, and the library DosPlex gave an account there off its
     Steam list. What is on the disk is not touched."""
     root = str(root)
     entry = next((disk for disk in read_disks(primary) if disk['root'] == root), None)
@@ -1718,7 +1718,7 @@ def forget(primary, root, *, mountinfo='/proc/self/mountinfo', proc=Path('/proc'
 
 
 # Shutdown, a card that arrives, a card that leaves. Stock Steam must never find an app manifest for a shared game whose
-# files it cannot see (it would offer to download the game again), and a card must be free of Dosplex's mounts before
+# files it cannot see (it would offer to download the game again), and a card must be free of DosPlex's mounts before
 # it is ejected. The pieces are the ones the slot uses (mount, unmount, the stash), run at other moments:
 #
 #   release  at shutdown (the boot unit's ExecStop): every account's overlays on every disk come off and the manifests
@@ -1727,7 +1727,7 @@ def forget(primary, root, *, mountinfo='/proc/self/mountinfo', proc=Path('/proc'
 #   arrive   when a disk appears or goes (a udev rule starts it): what is left of a disk that is gone is detached
 #            (lazy), and every listed disk that is mounted gets its overlays, with a running Steam too (mounting over a
 #            folder adds nothing to it); what changes the real folder waits for that Steam to close.
-#   eject    the Dosplex-side eject of a card: release the card, then ask udisks to unmount it.
+#   eject    the DosPlex-side eject of a card: release the card, then ask udisks to unmount it.
 #
 # One of them, and the slot, at a time (cycling). Each result is kept in events.json for status.
 
@@ -1919,7 +1919,7 @@ def release(primary, *, wait=0, runner=subprocess.run, mountinfo='/proc/self/mou
 
 
 def eject(primary, mount_text, *, runner=subprocess.run, mountinfo='/proc/self/mountinfo', proc=Path('/proc')):
-    """The Dosplex-side eject of a card: release it (every account's overlays and binds off, the stash made for an
+    """The DosPlex-side eject of a card: release it (every account's overlays and binds off, the stash made for an
     account whose Steam is closed), then have udisks unmount it, as Steam's own eject would. If anything of the card is
     still in use (a game from it runs) or udisks refuses, what was released is mounted again and that is an error: the
     card stays as it was. Returns what was done."""
@@ -2074,7 +2074,7 @@ SLOT_NAME = 'slot.json'
 
 
 def keep_slot_report(primary, report, now=None):
-    """Keep what the last slot did (root, 0644), so that status can say why a game was not taken. A start of Dosplex
+    """Keep what the last slot did (root, 0644), so that status can say why a game was not taken. A start of DosPlex
     runs the slot where nobody reads its answer. A store that left has no place for it; a failure is not one."""
     if not primary.root.is_dir() or report.get('left') is True:
         return
@@ -2167,7 +2167,7 @@ def _slot_disk(primary, layout, config, tidy, runner, mountinfo, proc):
 
 
 def _retire_provision(layout, name, report, proc):
-    """A disk that is left: the library Dosplex gave the account there goes off its Steam list (its folder and what it
+    """A disk that is left: the library DosPlex gave the account there goes off its Steam list (its folder and what it
     holds stay on the disk, and are named in the report when it holds games)."""
     given = layout.provisioned(name)
     if given is None:
@@ -2386,7 +2386,7 @@ def _find_disks(primary, name, users, tidy, mountinfo, summary):
             continue
         point = _mount_of(library['path'], library['dev'], points)
         if point is not None and f'/{WRAPPER}/{DISK_ROOT}/{ACCOUNTS}/' in roots.get(point, '') + '/':
-            continue        # a library Dosplex gave the account on a disk: its bind is not the disk's mount point
+            continue        # a library DosPlex gave the account on a disk: its bind is not the disk's mount point
         try:
             if point is None:
                 raise StoreError(f'no mount point of {library["path"]} was found')

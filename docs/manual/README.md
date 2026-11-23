@@ -1,8 +1,8 @@
-# The Dosplex manual
+# The DosPlex manual
 
-For Dosplex 0.1.0 alpha on SteamOS. The same pages open from **Help** in the Dosplex menu.
+For DosPlex 0.1.0 alpha on SteamOS. The same pages open from **Help** in the DosPlex menu.
 
-1. [What Dosplex is](01-what-dosplex-is.md)
+1. [What DosPlex is](01-what-dosplex-is.md)
 2. [Before you install](02-before-you-install.md)
 3. [Install](03-install.md)
 4. [Start and sign in](04-start-and-sign-in.md)

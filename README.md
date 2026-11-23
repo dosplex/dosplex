@@ -1,8 +1,8 @@
-# Dosplex
+# DosPlex
 
 **Two Steam accounts. One screen. Two independent activities.**
 
-Dosplex lets two people share one SteamOS machine and one screen while each has
+DosPlex lets two people share one SteamOS machine and one screen while each has
 their own Steam account, session, controls and audio. Its core uses are couch co-op with
 separate game instances and playing a game while someone else watches a movie.
 Each person can use their own headset, or one can use the TV speakers.
@@ -11,7 +11,7 @@ The goal is to bring couch co-op to games without built-in local co-op and make
 a shared TV useful for different activities at once. Compatibility is verified
 per game, media application and device.
 
-**Dosplex 0.1.0 is an alpha.** It works on the devices and versions it was tested on, some things are
+**DosPlex 0.1.0 is an alpha.** It works on the devices and versions it was tested on, some things are
 missing, and your feedback is what improves it. See [what alpha means](docs/manual/01-what-dosplex-is.md).
 
 ## What you get
@@ -19,9 +19,9 @@ missing, and your feedback is what improves it. See [what alpha means](docs/manu
 - **Two sides on one screen.** Each player has their own Steam account, library, saves, controllers and sound.
 - **Layouts.** Side by side, one above the other, or one player on the whole screen while the other waits.
 - **A menu for each player.** Layout, picture size, controllers and sound, with a controller.
-- **Started by hand.** You start Dosplex from Steam's library. Nothing runs at boot, and a restart of the
+- **Started by hand.** You start DosPlex from Steam's library. Nothing runs at boot, and a restart of the
   machine always brings back plain SteamOS.
-- **Easy to leave.** **Turn off Dosplex** in the menu brings stock Steam back. Uninstalling removes it.
+- **Easy to leave.** **Turn off DosPlex** in the menu brings stock Steam back. Uninstalling removes it.
 - **Help in the menu.** The manual is one button away, with a controller.
 - **Nothing leaves your machine.** No account, no telemetry, no analytics. [PRIVACY.md](PRIVACY.md) says so in full.
 
@@ -40,9 +40,8 @@ Read [the manual](docs/manual/README.md) first; it is short. In brief, in Deskto
 1. Download the release archive and its signature file from the [releases page](https://github.com/dosplex/dosplex/releases).
 2. Take the `dosplex` program out of it and compare its SHA-256 with the one on the release page:
    `tar -xzf dosplex-VERSION.tar.gz dosplex-VERSION/dosplex && sha256sum dosplex-VERSION/dosplex`.
-3. Check your device: `sudo ./dosplex-VERSION/dosplex preflight --release dosplex-VERSION.tar.gz`.
-4. Install: `sudo ./dosplex-VERSION/dosplex install --release dosplex-VERSION.tar.gz`.
-5. The installer adds **Dosplex** to Steam's library while Steam is running (if it says it could not, `sudo /opt/dosplex/bin/dosplex entry on` tries again). Start it from there with a controller.
+3. Install: `sudo ./dosplex-VERSION/dosplex install --release dosplex-VERSION.tar.gz`. It checks your device first and changes nothing when a check fails.
+4. Nothing starts by itself. The installer adds **DosPlex** to Steam's library while Steam is running (if it says it could not, `sudo /opt/dosplex/bin/dosplex entry on` tries again) and puts a DosPlex icon on the desktop. Start DosPlex from either one, or add `--start` to the install command.
 
 [Install](docs/manual/03-install.md) has every step, and
 [Update, roll back, uninstall](docs/manual/13-update-roll-back-uninstall.md) has the way back.
@@ -50,7 +49,7 @@ Read [the manual](docs/manual/README.md) first; it is short. In brief, in Deskto
 ## Know before you try it
 
 - [Limits of the alpha](docs/manual/15-limits-of-the-alpha.md) lists what does not work yet.
-- Dosplex keeps two players apart in ordinary use. It is not yet a wall against a player who sets out to
+- DosPlex keeps two players apart in ordinary use. It is not yet a wall against a player who sets out to
   cross it: use the alpha with people you trust at the same screen. [The limitations page](docs/limitations.md)
   says exactly what is open.
 - The shared game library and the start at boot are in the program, off, and
@@ -60,9 +59,9 @@ Read [the manual](docs/manual/README.md) first; it is short. In brief, in Deskto
 
 ## Tell us how it went
 
-Dosplex sends nothing by itself, so you tell us in your own words:
+DosPlex sends nothing by itself, so you tell us in your own words:
 
-- the channel `#alpha-testers` on [the Dosplex Discord](https://discord.gg/HSBJhQPA6A), for how it went;
+- the channel `#alpha-testers` on [the DosPlex Discord](https://discord.gg/HSBJhQPA6A), for how it went;
 - the [issue tracker](https://github.com/dosplex/dosplex/issues), for a defect you want to follow until it is fixed.
 
 [Tell us how it went](docs/manual/16-tell-us-how-it-went.md) says what helps us. Never include passwords, Steam
@@ -126,7 +125,7 @@ When a document and the code disagree, the code is right.
 
 ## Support development
 
-Dosplex is free and open source under the GNU Affero General Public License v3.0 or later. RoyÅke
+DosPlex is free and open source under the GNU Affero General Public License v3.0 or later. RoyÅke
 also offers commercial licenses, integration and paid development; see [LICENSING.md](LICENSING.md).
 If it's useful to you, you can help support development and hardware testing.
 
@@ -151,11 +150,11 @@ AGPL-3.0-or-later. Contributions are accepted under the Developer Certificate of
 [contributor license agreement](CLA.md) (see [CONTRIBUTING.md](CONTRIBUTING.md)). Please follow the
 [code of conduct](CODE_OF_CONDUCT.md); [MAINTAINERS.md](MAINTAINERS.md) says who decides.
 
-Dosplex™ is a trademark of RoyÅke (Roy-Åke Martinsson). You may fork and
-modify Dosplex freely, but a modified version must not use the name or logo as if
+DosPlex™ is a trademark of RoyÅke (Roy-Åke Martinsson). You may fork and
+modify DosPlex freely, but a modified version must not use the name or logo as if
 it were the official project. See [TRADEMARKS.md](TRADEMARKS.md).
 
 Steam, SteamOS, Steam Deck and Steam Machine are trademarks or registered trademarks of Valve
-Corporation. Dosplex is an independent project. It is not made, endorsed or supported by Valve.
+Corporation. DosPlex is an independent project. It is not made, endorsed or supported by Valve.
 
 Copyright © 2026 RoyÅke (Roy-Åke Martinsson).

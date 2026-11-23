@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
-"""Check a Dosplex release payload against its SBOM.
+"""Check a DosPlex release payload against its SBOM.
 
   check-sbom.py PAYLOAD_DIR [--sbom FILE]
 

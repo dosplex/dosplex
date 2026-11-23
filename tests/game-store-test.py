@@ -947,7 +947,7 @@ class Slot(unittest.TestCase):
             self.assertEqual(report['unshared'], {
                 'deck': [{'appid': '11', 'name': 'B', 'reason': 'waits for its file list'}],
                 'guest': [{'appid': '11', 'name': 'B', 'reason': 'waits for its file list'}]})
-            # A game whose file list Dosplex asked Steam for says so, whatever its manifest shows meanwhile.
+            # A game whose file list DosPlex asked Steam for says so, whatever its manifest shows meanwhile.
             self.tidy.asked_for_lists = lambda layout: {'/'.join(('deck', '11'))}
             waits = store.status(self.layout, [], tidy=self.tidy)['unshared']
             self.assertIn('waits for its file list from Steam (asked at the last start', waits['deck'][0]['reason'])
@@ -2976,7 +2976,7 @@ class Cards(DiskWorld):
         self.assertEqual(self.calls, [])
 
     def test_a_pulled_card_whose_mount_is_still_in_the_table_is_detached_not_mounted_into(self):
-        # The card's own mount is stale: its device node is gone. Dosplex's overlay and binds on it are detached lazily.
+        # The card's own mount is stale: its device node is gone. DosPlex's overlay and binds on it are detached lazily.
         side = self.disk.side('deck', self.usb / 'SteamLibrary', self.usb / 'SteamLibrary')
         lines = self.mountinfo.read_text().splitlines()
         lines.append(f'60 50 0:60 / {self.usb}/SteamLibrary/steamapps rw - overlay dosplex-library rw,workdir={side.work}')

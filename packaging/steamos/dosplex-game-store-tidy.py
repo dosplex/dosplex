@@ -372,7 +372,7 @@ def _check_user(user, users):
 # Reading what an account has installed.
 
 def _libraries(layout, entry, user):
-    """The account's own Steam library folders, the default one first. The folders of the earlier layout (Dosplex's own
+    """The account's own Steam library folders, the default one first. The folders of the earlier layout (DosPlex's own
     library overlays) are none of them, for as long as they are still on the list."""
     steam = store.steam_root_of(entry)
     retired = (layout.primary or layout).retired_libraries(user)
@@ -604,7 +604,7 @@ def _inspect(layout, user, entry, appid, source, library, facts, held, folders=N
     missing = [path for path in paths if not _is_regular(path)]
     if missing:
         raise TidyError(f'waits for its file list from Steam ({len(missing)} of {len(paths)} depot manifests are not '
-                        f'cached); Steam fetches it at its next start after Dosplex started')
+                        f'cached); Steam fetches it at its next start after DosPlex started')
     if held.get(appid) is not None and not _overlay_mounted(layout, user, library):
         raise TidyError('is in a store and the account\'s library is not merged with it right now')
     folder = Path(library) / 'steamapps' / 'common' / installdir
@@ -2505,7 +2505,7 @@ def restore_all(layout, users):
 
 
 # Migration from the layout before one drive per disk. Each account then had a private layer per disk (an upper
-# directory below a root-owned folder, bound for the account on a removable disk) under an overlay library of Dosplex's
+# directory below a root-owned folder, bound for the account on a removable disk) under an overlay library of DosPlex's
 # own that was on its Steam list next to its real libraries. Now the store is merged into the account's real library,
 # and that library is the layer. In the first slot after the update (every Steam closed) the content of each layer moves
 # into the real library of the same disk by rename, nothing is overwritten, the old library leaves the account's Steam

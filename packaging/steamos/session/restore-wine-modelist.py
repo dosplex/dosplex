@@ -24,7 +24,7 @@ PRODUCT_CANDIDATES = (
 )
 PRODUCT_PATH = next((path for path in PRODUCT_CANDIDATES if path.is_file()), None)
 if PRODUCT_PATH is None:
-    raise FileNotFoundError('Dosplex Wine mode-list helper is missing')
+    raise FileNotFoundError('DosPlex Wine mode-list helper is missing')
 PRODUCT_SPEC = importlib.util.spec_from_file_location('wine_modelist', PRODUCT_PATH)
 PRODUCT = importlib.util.module_from_spec(PRODUCT_SPEC)
 PRODUCT_SPEC.loader.exec_module(PRODUCT)

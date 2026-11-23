@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
-# Builds the Dosplex release payload. Runs inside the release-build image (see entrypoint.sh and README.md); do not
+# Builds the DosPlex release payload. Runs inside the release-build image (see entrypoint.sh and README.md); do not
 # run it on a workstation.
 #
 # Environment: SOURCE_DATE_EPOCH and DOSPLEX_COMMIT (the full commit id) are required, DOSPLEX_VERSION is optional.
@@ -36,7 +36,7 @@ project_version=$(sed -n "s/^[[:space:]]*version:[[:space:]]*'\([^']*\)'.*/\1/p"
 [[ -n $project_version ]] || die "no project version in compositor/meson.build"
 version=${DOSPLEX_VERSION:-$project_version-${DOSPLEX_COMMIT:0:9}}
 [[ $version =~ ^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$ ]] || die "invalid release name: $version"
-echo "== Dosplex $version from commit $DOSPLEX_COMMIT, SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH"
+echo "== DosPlex $version from commit $DOSPLEX_COMMIT, SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH"
 
 echo "== sources"
 python3 "$recipe/sources.py" unpack --from /opt/dosplex-release/sources --dest "$work/src"
@@ -170,4 +170,4 @@ echo "highest GLIBC symbol version: $(grep -o '"glibc_max_required": "[0-9.]*"' 
 echo "== tar"
 tar --format=gnu --sort=name --owner=0 --group=0 --numeric-owner --mtime="@$SOURCE_DATE_EPOCH" \
     -C "$payload" -cf - . >&3
-echo "== done: Dosplex $version"
+echo "== done: DosPlex $version"

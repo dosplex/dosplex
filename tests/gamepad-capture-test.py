@@ -363,7 +363,7 @@ class GenericControllerPolicyTests(unittest.TestCase):
         for vendor,product in ((0x054c,0x0ce6),(0x054c,0x09cc),(0x057e,0x2009),(0x045e,0x02ea)):
             for bus in (3,5):
                 info=SimpleNamespace(vendor=vendor,product=product,bustype=bus,version=256)
-                identity=m.virtual_identity(info,'Dosplex routed fixture','fixture')
+                identity=m.virtual_identity(info,'DosPlex routed fixture','fixture')
                 self.assertEqual((identity['vendor'],identity['product'],identity['bustype'],identity['version']),(vendor,product,bus,256))
     def test_playstation_unsigned_sticks_and_triggers_have_distinct_neutral(self):
         info=SimpleNamespace(vendor=0x054c)

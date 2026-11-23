@@ -1,15 +1,15 @@
-# Dosplex architecture
+# DosPlex architecture
 
-Dosplex lets two people play on one screen, each signed in to their own Steam account. This page says how it
+DosPlex lets two people play on one screen, each signed in to their own Steam account. This page says how it
 is put together. [Session states](session-states.md) and [the limitations page](limitations.md) have the detail.
 
 ## On top of SteamOS
 
 SteamOS's own display layer keeps driving the screen: its Gamescope in Gaming mode, or the desktop in Desktop
-mode. Dosplex runs on top of it as one full-screen compositor. Both players' Steam clients and games run under
-Dosplex, one per screen region, and Dosplex draws its menu over both.
+mode. DosPlex runs on top of it as one full-screen compositor. Both players' Steam clients and games run under
+DosPlex, one per screen region, and DosPlex draws its menu over both.
 
-While Dosplex runs, the normal single-user Steam is paused. It returns when Dosplex stops. Dosplex does not
+While DosPlex runs, the normal single-user Steam is paused. It returns when DosPlex stops. DosPlex does not
 replace the SteamOS login screen and does not start at boot: a restart of the machine brings back plain SteamOS.
 
 ## The parts
@@ -25,8 +25,8 @@ replace the SteamOS login screen and does not start at boot: a restart of the ma
   of them. The Devices page of the menu moves a controller from one side to the other.
 - **Sound.** Each side has its own audio endpoint. The menu chooses where each side's sound goes.
 - **The `dosplex` program.** It runs as root (`tools/dosplex`). It installs a signed release, starts and stops
-  Dosplex, reports its status, updates, rolls back and uninstalls. It journals the changes it makes to the
-  running system and undoes them when Dosplex stops.
+  DosPlex, reports its status, updates, rolls back and uninstalls. It journals the changes it makes to the
+  running system and undoes them when DosPlex stops.
   [The release process](release-process.md) describes what a release is and how it is verified.
 
 ## Isolation target
@@ -46,7 +46,7 @@ host:
 This is enough to feel like two independent machines in ordinary use. It is not a security boundary against a
 player who sets out to cross it; [the limitations page](limitations.md) says exactly what is open.
 
-## What Dosplex is not
+## What DosPlex is not
 
 - a custom Linux kernel
 - a new graphics protocol

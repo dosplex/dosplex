@@ -41,7 +41,7 @@ def wait_audio_socket(path, timeout=15):
                 return 'unix:' + str(path)
             except (OSError, TimeoutError):
                 if time.monotonic() >= deadline:
-                    raise RuntimeError('Enrolled Dosplex audio socket is not ready')
+                    raise RuntimeError('Enrolled DosPlex audio socket is not ready')
         time.sleep(.05)
 
 
@@ -105,7 +105,7 @@ def wait_guest_audio(directory, router, side, timeout=60):
 # cannot work inside the user namespace ("pkexec must be setuid root", exit 127).
 GUEST_SYSTEM_HELPERS = {
     'steamos-update': (
-        'echo "No update available: SteamOS updates are managed by Main outside Dosplex." >&2\n'
+        'echo "No update available: SteamOS updates are managed by Main outside DosPlex." >&2\n'
         'exit 7  # steamos-update: no update available\n'),
     'steamos-set-timezone': (
         'echo "Timezone is shared by both players and managed by Main; keeping the system timezone." >&2\n'
@@ -131,7 +131,7 @@ def guest_system_helper_binds(runtime, host_helpers=HOST_HELPERS):
         # example after Reset) must not block a restart.
         temporary = directory / (name + '.new')
         temporary.unlink(missing_ok=True)
-        temporary.write_text('#!/bin/sh\n# Dosplex Guest stand-in for ' + str(target) + '\n' + body)
+        temporary.write_text('#!/bin/sh\n# DosPlex Guest stand-in for ' + str(target) + '\n' + body)
         temporary.chmod(0o500)
         os.replace(temporary, shim)
         binds += ['--ro-bind', str(shim), str(target)]
@@ -160,13 +160,13 @@ def own_media_binds(user, uid, root=MEDIA_ROOT, root_uid=0):
     except FileNotFoundError:
         return []
     except OSError as error:
-        print(f'Dosplex: {folder} stays read-only in this side: {error}', file=sys.stderr, flush=True)
+        print(f'DosPlex: {folder} stays read-only in this side: {error}', file=sys.stderr, flush=True)
         return []
     shared = stat.S_IWGRP | stat.S_IWOTH  # write for group or other
     usual = (stat.S_ISDIR(base.st_mode) and base.st_uid == root_uid and not base.st_mode & shared and
              stat.S_ISDIR(own.st_mode) and own.st_uid in (root_uid, uid) and not own.st_mode & shared)
     if not usual or not os.access(folder, os.R_OK | os.X_OK):
-        print(f'Dosplex: {folder} stays read-only in this side: not a folder that only root or its user may change, '
+        print(f'DosPlex: {folder} stays read-only in this side: not a folder that only root or its user may change, '
               'or its user cannot enter it', file=sys.stderr, flush=True)
         return []
     # --bind-try: a folder that goes away before bwrap binds it must not stop the side from starting.

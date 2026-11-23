@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
-"""Watch Steam Deck hardware controls and toggle the Dosplex overlay.
+"""Watch Steam Deck hardware controls and toggle the DosPlex overlay.
 
 The Steam Deck exposes the hardware buttons through more than one input path.
 The controller event node carries BTN_MODE and BTN_TRIGGER_HAPPY* buttons, while
 SteamOS also exposes a small steamos-manager keyboard-like node for system
-shortcuts. Dosplex watches both paths. The manager node is grabbed and re-emitted
-so the Dosplex chord can be swallowed before Steam opens its own menu.
+shortcuts. DosPlex watches both paths. The manager node is grabbed and re-emitted
+so the DosPlex chord can be swallowed before Steam opens its own menu.
 
 The Deck's own controls are Main's: the chord opens Main's overlay (taking Guest's when that is the one that is
 open) and closes it again; it never opens the overlay of the side that had it last.
@@ -171,7 +171,7 @@ def matching_devices(qam_codes: set[int], manager_codes: set[int]) -> list[Input
             devices.append(dev)
             continue
         # Do not watch external gamepads just because they expose BTN_MODE.
-        # The gamepad arbiter owns those devices, and the Dosplex overlay
+        # The gamepad arbiter owns those devices, and the DosPlex overlay
         # shortcut is only intended for Deck hardware/steamos-manager paths.
     return devices
 
@@ -184,7 +184,7 @@ def should_grab(dev: InputDevice, args: argparse.Namespace) -> bool:
 
 def make_passthrough(dev: InputDevice) -> UInput | None:
     try:
-        return UInput.from_device(dev, name=f"Dosplex passthrough {dev.name or Path(dev.path).name}")
+        return UInput.from_device(dev, name=f"DosPlex passthrough {dev.name or Path(dev.path).name}")
     except Exception as exc:
         LOG.warning("Cannot create passthrough device for %s (%s): %s", dev.name, dev.path, exc)
         return None
@@ -249,7 +249,7 @@ async def main_async(args: argparse.Namespace) -> int:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Toggle Dosplex overlay from Steam Deck hardware controls")
+    parser = argparse.ArgumentParser(description="Toggle DosPlex overlay from Steam Deck hardware controls")
     parser.add_argument("--ipc-socket", default=os.environ.get("DOSPLEX_HUD_IPC_SOCK", DEFAULT_HUD_IPC_SOCK))
     parser.add_argument("--state-path", default=os.environ.get("DOSPLEX_STATE_PATH", DEFAULT_STATE_PATH))
     parser.add_argument(
@@ -260,13 +260,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--manager-trigger-codes",
         default=os.environ.get("DOSPLEX_DECK_MANAGER_TRIGGER_CODES"),
-        help="Comma-separated steamos-manager evdev names or integers that toggle Dosplex and are swallowed",
+        help="Comma-separated steamos-manager evdev names or integers that toggle DosPlex and are swallowed",
     )
     parser.add_argument(
         "--grab-manager",
         action=argparse.BooleanOptionalAction,
         default=os.environ.get("DOSPLEX_DECK_GRAB_MANAGER", "1") != "0",
-        help="Grab/re-emit the steamos-manager shortcut device so Dosplex overlay triggers do not reach Steam",
+        help="Grab/re-emit the steamos-manager shortcut device so DosPlex overlay triggers do not reach Steam",
     )
     parser.add_argument("--verbose", action="store_true")
     return parser.parse_args()

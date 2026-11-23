@@ -1,6 +1,6 @@
 # Release payload build
 
-One command builds the Dosplex release payload from a commit,
+One command builds the DosPlex release payload from a commit,
 in a container that holds the SteamOS 3.8 library set, with no network access once the image exists:
 
 ```bash
@@ -287,8 +287,8 @@ keeps that path, with `/usr` read through `/run/host`), and points `VK_IMPLICIT_
 numbers follow `XDG_DATA_DIRS`, but `readdir` order on ext4 follows the hash of the name, not the number or the order of
 writing. Measured (loader 1.3.275, lavapipe, ext4): the two manifests 07 and 11 come back
 07 first whichever is written first; with the same name and a library of 07 that does not exist, no Gamescope layer is
-loaded at all; with the Dosplex name, `DISABLE_GAMESCOPE_WSI=1` and both libraries present, only the bundled layer is
-inserted, whichever is written first; with the Dosplex name and without `DISABLE_GAMESCOPE_WSI=1` both layers are
+loaded at all; with the DosPlex name, `DISABLE_GAMESCOPE_WSI=1` and both libraries present, only the bundled layer is
+inserted, whichever is written first; with the DosPlex name and without `DISABLE_GAMESCOPE_WSI=1` both layers are
 inserted and the process crashes (SIGSEGV), so the switch is required.
 
 That order explains a symptom seen on a Deck: a game in the soldier container mapped the host's layer from
@@ -301,7 +301,7 @@ the order does not matter.
 
 **Launcher.** `guest/dosplex-user-side-session.sh` is part of a bundle when it lives in a directory called `libexec`
 (`/opt/dosplex/releases/<name>/libexec`); the bundle is the directory above. When the bundle has both layers, each with
-its manifest, and each manifest carries the Dosplex name and switch (and not `"DISABLE_GAMESCOPE_WSI"`), the launcher
+its manifest, and each manifest carries the DosPlex name and switch (and not `"DISABLE_GAMESCOPE_WSI"`), the launcher
 exports, for the Steam payload (Game mode):
 
 - `XDG_DATA_DIRS=<bundle>/share:<old XDG_DATA_DIRS>` (the old value, or `/usr/local/share:/usr/share` when it is unset
@@ -329,8 +329,8 @@ exports, for the Steam payload (Game mode):
 The launch log says `vulkan_layer=bundled (<x86_64 manifest>)`, then `PRESSURE_VESSEL_FILESYSTEMS_RO=...` and
 `DISABLE_GAMESCOPE_WSI=1`. Outside a bundle (a checkout, an older install) the log says
 `vulkan_layer=host (no bundled layer next to this launcher)`; in a bundle without one of the four files it says
-`vulkan_layer=host (the bundle has no <path>)`; with a manifest that is not the Dosplex layer, or that still answers to
-`DISABLE_GAMESCOPE_WSI`, it says `vulkan_layer=host (the bundled manifest <path> is not the Dosplex layer <name>)`. In
+`vulkan_layer=host (the bundle has no <path>)`; with a manifest that is not the DosPlex layer, or that still answers to
+`DISABLE_GAMESCOPE_WSI`, it says `vulkan_layer=host (the bundled manifest <path> is not the DosPlex layer <name>)`. In
 each of these cases nothing changes: turning off the host's layer then could leave a game with none.
 
 Should a container not show the bundle's library after all (pressure-vessel's export of it is its own behavior, which

@@ -132,7 +132,7 @@ class TrustedTests(unittest.TestCase):
             self.assertIsNotNone(start_service.trusted('/x', 'program'))
 
     def test_a_config_that_group_or_others_can_write_is_refused(self):
-        # Whoever can write the config chooses which account may start Dosplex as root.
+        # Whoever can write the config chooses which account may start DosPlex as root.
         mode = stat.S_IFREG | 0o644
         with unittest.mock.patch('os.lstat', return_value=self.lstat_result(mode, 0)):
             self.assertIsNone(start_service.trusted('/x', 'file'))
@@ -433,7 +433,7 @@ class ClientTests(unittest.TestCase):
 
     def test_refused(self):
         answer = json.dumps({'api': 1, 'ok': False, 'code': 'refused',
-                             'message': "Only the main player's account can start Dosplex.", 'data': {}})
+                             'message': "Only the main player's account can start DosPlex.", 'data': {}})
         thread = threading.Thread(target=self.respond, args=(answer,), daemon=True)
         thread.start()
         proc = self.run_client(self.sock)
@@ -461,7 +461,7 @@ class ClientTests(unittest.TestCase):
         proc = self.run_client(self.sock)
         thread.join()
         self.assertEqual(proc.returncode, 0)
-        self.assertEqual(proc.stdout.strip(), 'Dosplex is starting. The screen changes in a moment.')
+        self.assertEqual(proc.stdout.strip(), 'DosPlex is starting. The screen changes in a moment.')
 
     def test_a_service_that_hangs_up_is_a_sentence_and_not_a_traceback(self):
         def hang_up():

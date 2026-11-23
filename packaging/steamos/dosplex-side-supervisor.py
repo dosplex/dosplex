@@ -71,7 +71,7 @@ def desktop_environment():
 
 def say(message):
     try:
-        print('Dosplex supervisor: ' + message, flush=True)
+        print('DosPlex supervisor: ' + message, flush=True)
     except (OSError, ValueError):
         pass   # a journal that cannot be written to must not stop the supervisor
 
@@ -208,7 +208,7 @@ def release_game_library(owner, store=None, module=None):
 
     With a permanent store (a config in mode on) the overlays stay mounted: the stock session needs them, and the
     store's slot is what unmounts them. This is said once at most. Without a config, or when the config is broken
-    (said, then the old way), nothing mounts the overlays at boot, and the account's Steam also runs without Dosplex:
+    (said, then the old way), nothing mounts the overlays at boot, and the account's Steam also runs without DosPlex:
     the overlays are unmounted, and the manifests of the shared games (and the whiteouts for them) are moved out of its
     real libraries into the store's stash, so that Steam does not find games it cannot see. The next start puts them back.
     Whatever the account's Steam and games wrote stays in its libraries.
@@ -375,13 +375,13 @@ def side_state_root():
 # Steam's "Steam Controller detected!" tour (T-504). It is a per-account Steam setting, ShowIbexWelcomeTour in
 # userdata/<account>/7/remote/sharedconfig.vdf: "0" switches it off and anything else, a missing key included,
 # leaves it on. Inside a side the tour cannot be finished (Steam's firmware check fails there), so it returns at
-# every Steam start and controller wake and takes the input focus from games and installers. Dosplex reads the
+# every Steam start and controller wake and takes the input focus from games and installers. DosPlex reads the
 # setting and says so; it never writes Steam's files.
 TOUR_KEY = 'showibexwelcometour'
 TOUR_MAX_ACCOUNTS = 64
 TOUR_MAX_BYTES = 16 * 1024 * 1024
 TOUR_TOKEN = re.compile(r'"((?:[^"\\]|\\.)*)"|([{}])|//[^\n]*|\s+|(.)', re.DOTALL)
-TOUR_NOTICE = ('Steam shows "Steam Controller detected!" for this account and it cannot finish inside Dosplex. '
+TOUR_NOTICE = ('Steam shows "Steam Controller detected!" for this account and it cannot finish inside DosPlex. '
                'Switch it off in this side\'s Steam: Settings > Developer > Show Steam Controller Tour '
                '(Developer appears after Settings > System > Enable Developer Mode). Or close Steam and set '
                '"ShowIbexWelcomeTour" "0" in userdata/<account>/7/remote/sharedconfig.vdf.')
@@ -962,10 +962,10 @@ def supervise(side, owner, directory, state_path, host_socket, root, stop_event,
             # The policy is a compatibility improvement. Fail closed on its
             # registry edits, but keep Steam available and make the issue
             # visible in this side's systemd journal.
-            log_once(f'Dosplex Wine mode-list policy skipped for {side}: {error}')
+            log_once(f'DosPlex Wine mode-list policy skipped for {side}: {error}')
             return None
         if result.get('error') or result.get('results'):
-            log_once('Dosplex Wine mode-list policy: ' + json.dumps({
+            log_once('DosPlex Wine mode-list policy: ' + json.dumps({
                 'side': side, 'owner': owner, **result}, sort_keys=True))
         if announce and any(value in ('applied', 'recovered-applied')
                             for value in result.get('results', {}).values()):

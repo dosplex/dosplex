@@ -42,6 +42,6 @@ jobs:
           lock-pullrequest-aftermerge: false
           custom-notsigned-prcomment: >-
             Thank you for your contribution. Before it can be merged, please read the
-            [Dosplex Contributor License Agreement](https://github.com/dosplex/dosplex/blob/main/CLA.md).
+            [DosPlex Contributor License Agreement](https://github.com/dosplex/dosplex/blob/main/CLA.md).
             You keep your copyright. To sign, post the comment below in this pull request.
-          custom-allsigned-prcomment: All contributors have signed the Dosplex Contributor License Agreement.
+          custom-allsigned-prcomment: All contributors have signed the DosPlex Contributor License Agreement.

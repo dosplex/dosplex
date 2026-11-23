@@ -2,7 +2,7 @@
 # dosplex-test: tier=unit timeout=300
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
-"""The power helper closes both sides and stops Dosplex before it restarts or shuts down.
+"""The power helper closes both sides and stops DosPlex before it restarts or shuts down.
 
 packaging/steamos/dosplex-power-action runs as it would inside a retained trial (its own copy in
 <trial>/bundle/libexec), with stand-ins for systemd-run, systemctl, nsenter, runuser, steam, the side
@@ -243,7 +243,7 @@ class PowerActionTests(unittest.TestCase):
         self.assertIn('trial recover --root %s' % self.trial, self.recorded())
 
     def test_turn_off_dosplex_closes_both_sides_and_stops_dosplex_and_runs_no_power_command(self):
-        # "Turn off Dosplex" on Main's Session page: the same orderly close as Restart, then nothing: the machine
+        # "Turn off DosPlex" on Main's Session page: the same orderly close as Restart, then nothing: the machine
         # stays on with the stock Steam. No systemctl reboot, poweroff or suspend may follow.
         result = self.run_helper('stop')
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -343,7 +343,7 @@ class PowerActionTests(unittest.TestCase):
         # The compositor still runs then, reaps the helper's failure, takes its progress panel down and says so.
         result = self.run_helper('stop', '--recovery-wait', '1', RECOVERY_BUSY='1')
         self.assertEqual(result.returncode, 1, result.stderr)
-        self.assertIn('stop: Dosplex did not stop', result.stderr)
+        self.assertIn('stop: DosPlex did not stop', result.stderr)
         self.assertFalse([line for line in self.recorded() if line.startswith('systemctl ')], self.recorded())
 
     def test_turn_off_dosplex_needs_no_power_command(self):
@@ -417,7 +417,7 @@ class PowerActionTests(unittest.TestCase):
         names = self.steps()
         self.assertEqual(names[0], 'systemd-run')
         # Both sides are asked first (neither has quit yet when the second is asked), each side's supervisor
-        # only after its own Steam is gone, and Dosplex and the action after both.
+        # only after its own Steam is gone, and DosPlex and the action after both.
         self.assertCountEqual(names[1:3], ['quit right', 'quit left'])
         self.assertCountEqual(names[3:5], ['request-stop right', 'request-stop left'])
         self.assertEqual(names[5:], ['dosplex stop', 'systemctl reboot'])
@@ -701,7 +701,7 @@ class PowerActionTests(unittest.TestCase):
         self.assertEqual(self.steps(), ['power-command suspend'])
 
     def dry_run_in_the_trial(self, action):
-        # The trial's command lives in <trial>/control, and stopping Dosplex removes the whole trial. A dry
+        # The trial's command lives in <trial>/control, and stopping DosPlex removes the whole trial. A dry
         # run of Restart or Shut down must still end in the stand-in, never in the real systemctl.
         command = self.trial / 'control/power-command'
         write(command, RECORDER)

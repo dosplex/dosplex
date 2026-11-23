@@ -131,8 +131,11 @@ def steam(root, side):
         if st.st_uid or st.st_mode&0o022 or stat.S_ISLNK(st.st_mode):
             raise PermissionError('untrusted native delivery metadata')
     session=json.loads(session_path.read_text());uid=d.output_owner(tx,side,session)
-    unit=session['unit']
-    if not re.fullmatch('dosplex-session-'+side+r'-[a-f0-9]{32}\.service',unit):
+    # A side whose session has not been started yet (the first seconds of a start, Guest's a little after Main's) has
+    # no unit: the controller waits for it, and the row must not say a bare 'unit'.
+    unit=session.get('unit') if isinstance(session,dict) else None
+    if not unit:raise RuntimeError("the side's session has not started yet")
+    if not isinstance(unit,str) or not re.fullmatch('dosplex-session-'+side+r'-[a-f0-9]{32}\.service',unit):
         raise ValueError('invalid native delivery unit')
     # This runs on the routing thread, which also keeps every other controller's rows fresh: it must not wait for a stuck systemd.
     try:values=subprocess.check_output(['systemctl','show',unit,'-p','ActiveState','-p','BindsTo'],text=True,timeout=3)
@@ -268,7 +271,7 @@ def serve_numbered(root, side, process, pid, identity, relay, pinned):
     The change is journaled before it is made, as pending, and logged as soon as it has been made, with what the node was and
     what it is by then: the account owns the node from the chown on and can change its mode at once, so the check of the result
     can fail, and a router that stops half way leaves no more than the journal. The entry becomes final when the result is
-    right: when this pass sees it through, or a later one finds the node as it should be. What the node was before Dosplex first
+    right: when this pass sees it through, or a later one finds the node as it should be. What the node was before DosPlex first
     changed it stays what the entry says, however many passes it takes.
 
     True if this pass made the node usable (it changed it, or it made an entry final that an earlier pass had left pending),

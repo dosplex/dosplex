@@ -6,7 +6,7 @@
 Steam keeps the setting in userdata/<account>/config/localconfig.vdf, UserLocalConfigStore > Gamescope >
 GameResolutionGlobal. Until a player chooses, it is absent or "Default", which Steam shows as "Recommended" and
 which gives every game 1280x720 or 1920x1080 whatever the side's size. In a side, Native is the side's own size
-(the game monitor that Dosplex's picture size sets), the size games had before Steam's resolution settings worked in
+(the game monitor that DosPlex's picture size sets), the size games had before Steam's resolution settings worked in
 a side: Quake saved its mode at that size, got 1920x1080 in a 1920x2160 half and quit while setting up its display
 (Steam Machine, 2026-11-18).
 
@@ -88,12 +88,12 @@ def client_setting(steam, markers):
         changed = apply_external(text)
         if changed is not None:
             rewrite(config, changed)
-            print('Dosplex: Steam: Enable Native Resolution on External Displays is switched on', file=sys.stderr)
+            print('DosPlex: Steam: Enable Native Resolution on External Displays is switched on', file=sys.stderr)
         elif EXTERNAL_KEY not in text:
             return      # (a file it does not understand: left alone, and looked at again next time)
         marker.write_text('1\n')
     except (OSError, UnicodeError) as error:
-        print('Dosplex: Steam: native resolution on external displays not set: %s' % error, file=sys.stderr)
+        print('DosPlex: Steam: native resolution on external displays not set: %s' % error, file=sys.stderr)
 
 
 def main(argv):
@@ -119,10 +119,10 @@ def main(argv):
             changed = apply(text)
             if changed is not None:
                 rewrite(config, changed)
-                print('Dosplex: Steam account %s: Maximum Game Resolution starts at Native' % account.name, file=sys.stderr)
+                print('DosPlex: Steam account %s: Maximum Game Resolution starts at Native' % account.name, file=sys.stderr)
             marker.write_text('1\n')
         except (OSError, UnicodeError) as error:
-            print('Dosplex: Steam account %s: resolution default not set: %s' % (account.name, error), file=sys.stderr)
+            print('DosPlex: Steam account %s: resolution default not set: %s' % (account.name, error), file=sys.stderr)
     return 0
 
 

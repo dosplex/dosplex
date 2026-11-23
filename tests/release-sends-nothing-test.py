@@ -47,6 +47,8 @@ KNOWN = {
     ('packaging/steamos/dosplex-panel-launch.py', 'https://'): (INTERNET, 'the address that sender would use'),
     ('packaging/steamos/panel/Help.qml', 'XMLHttpRequest'):
         (LOCAL, 'Help reads a chapter of the manual from the release\'s own folder, as file://'),
+    ('packaging/steamos/icons/dosplex.svg', 'http://'):
+        (NOTHING, 'the XML namespace name of the SVG image; nothing fetches it'),
     ('packaging/steamos/session/native-pads.py', 'http://'):
         (NOTHING, 'the DTD name inside a D-Bus policy file the program writes; nothing fetches it'),
     ('packaging/steamos/session/retained-audio-trial.py', 'TCP:'):

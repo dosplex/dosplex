@@ -298,7 +298,7 @@ def main():
         if layer.get('library_path') != library:
             raise SystemExit('%s: library_path is %r, expected %r' % (facts['template'], layer.get('library_path'),
                                                                       library))
-        # A name and an off switch of Dosplex's own (sources.json "layer_name", "disable_variable"), so that the
+        # A name and an off switch of DosPlex's own (sources.json "layer_name", "disable_variable"), so that the
         # side launcher can turn off the layer of the installed Gamescope without turning off this one (README.md,
         # "Launcher"). Each is the one JSON string of the template that it replaces, so the text keeps its form.
         replacements = []

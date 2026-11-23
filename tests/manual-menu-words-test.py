@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
 """The manual and the menu agree: every word the manual prints in bold that names a button or a page of
-Dosplex's on-screen menu is a word the program really shows.
+DosPlex's on-screen menu is a word the program really shows.
 
 The manual (docs/manual/[0-9]*.md) names the menu's buttons and pages in bold, for example **Session** or
 **Reset my side**. The words the menu really shows are string literals of compositor/dosplex-compositor.c
@@ -31,7 +31,7 @@ PANEL = ROOT / 'packaging' / 'steamos' / 'panel'
 AUDIO_ROUTER = ROOT / 'packaging' / 'steamos' / 'dosplex-audio-router.py'
 MANUAL = ROOT / 'docs' / 'manual'
 
-# A string the manual prints in bold that is not a word of Dosplex's menu. The reason is one of
+# A string the manual prints in bold that is not a word of DosPlex's menu. The reason is one of
 # 'steam', 'button', 'emphasis', nothing else. 'steam': a word of Steam's or SteamOS's own interface,
 # such as Power or Switch to Desktop. 'button': a controller or keyboard key. 'emphasis': a sentence
 # opener in bold that names no button.
@@ -45,6 +45,7 @@ NOT_DOSPLEX = {
     'Enter': 'steam',
     'Escape': 'steam',
     'Games': 'steam',
+    'Library': 'steam',
     'Menu': 'steam',
     'Non-Steam': 'steam',
     'Play': 'steam',
@@ -74,7 +75,7 @@ NOT_DOSPLEX = {
     'The machine does not go to sleep by itself while two players are on the screen': 'emphasis',
     'Your machine': 'emphasis',
     'Whether it happens again': 'emphasis',
-    'A controller that connects first belongs to Main': 'emphasis',
+    "The first controller is Main's, the next is the second player's": 'emphasis',
     'A controller that does not answer': 'emphasis',
     'A game that does not start': 'emphasis',
     'A game that quits right after it starts in a split': 'emphasis',
@@ -86,7 +87,7 @@ NOT_DOSPLEX = {
     'A game that was already running may not see a newly claimed controller': 'emphasis',
     'A microphone you claim is not kept': 'emphasis',
     "A program can draw over the other player's part of the screen": 'emphasis',
-    "Dosplex does not start from Steam's library": 'emphasis',
+    "DosPlex does not start from Steam's library": 'emphasis',
     'Flatpak apps are there too': 'emphasis',
     "Guest's own Steam shows one output and one microphone": 'emphasis',
     'It starts only when you start it': 'emphasis',
@@ -234,9 +235,9 @@ class ManualMenuWordsTest(unittest.TestCase):
     # --- the collector and rule 2, on made-up text -----------------------------------------------------------
 
     def test_collector_strips_trailing_colon_and_dot(self):
-        text = 'choose **Session.** and then **Turn off Dosplex:** to stop.\n'
+        text = 'choose **Session.** and then **Turn off DosPlex:** to stop.\n'
         phrases = [(m.group(1).rstrip(':.'), 1) for m in BOLD.finditer(text)]
-        self.assertEqual(phrases, [('Session', 1), ('Turn off Dosplex', 1)])
+        self.assertEqual(phrases, [('Session', 1), ('Turn off DosPlex', 1)])
 
     def test_collector_skips_fenced_code_blocks(self):
         text = '```bash\n**Not bold in code**\n```\nand **bold in text**\n'
@@ -259,7 +260,7 @@ class ManualMenuWordsTest(unittest.TestCase):
         self.assertEqual(phrases, [('Main', 1), ('Main', 1), ('Guest', 2)])
 
     def test_rule_2_equal(self):
-        self.assertTrue(in_program('Session', {'Session', 'Turn off Dosplex'}))
+        self.assertTrue(in_program('Session', {'Session', 'Turn off DosPlex'}))
 
     def test_rule_2_prefix_with_space(self):
         self.assertTrue(in_program('Full mix', {'Full mix…', 'Full mix — all sound'}))

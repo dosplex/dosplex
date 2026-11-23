@@ -13,7 +13,7 @@ fi
 
 home_dir="${HOME}"
 
-# Dosplex was called DuplOS until October 2026. The first launch under the new name moves what the old name left in
+# DosPlex was called DuplOS until October 2026. The first launch under the new name moves what the old name left in
 # this account: the desktop profile (~/.local/share/duplos -> ~/.local/share/dosplex, with the desktop-scale
 # preference and the profile's configuration) and the workspace (~/DuplOS -> ~/Dosplex). A directory moves only
 # when the new name is free: nothing is merged and nothing is overwritten, a symlink is never followed, and a
@@ -25,11 +25,11 @@ migrate_legacy_user_data() {
     new="$home_dir/${pair##*:}"
     [[ -d "$old" && ! -L "$old" && -O "$old" ]] || continue
     if [[ -e "$new" || -L "$new" ]]; then
-      echo "Dosplex: left $old where it is, because $new exists already" >&2
+      echo "DosPlex: left $old where it is, because $new exists already" >&2
     elif mv -- "$old" "$new"; then
-      echo "Dosplex: moved $old to $new" >&2
+      echo "DosPlex: moved $old to $new" >&2
     else
-      echo "Dosplex: could not move $old to $new" >&2
+      echo "DosPlex: could not move $old to $new" >&2
     fi
   done
   return 0
@@ -66,14 +66,14 @@ if [[ "${DOSPLEX_SESSION_RUNTIME:-0}" == "1" ]]; then
     [[ -f "$XDG_RUNTIME_DIR/dosplex-manager.ready" ]] || exit 1
 fi
 
-# Main talks to the shared Dosplex PipeWire server. Guest never does: it gets its
+# Main talks to the shared DosPlex PipeWire server. Guest never does: it gets its
 # own restricted endpoint (one output, one microphone) as a Unix socket, and
 # without one it has no audio rather than the shared server.
 if [[ "${DOSPLEX_SIDE_ROLE:-primary}" == "guest" ]]; then
     unset PULSE_SERVER
     case "${DOSPLEX_GUEST_AUDIO_SERVER:-}" in
         unix:/*) export PULSE_SERVER="$DOSPLEX_GUEST_AUDIO_SERVER" ;;
-        *) echo "Dosplex: no Guest audio endpoint (DOSPLEX_GUEST_AUDIO_SERVER); Guest has no audio" >&2 ;;
+        *) echo "DosPlex: no Guest audio endpoint (DOSPLEX_GUEST_AUDIO_SERVER); Guest has no audio" >&2 ;;
     esac
     # Guest's endpoint calls its microphone after the bus, without ".monitor": a
     # name ending in ".monitor" is read as the monitor of a sink, i.e. Guest's own sound.
@@ -92,7 +92,7 @@ export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
 # Robust SteamOS / nested-gamescope environment.
 # The side supervisor creates a steamos-session-select shim.  Make sure the
 # deck user sees that shim before the real SteamOS tool; otherwise Steam may
-# try to control the host SteamOS session instead of staying inside Dosplex.
+# try to control the host SteamOS session instead of staying inside DosPlex.
 if [[ -n "${DOSPLEX_STEAMOS_SHIM_DIR:-}" && -d "${DOSPLEX_STEAMOS_SHIM_DIR}" ]]; then
     export PATH="${DOSPLEX_STEAMOS_SHIM_DIR}:$PATH"
 fi
@@ -116,7 +116,7 @@ export GAMESCOPE_WSI_XWAYLAND_WAIT=0
 # properties said so; with one server Steam left the game at the side's size).
 export STEAM_MULTIPLE_XWAYLANDS=1
 # Volume keys (a Steam Deck's own volume buttons, a keyboard's volume keys) are handled by Steam in SteamOS's own
-# session, and that Steam is paused while Dosplex runs. Each side's Steam handles them for the keyboard it has.
+# session, and that Steam is paused while DosPlex runs. Each side's Steam handles them for the keyboard it has.
 export STEAM_ENABLE_VOLUME_HANDLER=1
 
 # Suppress Gamescope WSI error dialogs to prevent blocking the game
@@ -176,7 +176,7 @@ vulkan_layer_source="host (no bundled layer next to this launcher)"
 #     redundant and harmless, and it stays: pressure-vessel already exports the library of a captured layer itself
 #     (bind_runtime_finish exports the targets of the symlinks it made in its overrides directory), so the bundle is
 #     visible in a soldier or sniper container without it.
-# Only when every bundled manifest has its library and is a Dosplex manifest; otherwise nothing is changed and games
+# Only when every bundled manifest has its library and is a DosPlex manifest; otherwise nothing is changed and games
 # keep the host's layers. A launcher outside a bundle changes nothing either. Game mode only (launch_steam_session);
 # launch_desktop_session says why.
 # The off switch reaches further than games: DISABLE_GAMESCOPE_WSI=1 is in every process under Steam. Flatpak passes it
@@ -233,10 +233,10 @@ use_bundled_vulkan_layer() {
     text=""
     IFS= read -r -d '' text < "$manifest" || true
     # DISABLE_GAMESCOPE_WSI=1 would turn off a layer that still answers to it, so a manifest that does (or that
-    # does not carry the Dosplex name) leaves everything as it is.
+    # does not carry the DosPlex name) leaves everything as it is.
     if [[ "$text" != *"\"$name\""* || "$text" != *'"DOSPLEX_DISABLE_GAMESCOPE_WSI"'* ||
           "$text" == *'"DISABLE_GAMESCOPE_WSI"'* ]]; then
-      vulkan_layer_source="host (the bundled manifest $manifest is not the Dosplex layer $name)"
+      vulkan_layer_source="host (the bundled manifest $manifest is not the DosPlex layer $name)"
       return 0
     fi
     first="${first:-$manifest}"
@@ -261,7 +261,7 @@ launch_xterm_terminal() {
   if [[ -z "${DISPLAY:-}" ]]; then
     return 1
   fi
-  local cmd=(xterm -fa Monospace -fs 14 -fg '#d7dde8' -bg '#0b1220' -fullscreen +maximized -xrm 'XTerm*scrollBar:false' -xrm 'XTerm*rightScrollBar:false' -xrm 'XTerm*toolBar:false' -xrm 'XTerm*internalBorder:0' -e bash -lc "cd '$workspace_root'; printf 'Dosplex ${side^^} ready for %s\n\n' '$owner'; printf 'Workspace: %s\n\n' '$workspace_root'; exec bash -l")
+  local cmd=(xterm -fa Monospace -fs 14 -fg '#d7dde8' -bg '#0b1220' -fullscreen +maximized -xrm 'XTerm*scrollBar:false' -xrm 'XTerm*rightScrollBar:false' -xrm 'XTerm*toolBar:false' -xrm 'XTerm*internalBorder:0' -e bash -lc "cd '$workspace_root'; printf 'DosPlex ${side^^} ready for %s\n\n' '$owner'; printf 'Workspace: %s\n\n' '$workspace_root'; exec bash -l")
   if [[ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]] && command -v dbus-run-session >/dev/null 2>&1; then
     exec dbus-run-session -- "${cmd[@]}"
   fi
@@ -293,18 +293,18 @@ prepare_perf_overlay() {
     return 1
   fi
   if ! command -v mangoapp >/dev/null 2>&1; then
-    echo "Dosplex: mangoapp is not installed; the Performance Overlay is unavailable in this side" >&2
+    echo "DosPlex: mangoapp is not installed; the Performance Overlay is unavailable in this side" >&2
     return 1
   fi
   if [[ -z "$runtime" || ! -d "$runtime" || ! -O "$runtime" ]]; then
-    echo "Dosplex: no runtime directory of this user; the Performance Overlay is unavailable in this side" >&2
+    echo "DosPlex: no runtime directory of this user; the Performance Overlay is unavailable in this side" >&2
     return 1
   fi
   perf_ipc_dir="$runtime/mangoapp-ipc"
   perf_orig_cwd="$PWD"
   if ! mkdir -p -m 700 "$perf_ipc_dir" || ! touch "$perf_ipc_dir/mangoapp" ||
       ! printf 'no_display' > "$runtime/mangohud.config"; then
-    echo "Dosplex: cannot prepare the Performance Overlay files in $runtime" >&2
+    echo "DosPlex: cannot prepare the Performance Overlay files in $runtime" >&2
     return 1
   fi
   export MANGOHUD_CONFIGFILE="$runtime/mangohud.config"
@@ -319,7 +319,7 @@ prepare_perf_overlay() {
         > "$runtime/mangoapp-bin/mangoapp" && chmod 700 "$runtime/mangoapp-bin/mangoapp" 2>/dev/null; then
     export PATH="$runtime/mangoapp-bin:$PATH"
   else
-    echo "Dosplex: the Performance Overlay starts without its X11 wrapper" >&2
+    echo "DosPlex: the Performance Overlay starts without its X11 wrapper" >&2
   fi
   # The values Valve's gamescope-session exports; Gamescope sets the same for Steam when they are not set.
   export STEAM_MANGOAPP_PRESETS_SUPPORTED=1 STEAM_USE_MANGOAPP=1 STEAM_DISABLE_MANGOAPP_ATOM_WORKAROUND=1
@@ -328,7 +328,7 @@ prepare_perf_overlay() {
   unset MANGOHUD_CONFIG
   if [[ -f "$perf_dir/enabled" ]]; then
     if [[ "$perf_dir" == *,* || "$perf_dir" == *$'\n'* ]] || ! mkdir -p -m 700 "$perf_dir"; then
-      echo "Dosplex: performance logging is on but $perf_dir cannot be used; not logging" >&2
+      echo "DosPlex: performance logging is on but $perf_dir cannot be used; not logging" >&2
     else
       export MANGOHUD_CONFIG="read_cfg,output_folder=$perf_dir,autostart_log=1,log_interval=100"
     fi
@@ -365,7 +365,7 @@ launch_steam_session() {
       # Main manages the device as on stock SteamOS: Steam may eject a card and adopt a new one as a library.
       primary) export STEAM_ALLOW_DRIVE_UNMOUNT=1 STEAM_ALLOW_DRIVE_ADOPT=1 ;;
       guest) ;;
-      *) echo "Invalid Dosplex side role" >&2; return 2 ;;
+      *) echo "Invalid DosPlex side role" >&2; return 2 ;;
     esac
     if command -v gamescope >/dev/null 2>&1; then
       local output_width="${DOSPLEX_OUTPUT_WIDTH:-1280}"
@@ -376,13 +376,13 @@ launch_steam_session() {
       local dimension
       for dimension in "$output_width" "$output_height" "$game_width" "$game_height"; do
         if [[ ! "$dimension" =~ ^[1-9][0-9]{0,4}$ ]] || ((10#$dimension > 16384)); then
-          echo "Invalid Dosplex display dimension: $dimension" >&2
+          echo "Invalid DosPlex display dimension: $dimension" >&2
           return 2
         fi
       done
       case "$scaler" in
         fit|stretch|zoom) ;;
-        *) echo "Invalid Dosplex presentation mode: $scaler" >&2; return 2 ;;
+        *) echo "Invalid DosPlex presentation mode: $scaler" >&2; return 2 ;;
       esac
       # Zoom is the compositor's crop of the picture; Gamescope itself keeps its Fit scaler.
       if [[ "$scaler" == zoom ]]; then scaler=fit; fi
@@ -418,7 +418,7 @@ launch_steam_session() {
       if [[ -n "${DOSPLEX_SHIM_SCRIPT:-}" && -n "${DOSPLEX_SESSION_CONTROL:-}" && -n "${DOSPLEX_SESSION_INSTANCE:-}" ]]; then
         follower="$(dirname "$DOSPLEX_SHIM_SCRIPT")/dosplex-side-display-follower.py"
         if [[ ! -f "$follower" ]]; then
-          echo "Dosplex: display follower missing ($follower); live display changes will not be applied" >&2
+          echo "DosPlex: display follower missing ($follower); live display changes will not be applied" >&2
           follower=""
         fi
       fi
@@ -491,15 +491,15 @@ set_desktop_setting() {
 prepare_desktop_profile() {
   local desktop_root dir entry scale_answer
   desktop_helper="$(dirname "${DOSPLEX_SHIM_SCRIPT:?}")/dosplex-desktop-environment.py"
-  [[ -f "$desktop_helper" ]] || { echo "Dosplex: desktop helper missing ($desktop_helper)" >&2; return 1; }
+  [[ -f "$desktop_helper" ]] || { echo "DosPlex: desktop helper missing ($desktop_helper)" >&2; return 1; }
   desktop_root="${DOSPLEX_DESKTOP_CONFIG_ROOT:-$home_dir/.local/share/dosplex/desktop}"
   [[ "$desktop_root" == /* ]] || {
-    echo "Dosplex: the desktop configuration root must be an absolute path: $desktop_root" >&2; return 1;
+    echo "DosPlex: the desktop configuration root must be an absolute path: $desktop_root" >&2; return 1;
   }
   mkdir -p "$(dirname "$desktop_root")"
   mkdir -p -m 700 "$desktop_root" "$desktop_root/config" "$desktop_root/data"
   for dir in "$desktop_root" "$desktop_root/config" "$desktop_root/data"; do
-    [[ -d "$dir" && -O "$dir" ]] || { echo "Dosplex: $dir is not a directory of this user" >&2; return 1; }
+    [[ -d "$dir" && -O "$dir" ]] || { echo "DosPlex: $dir is not a directory of this user" >&2; return 1; }
     chmod 700 "$dir"
   done
   # Only the defaults are fresh at every launch: XDG_CONFIG_DIRS holds the desktop essentials and nothing else.
@@ -533,7 +533,7 @@ prepare_desktop_profile() {
   /usr/bin/python3 "$desktop_helper" osk-script "$XDG_DATA_HOME/kwin/scripts"
   set_desktop_setting "$XDG_CONFIG_HOME/kwinrc" Plugins dosplex-oskEnabled true
   /usr/bin/python3 "$desktop_helper" set-var "$XDG_CONFIG_HOME/user-dirs.dirs" XDG_DESKTOP_DIR "$XDG_DATA_HOME/Desktop"
-  # The entries below are Dosplex's own and written again at every launch. Their copies under the old name
+  # The entries below are DosPlex's own and written again at every launch. Their copies under the old name
   # (DuplOS) came along with the moved desktop profile; left in place, the old Steam autostart starts a second
   # Steam beside the new one and neither gets the side's controller.
   rm -f "$XDG_CONFIG_HOME/autostart/duplos-steam.desktop" "$XDG_DATA_HOME/applications/duplos-return.desktop" \
@@ -566,7 +566,7 @@ RETURN
     desktop_scale=1
     desktop_scale_reason="no usable answer from the scale helper"
   fi
-  # The KWin of this side takes its scale from the preferred scale the Dosplex compositor sends it, not from
+  # The KWin of this side takes its scale from the preferred scale the DosPlex compositor sends it, not from
   # --scale. The compositor learns the scale from the supervisor, so report it before KWin starts. A launch
   # without a supervisor (a manual run) has none to tell; the scale then stays at 1 in the compositor.
   desktop_scale_report="no supervisor control socket"
@@ -595,7 +595,7 @@ WRAPPER
 # the installation that holds the app. A login shell puts those folders on XDG_DATA_DIRS and on PATH (the profile
 # scripts flatpak.sh and flatpak-bindir.sh in /etc/profile.d), but a side starts from an empty environment and runs
 # neither, so its desktop would list no Flatpak app in the menu and start none from the command line. This does
-# what the two scripts do, written out because they are not Dosplex's to source.
+# what the two scripts do, written out because they are not DosPlex's to source.
 #   - The installations are the one of the user, which Flatpak looks for in $FLATPAK_USER_DIR or else in
 #     $XDG_DATA_HOME/flatpak, and every system installation that "flatpak --installations" prints. Without flatpak,
 #     or when it fails or prints no path, the system installation is the default one ($FLATPAK_SYSTEM_DIR or else
@@ -683,7 +683,7 @@ launch_desktop_session() {
   } >> "${DOSPLEX_LAUNCH_LOG:-${workspace_root}/launch.log}" 2>&1 || true
   # Without a user systemd manager, Plasma's legacy launcher does not receive
   # KWin's display environment. Both names are private to this fresh namespace;
-  # the KWin wrapper alone connects to the outer Dosplex socket.
+  # the KWin wrapper alone connects to the outer DosPlex socket.
   # bwrap gives the side a fresh /tmp. KWin's Xwayland socket allocator
   # requires this directory to exist before it starts.
   if [[ ! -e /tmp/.X11-unix ]]; then mkdir -m 1777 /tmp/.X11-unix; fi
@@ -722,10 +722,10 @@ case "$payload" in
     exit 1
     ;;
   *)
-    echo "Unsupported Dosplex session payload" >&2
+    echo "Unsupported DosPlex session payload" >&2
     exit 1
     ;;
 esac
 
-echo "Dosplex session launcher returned without starting its activity" >&2
+echo "DosPlex session launcher returned without starting its activity" >&2
 exit 1

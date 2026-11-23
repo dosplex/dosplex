@@ -3131,7 +3131,7 @@ class UnitTests(unittest.TestCase):
         self.assertEqual(decide('stretch', (1920, 1080), (3840, 2160)), 1)   # 2x / 2x
         self.assertEqual(decide('stretch', (1920, 1080), (3840, 1080)), 1)   # 2x / 1x
         self.assertEqual(decide('stretch', (1920, 1080), (3840, 1620)), 0)   # 2x / 1.5x
-        self.assertEqual(decide('zoom', (1920, 1080), (3840, 2160)), 0)      # Dosplex scales a Fit
+        self.assertEqual(decide('zoom', (1920, 1080), (3840, 2160)), 0)      # DosPlex scales a Fit
         self.assertEqual(decide('fit', (1920, 1080), (0, 0)), 0)             # no region known
         self.assertEqual(decide('stretch', (1920, 1080), (0, 2160)), 0)
 

@@ -8,9 +8,9 @@
 
 **A game that quits right after it starts in a split.** A game remembers the resolution you chose in its own video settings. If you last played it in Full screen, it may ask for that size again in a split, where your part of the screen is smaller, and some games then quit at once without a message. Choose **Full screen** on the Session page, start the game, set its own video settings to a window or to a smaller size, and quit it. It then starts in a split too.
 
-**A game that does not start.** Make sure Steam is not idle on your side. If Steam shows its screensaver, a newly started game can stay behind it. Press a button to wake Steam, or use **Reset my side**. Switch the TV on and close any running game before starting Dosplex.
+**A game that does not start.** Make sure Steam is not idle on your side. If Steam shows its screensaver, a newly started game can stay behind it. Press a button to wake Steam, or use **Reset my side**. Switch the TV on and close any running game before starting DosPlex.
 
-**Dosplex does not start from Steam's library.** A window says why. If nothing is shown, switch to Desktop mode and run `sudo /opt/dosplex/bin/dosplex start` in a terminal: it prints the reason. The usual ones are a TV that is off, and a SteamOS update that the installed release was not tested on (see the end of [Install](03-install.md)).
+**DosPlex does not start from Steam's library.** A window says why. If nothing is shown, switch to Desktop mode and run `sudo /opt/dosplex/bin/dosplex start` in a terminal: it prints the reason. The usual ones are a TV that is off, and a SteamOS update that the installed release was not tested on (see the end of [Install](03-install.md)).
 
 If a command stops because of a wrong hash, an untested version, or a missing display, it has changed nothing. If the power went out during an install, update, or uninstall, run `sudo /opt/dosplex/bin/dosplex repair` to complete or roll back the operation. An uninstall that stopped because Guest still had processes is finished by the same command, and Guest is kept.
 

@@ -2,7 +2,7 @@
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
 [Unit]
 ConditionPathExists=/etc/dosplex/remote-input.token
-Description=Dosplex Primary Input Bridge
+Description=DosPlex Primary Input Bridge
 After=dosplex-compositor.service network-online.target
 PartOf=dosplex-compositor.service
 Wants=network-online.target

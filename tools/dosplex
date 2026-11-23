@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
-"""dosplex: install, update, start, stop and remove Dosplex on stock SteamOS.
+"""dosplex: install, update, start, stop and remove DosPlex on stock SteamOS.
 
 Run it as root (sudo) on the device, from Desktop mode or over ssh:
 
@@ -11,8 +11,8 @@ Run it as root (sudo) on the device, from Desktop mode or over ssh:
     dosplex rollback                                                 back to the release before this one
     dosplex start [--layout single|vertical|horizontal] [--boot]     controllers are optional at start
     dosplex stop | status | repair | version | preflight
-    dosplex autostart on|off|status                                  start Dosplex at every boot (experimental; off after an install)
-    dosplex entry on|off|status                                      the "Dosplex" entry for Steam's library (on after an install)
+    dosplex autostart on|off|status                                  start DosPlex at every boot (experimental; off after an install)
+    dosplex entry on|off|status                                      the "DosPlex" entry for Steam's library (on after an install)
     dosplex control ACTION [ARGUMENT...]                             the versioned JSON interface for user interfaces
     dosplex library on|off|slot|release|arrive|eject|share|status    the shared game library (experimental)
     dosplex uninstall [--remove-guest]
@@ -36,7 +36,7 @@ What it does, and the rules it keeps (ADR-005, ADR-001):
     journal in reverse.
   * start and stop wrap the retained trial that runs today. They run as a transient system service
     (systemd-run), so an ssh logout cannot kill them. A reboot returns the device to stock SteamOS
-    unless `dosplex autostart on` wired one unit into boot; `dosplex start` brings Dosplex back.
+    unless `dosplex autostart on` wired one unit into boot; `dosplex start` brings DosPlex back.
   * Nothing is written under /usr, steamos-readonly and pacman are never run, no display-manager unit
     is touched, and no group is granted. These rules are enforced in code (see Env and check_command).
 
@@ -347,18 +347,34 @@ FORBIDDEN_COMMANDS = {
     'sudo': 'dosplex does not escalate itself', 'su': 'dosplex does not escalate itself',
 }
 # Run as the main user, never as root: writes or removes the one desktop entry in that user's own applications
-# folder. It refuses a link anywhere on the way, and removes the entry only when it still holds what dosplex wrote.
-# A folder it had to make is marked with an empty file, and goes again with the entry when nothing else is in it.
+# folder, and the same launcher on that user's desktop. Standard input is a JSON list of texts: the one to write,
+# then the others that are dosplex's own (an earlier release wrote them). It refuses a link anywhere on the way to
+# the entry, and removes a file only when it still holds one of those texts. The launcher is never written over a
+# file that is not dosplex's, and is skipped when ~/Desktop is not a folder. A folder the entry needed is marked
+# with an empty file, and goes again with the entry when nothing else is in it.
 USER_ENTRY_SCRIPT = '''
-import os,sys,tempfile
+import os,sys,json,tempfile
 from pathlib import Path
-home=Path(sys.argv[1]);action=sys.argv[2];data=sys.stdin.buffer.read()
+home=Path(sys.argv[1]);action=sys.argv[2];texts=[t.encode() for t in json.loads(sys.stdin.buffer.read())];data=texts[0]
+def put(folder,name,mode):
+ fd,tmp=tempfile.mkstemp(prefix='.dosplex-entry-',dir=folder)
+ try:
+  with os.fdopen(fd,'wb') as f:
+   os.fchmod(f.fileno(),mode);f.write(data);f.flush();os.fsync(f.fileno())
+  os.replace(tmp,folder/name)
+ finally:
+  if os.path.exists(tmp):os.unlink(tmp)
+desk=home/'Desktop';launcher=desk/'DosPlex.desktop'
+if desk.is_dir() and not desk.is_symlink() and not launcher.is_symlink():
+ mine=launcher.is_file() and launcher.read_bytes() in texts
+ if action=='remove' and mine:launcher.unlink()
+ if action!='remove' and (mine or not launcher.exists()):put(desk,launcher.name,0o755)
 folder=home/'.local/share/applications';entry=folder/'dosplex.desktop'
 for part in (home/'.local',home/'.local/share',folder,entry):
  if part.is_symlink():raise RuntimeError('%s is a link; leaving it alone'%part)
 made=folder/'.made-by-dosplex'
 if action=='remove':
- if entry.is_file() and entry.read_bytes()==data:entry.unlink()
+ if entry.is_file() and entry.read_bytes() in texts:entry.unlink()
  if made.is_file() and not made.is_symlink():
   made.unlink()
   try:folder.rmdir()
@@ -366,14 +382,22 @@ if action=='remove':
  sys.exit(0)
 if not folder.exists():
  folder.mkdir(parents=True);made.write_bytes(b'')
-fd,tmp=tempfile.mkstemp(prefix='.dosplex-entry-',dir=folder)
-try:
- with os.fdopen(fd,'wb') as f:
-  os.fchmod(f.fileno(),0o644);f.write(data);f.flush();os.fsync(f.fileno())
- os.replace(tmp,entry)
-finally:
- if os.path.exists(tmp):os.unlink(tmp)
+put(folder,entry.name,0o644)
 '''
+
+
+# Releases up to 0.1.0-alpha.5 spelled the name "Dosplex". What they put on a device (units, the udev rule, the
+# application entry) is still DosPlex's own: it is recognised as that, and replaced or removed like this release's.
+def earlier_name(text):
+    """`text` (str or bytes) as a release that spelled the name "Dosplex" wrote it."""
+    return text.replace(b'DosPlex', b'Dosplex') if isinstance(text, bytes) else text.replace('DosPlex', 'Dosplex')
+
+
+def written_by_dosplex(found, text):
+    """Whether `found`, read from a device, is `text` as this release or an earlier one wrote it."""
+    return found == text or found == earlier_name(text)
+
+
 ENTRY_SOCKET = 'dosplex-start.socket'
 ENTRY_SERVICE = 'dosplex-start.service'
 ALLOWED_COMMANDS = {'useradd', 'userdel', 'gpasswd', 'id', 'systemctl', 'systemd-run', 'steamosctl',
@@ -481,7 +505,7 @@ def check_command(env, argv, *, as_user=False):
 def _check_user_command(env, argv):
     exe, args = os.path.basename(argv[0]), argv[1:]
     if exe == STEAM_ADD_TOOL:
-        # Asked one thing: to put the "Dosplex" application entry of the main user into that user's Steam library.
+        # Asked one thing: to put the "DosPlex" application entry of the main user into that user's Steam library.
         entry = args[0] if len(args) == 1 else ''
         if (not entry or not os.path.isabs(entry) or os.path.normpath(entry) != entry
                 or not is_under(entry, env.sysroot) or not entry.endswith('/' + ENTRY_DESKTOP)):
@@ -1535,7 +1559,7 @@ BUILTIN_CONNECTOR_RE = re.compile(r'^card\d+-(eDP|LVDS|DSI)-\d+$')
 
 
 def output_target(env):
-    """Which screen Dosplex would use: an external display (the TV) when one is connected, otherwise the
+    """Which screen DosPlex would use: an external display (the TV) when one is connected, otherwise the
     device's built-in panel. Returns {'kind': 'external'|'builtin'|'none', 'connector': name or None,
     'native': [w, h] or None}. 'native' is the panel's preferred mode (first line of its modes file); a
     Steam Deck's panel is 800x1280 and the session shows it rotated, as 1280x800."""
@@ -1738,7 +1762,7 @@ def steamosctl(env, account, verb, *args, check=True):
 
 
 def gather_defaults(env, account):
-    """The session defaults to leave exactly as they are, and the mode Dosplex found the device in."""
+    """The session defaults to leave exactly as they are, and the mode DosPlex found the device in."""
     def default(verb):
         try:
             return steamosctl(env, account, verb)
@@ -1847,6 +1871,15 @@ class Report:
             lines.append('  [%-8s] %-14s %s' % (self.TAGS[check.status], check.name, check.detail))
         return '\n'.join(lines)
 
+    def short_text(self):
+        """The report as `install` prints it: one line for the checks that passed, then every other check in full."""
+        passed = sum(1 for c in self.checks if c.status == 'ok')
+        lines = ['Precheck: %d check%s passed.' % (passed, '' if passed == 1 else 's')]
+        for check in self.checks:
+            if check.status != 'ok':
+                lines.append('  [%-8s] %-14s %s' % (self.TAGS[check.status], check.name, check.detail))
+        return '\n'.join(lines)
+
     def as_json(self):
         return {'checks': [{'name': c.name, 'status': c.status, 'detail': c.detail} for c in self.checks],
                 'observed': self.observed,
@@ -1877,7 +1910,7 @@ def start_acceptance(report, state, allow_untested, unattended):
     for check in report.untested():
         key = {'os': 'steamos', 'gamescope': 'gamescope'}.get(check.name)
         if check.name == 'steam-client':
-            warnings.append('%s. Dosplex started anyway, because Steam updates itself; the tested set lists '
+            warnings.append('%s. DosPlex started anyway, because Steam updates itself; the tested set lists '
                             'the client versions it was checked with.' % check.detail)
         elif key and check.name in installed_untested and accepted is not None and accepted.get(key) == report.observed.get(key):
             continue            # accepted at install, and still the version that was accepted
@@ -1969,9 +2002,8 @@ def preflight(env, manifest=None, *, op, user=MAIN_USER, hids=None, sample_secon
     elif deck and op != 'update':
         _check_deck_controls(report, deck)
     elif op not in ('check', 'update'):
-        report.add('controllers', 'info', 'no controller slot given; Dosplex starts without one, and a controller you '
-                   "wake is Main's until a player moves it in Devices (--main-hid and --guest-hid pick the slots; "
-                   'run dosplex preflight to list them)')
+        report.add('controllers', 'info', "no controller is needed for this. The first controller you wake is Main's, "
+                   "the next is the second player's while they have none, and Devices in the menu changes it")
     trials = trial_roots(env)
     if trials and op == 'install':
         report.add('trial', 'warn', 'a retained trial is already running: ' + ', '.join(str(t) for t in trials))
@@ -1986,8 +2018,8 @@ def _check_deck_controls(report, deck):
         report.add('controllers', 'fail', 'the Steam Deck controller shows %d HID interfaces (%s); expected three'
                    % (len(deck), ', '.join(deck)))
         return
-    report.add('controllers', 'ok', "the Steam Deck's own controls (%s) are Main's; no receiver is needed. Guest's "
-               'controller: pass --guest-hid /dev/hidrawY, or pair one and claim it in Devices' % ', '.join(deck))
+    report.add('controllers', 'ok', "the Steam Deck's own controls (%s) are Main's. The first other controller you "
+               "wake or pair is the second player's; Devices in the menu changes it" % ', '.join(deck))
 
 
 def _check_controllers(env, report, hids, sample_seconds, deck=()):
@@ -2330,9 +2362,9 @@ class Journal:
         return self.load(tx.name, writable=True)
 
     def history(self):
-        """The last Guest that Dosplex owns according to the journal, or None.
+        """The last Guest that DosPlex owns according to the journal, or None.
 
-        A Guest that Dosplex created, or that an earlier Dosplex install adopted, stays known after an
+        A Guest that DosPlex created, or that an earlier DosPlex install adopted, stays known after an
         uninstall that kept it, so a reinstall adopts it and --remove-guest may still remove it.
         """
         owned = ('created', 'adopted-dosplex') + (LEGACY_OWNED_ORIGINS if self.env.legacy else ())
@@ -2731,7 +2763,7 @@ def plan_guest(env, journal, state, main, strip=False):
     home = env.path('/home') / GUEST_USER
     if entry is None:
         if lexists(home):
-            raise RefusedError('/home/guest exists but there is no guest account. Dosplex will not take over a '
+            raise RefusedError('/home/guest exists but there is no guest account. DosPlex will not take over a '
                                'directory it did not create: inspect it and move it away first. Nothing was changed.')
         if GUEST_USER in read_groups(env):
             raise RefusedError('a group named guest exists without a guest account; resolve that first. '
@@ -2762,7 +2794,7 @@ def plan_guest(env, journal, state, main, strip=False):
                 % ('/'.join(blocking), 's' if len(blocking) > 1 else ''))
         if not strip and all(group in removable for group in blocking):
             text += ('. An older installer leaves these memberships behind. Add --adopt-guest-strip-groups and '
-                     'Dosplex removes exactly %s from Guest with gpasswd -d, one journaled step each, and uninstall '
+                     'DosPlex removes exactly %s from Guest with gpasswd -d, one journaled step each, and uninstall '
                      'puts them back' % ', '.join(removable))
         problems.append(text)
     if problems:
@@ -2943,10 +2975,10 @@ def wait_for_guest_to_leave(env, uid, sleep=time.sleep, clock=time.monotonic):
 def remove_guest_account(env, entry):
     """userdel (never --remove) and then Guest's home with every safety check."""
     if processes(env, entry.uid):
-        raise DosplexError('guest still has running processes; stop Dosplex first')
+        raise DosplexError('guest still has running processes; stop DosPlex first')
     login = guest_login_property(env, 'State')
     if login in GUEST_LOGIN_STATES:
-        raise DosplexError('guest still has a login session (%s); stop Dosplex first' % login)
+        raise DosplexError('guest still has a login session (%s); stop DosPlex first' % login)
     env.run(['userdel'] + ([] if env.real else ['--root', str(env.sysroot)]) + [GUEST_USER], timeout=60)
     env.fault('uninstall:inner:guest-account-removed')
     remove_guest_home(env, entry.home, entry.uid)
@@ -3153,7 +3185,7 @@ def cleanup_opt(env):
 #      restores the display mode and the Steam session), because the new program cannot start beside it. A
 #      session the old program does not know is not touched: the message names the recovery command.
 #   3. The install runs as always (the same journaled steps). It inherits what only the old state knew: the
-#      main user, the Guest record (so that Guest stays "created by Dosplex" and uninstall --remove-guest still
+#      main user, the Guest record (so that Guest stays "created by DosPlex" and uninstall --remove-guest still
 #      works), the original SteamOS defaults, the controller slots and the output mode. If it fails, the old
 #      install is still there, only its session is stopped.
 #   4. finish_legacy moves the old data across and removes the old program and releases. /var/lib/duplos/*
@@ -3337,16 +3369,16 @@ def record_migration(env, legacy, result):
         if state is not None:
             state['migrated_from'] = {'product': 'DuplOS', 'version': legacy['version'], 'utc': utc_now()}
             write_state(env, state)
-        tx.note('Moved the DuplOS install into Dosplex: %s.' % (', '.join(result['moved']) or 'nothing to move'))
+        tx.note('Moved the DuplOS install into DosPlex: %s.' % (', '.join(result['moved']) or 'nothing to move'))
         if result['kept']:
-            tx.note('Left in place (the new name has it already, or Dosplex did not put it there): %s. '
+            tx.note('Left in place (the new name has it already, or DosPlex did not put it there): %s. '
                     'Look at it, then remove it yourself.' % ', '.join(result['kept']))
         tx.end('complete')
 
 
 # ---------------------------------------------------------------------------------------------------
 # update: fetch the signed release index, pick the newest release this device can run, stage it, switch
-# `current` and keep the release it replaces (N-1), then restart Dosplex if it was running.
+# `current` and keep the release it replaces (N-1), then restart DosPlex if it was running.
 #
 # Every release is checked against the pinned keys before anything is staged (see verify_release_archive),
 # by the program that is installed now and never by anything in the new payload (ADR-005). The journal has
@@ -3461,7 +3493,7 @@ def run_update(env, journal, state, verified, program_bytes, signed, report, pla
 
 
 def restart_session(env, allow_untested, sample_seconds):
-    """Stop Dosplex and start it again, so that it runs the release that is now current, with the layout it had."""
+    """Stop DosPlex and start it again, so that it runs the release that is now current, with the layout it had."""
     layout = ((read_state(env) or {}).get('trial') or {}).get('layout')
     created, proc = launch_worker(env, 'stop', {})
     if created is not None or proc.returncode != 0:
@@ -3472,17 +3504,17 @@ def restart_session(env, allow_untested, sample_seconds):
 
 def finish_change(env, args, what, was_running, before, after):
     """Tell the person what changed and restart a session that was running."""
-    say('%s Dosplex %s -> %s.' % (what, before, after))
+    say('%s DosPlex %s -> %s.' % (what, before, after))
     if not was_running:
         return 0
     if args.no_restart:
-        say('Dosplex keeps running the release it started with. To run %s: sudo dosplex stop, then sudo dosplex start' % after)
+        say('DosPlex keeps running the release it started with. To run %s: sudo dosplex stop, then sudo dosplex start' % after)
         return 0
-    say('Restarting Dosplex on %s.' % after)
+    say('Restarting DosPlex on %s.' % after)
     try:
         restart_session(env, args.allow_untested, args.sample_seconds)
     except DosplexError as error:
-        raise DosplexError('%s Dosplex %s -> %s, but Dosplex could not be restarted: %s. Fix that and run: sudo dosplex start; '
+        raise DosplexError('%s DosPlex %s -> %s, but DosPlex could not be restarted: %s. Fix that and run: sudo dosplex start; '
                           'or go back with: sudo dosplex rollback' % (what, before, after, error)) from error
     return 0
 
@@ -3507,7 +3539,7 @@ def cmd_update(env, args):
         if reader is not None:
             reader.close()
     if state is None:
-        raise DosplexError('Dosplex is not installed, so there is nothing to update. Install a release first: '
+        raise DosplexError('DosPlex is not installed, so there is nothing to update. Install a release first: '
                           'sudo dosplex install --release ARCHIVE')
     check_current(env, state)
     keys = pinned_keys()
@@ -3528,7 +3560,7 @@ def cmd_update(env, args):
     for other, why in skipped:
         say('Skipped %s (sequence %d): %s' % (other['version'], other['sequence'], why))
     if entry is None:
-        say('Dosplex is up to date.')
+        say('DosPlex is up to date.')
         return 0
     if args.check:
         say('Update available: %s (sequence %d). Run: sudo dosplex update' % (entry['version'], entry['sequence']))
@@ -3562,7 +3594,7 @@ def cmd_update(env, args):
     with journal:
         journal.require_clean()
         if read_state(env) != state:
-            raise DosplexError('Dosplex changed while the update was being fetched. Nothing was changed; run the command again.')
+            raise DosplexError('DosPlex changed while the update was being fetched. Nothing was changed; run the command again.')
         was_running = trial_status(env, state)['alive']
         plan = release_plan(env, state, verified, program_bytes, report)
         run_update(env, journal, state, verified, program_bytes, signed, report, plan, redact_url(channel))
@@ -3617,7 +3649,7 @@ def cmd_rollback(env, args):
         if reader is not None:
             reader.close()
     if state is None:
-        raise DosplexError('Dosplex is not installed, so there is nothing to roll back.')
+        raise DosplexError('DosPlex is not installed, so there is nothing to roll back.')
     check_current(env, state)
     previous, info = state.get('previous'), state.get('previous_info')
     if not previous or not (env.opt / 'releases' / previous).is_dir():
@@ -3642,7 +3674,7 @@ def cmd_rollback(env, args):
     with journal:
         journal.require_clean()
         if read_state(env) != state:
-            raise DosplexError('Dosplex changed while the rollback was being prepared. Nothing was changed; run the command again.')
+            raise DosplexError('DosPlex changed while the rollback was being prepared. Nothing was changed; run the command again.')
         was_running = trial_status(env, state)['alive']
         run_rollback(env, journal, state, verified, report)
     return finish_change(env, args, 'Rolled back', was_running, state['version'], previous)
@@ -3815,7 +3847,7 @@ class Display:
             layout = json.loads(state_path.read_text())
             return (max(layout[x]['x'] + layout[x]['width'] for x in ('left', 'right')) == width
                     and max(layout[x]['y'] + layout[x]['height'] for x in ('left', 'right')) == height)
-        wait_for(matching, self.wait, 'the Dosplex regions did not follow the new display size')
+        wait_for(matching, self.wait, 'the DosPlex regions did not follow the new display size')
         record.update(phase='applied', physical=self.physical_modes(), virtual=self.virtual_size())
         self.save(record)
         return {'mode': [width, height, refresh], 'presentation': presentation}
@@ -3952,20 +3984,20 @@ class Session:
         tx.run('preflight', {}, lambda d: {'observed': report.observed, 'untested': [c.name for c in report.untested()]})
         ended = self.trial_ended()
         if self.trial_alive() and not ended:
-            tx.note('Dosplex is already running (%s). Nothing to do.' % state['trial']['root'])
+            tx.note('DosPlex is already running (%s). Nothing to do.' % state['trial']['root'])
             tx.end('complete', note='already running')
             return 0
         if ended:
             # The compositor is gone but its trial is still there: the recovery that should have followed did not
             # finish (or this release had none). Bring stock Steam back first, then start again.
-            tx.note('Dosplex ended on its own earlier (its compositor is not running). Bringing stock Steam back first.')
+            tx.note('DosPlex ended on its own earlier (its compositor is not running). Bringing stock Steam back first.')
             tx.run('recover-ended-session', {'root': str(ended)}, lambda d: self.stop_logic(d['root'], None))
         others = [str(p) for p in trial_roots(env) + legacy_trial_roots(env)]
         if others:
             raise DosplexError('a retained trial is running that dosplex did not start (%s). Recover it with '
                               'its own tool first; dosplex will not start a second compositor.' % ', '.join(others))
         if state.get('trial'):
-            tx.note('The previous run is gone (the device was restarted, or Dosplex ended and stock Steam came back). '
+            tx.note('The previous run is gone (the device was restarted, or DosPlex ended and stock Steam came back). '
                     'Starting again.')
             def forget(data):
                 self.save_state(trial=None)
@@ -3980,8 +4012,8 @@ class Session:
             # it does not come up idle, or when the device turns out to be in Desktop mode.
             waited = tx.run('idle-steam', {'boot': True}, self._wait_idle_at_boot)
             if waited['outcome'] != 'idle':
-                tx.note({'desktop': 'Dosplex does not start at boot in Desktop mode; Steam is left as it is.',
-                         'busy': 'Steam was not idle after %d minutes, so Dosplex did not start at boot; Steam is left '
+                tx.note({'desktop': 'DosPlex does not start at boot in Desktop mode; Steam is left as it is.',
+                         'busy': 'Steam was not idle after %d minutes, so DosPlex did not start at boot; Steam is left '
                                  'running.' % (BOOT_IDLE_SECONDS // 60)}[waited['outcome']])
                 tx.end('complete', note='boot start skipped: ' + waited['outcome'])
                 return 0
@@ -4010,7 +4042,7 @@ class Session:
             self.save_state(**changes)
             return {}
         tx.run('running', {'trial': trial['root']}, running)
-        tx.note('Dosplex is running (%s).' % trial['root'])
+        tx.note('DosPlex is running (%s).' % trial['root'])
         tx.end('complete', trial=trial['root'])
         return 0
 
@@ -4071,7 +4103,7 @@ class Session:
             if 'game_store' in inspect.signature(trial.start).parameters:
                 deck['game_store'] = store
             else:
-                self.note('This release cannot use the shared game library, so Dosplex starts without it.')
+                self.note('This release cannot use the shared game library, so DosPlex starts without it.')
         if test_hooks_marked(self.env):
             marker = self.env.var / TEST_HOOKS_MARKER
             if 'test_hooks' in inspect.signature(trial.start).parameters:
@@ -4095,8 +4127,8 @@ class Session:
         unassigned = result.get('unassigned') if isinstance(result, dict) else None
         if not unassigned:
             return {}
-        self.note("Further controller slots: %s. A controller you wake there is Main's until a player moves it in "
-                  'Devices.' % ', '.join(unassigned))
+        self.note("Controller slots of the receiver: %s. The first controller that wakes is Main's, the next is the "
+                  "second player's while they have none; Devices in the menu changes it." % ', '.join(unassigned))
         return {'unassigned': unassigned}
 
     MUTATING = ('recover-ended-session', 'forget-stale-trial', 'restore-stale-display', 'host-mode', 'idle-steam',
@@ -4178,7 +4210,7 @@ class Session:
         return {'recovered': recovered, 'display': display, 'returned_to_desktop': switched}
 
     def close_sides(self, root):
-        """Before the session is taken down: ask each side's Steam to quit and wait for it, as Turn off Dosplex
+        """Before the session is taken down: ask each side's Steam to quit and wait for it, as Turn off DosPlex
         does (TRL-04). A Steam that is killed has not uploaded the saves of the game that just closed. The
         session's own helper does it; a session without one, or with one that fails, is stopped as before."""
         env = self.env
@@ -4190,6 +4222,13 @@ class Session:
                     return
         except OSError:
             return
+        # The screen says what is going on while the sides close: without it both halves only waited for a Steam that
+        # was being closed (a first tester took an uninstall for hung and switched the machine off). A compositor
+        # that does not know the request, or does not answer, changes nothing here.
+        try:
+            compositor_request(env, root, bytes([1, 4, 1, 0]))
+        except (DosplexError, OSError):
+            pass
         try:
             done = env.run([env.python, str(helper), 'close', '--trial-root', str(root)], check=False, timeout=260)
             # What the helper says of each side (asked, quit after N s, did not quit) goes where this operation's
@@ -4205,7 +4244,7 @@ class Session:
         leftover = Display(self.env, self.account).record()
         leftover = bool(leftover and leftover.get('phase') not in (None, 'restored'))
         if root is None and not stale and not leftover:
-            say('Dosplex is not running.')
+            say('DosPlex is not running.')
             return 0
         tx = self.tx = self.journal.begin('stop', root=str(root) if root else None)
         try:
@@ -4215,7 +4254,7 @@ class Session:
         except BaseException as error:
             tx.end('failed', error=str(error))
             raise
-        tx.note('Dosplex stopped; Steam is back to normal%s.'
+        tx.note('DosPlex stopped; Steam is back to normal%s.'
                 % (' (Desktop mode restored)' if result.get('returned_to_desktop') else ''))
         tx.end('complete')
         return 0
@@ -4225,7 +4264,7 @@ class Session:
 # Start at boot: `dosplex autostart on|off|status`. One unit runs `dosplex start --boot` once the display manager
 # is up: Main alone on the full screen, no controller needed. A boot start that cannot run leaves stock Steam as
 # it is. The unit is written and removed like the shared game library's (journaled, a file or link that is not
-# Dosplex's is refused, never started when it is turned on); the state key `autostart` says it is on.
+# DosPlex's is refused, never started when it is turned on); the state key `autostart` says it is on.
 # ---------------------------------------------------------------------------------------------------
 
 AUTOSTART_UNIT = 'dosplex-autostart.service'
@@ -4233,7 +4272,7 @@ AUTOSTART_UNIT_DIR = '/etc/systemd/system'
 AUTOSTART_WANTS_DIR = AUTOSTART_UNIT_DIR + '/graphical.target.wants'
 AUTOSTART_PROGRAM = '/opt/dosplex/bin/dosplex'
 AUTOSTART_UNIT_TEXT = '''[Unit]
-Description=Dosplex at boot
+Description=DosPlex at boot
 After=display-manager.service
 ConditionPathExists=%(program)s
 
@@ -4262,15 +4301,16 @@ def autostart_writable(env):
 
 
 def autostart_facts(env):
-    """What of the boot unit is on disk, and whether a file or link there is not the one Dosplex writes."""
+    """What of the boot unit is on disk, and whether a file or link there is not the one DosPlex writes."""
     unit, link, wants = autostart_paths(env)
     facts = {'text': AUTOSTART_UNIT_TEXT, 'unit_existed': lexists(unit), 'link_existed': lexists(link),
              'wants_existed': lexists(wants), 'foreign': None}
-    if facts['unit_existed'] and (os.path.islink(unit) or not unit.is_file() or unit.read_text() != AUTOSTART_UNIT_TEXT):
-        facts['foreign'] = '%s is already there and is not the one Dosplex writes; look at it first' % (
+    if facts['unit_existed'] and (os.path.islink(unit) or not unit.is_file()
+                                  or not written_by_dosplex(unit.read_text(), AUTOSTART_UNIT_TEXT)):
+        facts['foreign'] = '%s is already there and is not the one DosPlex writes; look at it first' % (
             AUTOSTART_UNIT_DIR + '/' + AUTOSTART_UNIT)
     elif facts['link_existed'] and (not os.path.islink(link) or os.readlink(link) != AUTOSTART_LINK_TARGET):
-        facts['foreign'] = '%s is already there and is not the link Dosplex makes; look at it first' % (
+        facts['foreign'] = '%s is already there and is not the link DosPlex makes; look at it first' % (
             AUTOSTART_WANTS_DIR + '/' + AUTOSTART_UNIT)
     return facts
 
@@ -4327,14 +4367,15 @@ def apply_autostart_state(env, tx, data):
 
 
 def apply_remove_autostart(env, tx, data):
-    """Uninstall: take the boot unit and its link away when they are Dosplex's. Idempotent; a file that is not
-    Dosplex's stays where it is."""
+    """Uninstall: take the boot unit and its link away when they are DosPlex's. Idempotent; a file that is not
+    DosPlex's stays where it is."""
     unit, link, wants = autostart_writable(env)
     removed = False
     if os.path.islink(link) and os.readlink(link) == AUTOSTART_LINK_TARGET:
         removed = env.unlink(link) or removed
         env.rmdir_if_empty(wants)
-    if lexists(unit) and not os.path.islink(unit) and unit.is_file() and unit.read_text() == AUTOSTART_UNIT_TEXT:
+    if lexists(unit) and not os.path.islink(unit) and unit.is_file() and \
+            written_by_dosplex(unit.read_text(), AUTOSTART_UNIT_TEXT):
         removed = env.unlink(unit) or removed
     if removed:
         library_reload(env, check=False)
@@ -4380,7 +4421,7 @@ def autostart_change(env, journal, state, wanted, action):
 
 
 def cmd_autostart(env, args):
-    """`autostart on|off|status`. Turning it on never starts the unit: Dosplex starts at the next boot."""
+    """`autostart on|off|status`. Turning it on never starts the unit: DosPlex starts at the next boot."""
     if args.mode == 'status':
         state = library_state(env)
         say('Starts at boot: %s' % ('yes' if state.get('autostart') else 'no'))
@@ -4389,7 +4430,7 @@ def cmd_autostart(env, args):
     wanted = args.mode == 'on'
     journal = Journal.open(env, lock=True)
     if journal is None:
-        raise NotInstalled('Dosplex is not installed. Run: sudo dosplex install BUNDLE --manifest SHA256')
+        raise NotInstalled('DosPlex is not installed. Run: sudo dosplex install BUNDLE --manifest SHA256')
     with journal:
         journal.require_clean()
         state = library_state(env)
@@ -4398,7 +4439,7 @@ def cmd_autostart(env, args):
         if facts['foreign'] and (wanted or state.get('autostart')):
             raise RefusedError(facts['foreign'])
         if wanted == bool(state.get('autostart')) and (wanted == present or facts['foreign']):
-            say('Dosplex already %s at boot.' % ('starts' if wanted else 'does not start'))
+            say('DosPlex already %s at boot.' % ('starts' if wanted else 'does not start'))
             return 0
         if wanted and not state.get('autostart') and not getattr(args, 'experimental', False):
             # ADR-026: the first release starts only when asked. Starting at boot stays in the program, off, and is
@@ -4407,10 +4448,10 @@ def cmd_autostart(env, args):
                                'To turn it on: sudo dosplex autostart on --experimental')
         autostart_change(env, journal, state, wanted, args.mode)
     if wanted:
-        say('Dosplex starts at every boot from now on, with Main alone on the full screen and no controller needed.')
+        say('DosPlex starts at every boot from now on, with Main alone on the full screen and no controller needed.')
         say('If it cannot start, the device stays on stock Steam. Turn it off with: sudo dosplex autostart off')
     else:
-        say('Dosplex no longer starts at boot. Start it by hand with: sudo dosplex start')
+        say('DosPlex no longer starts at boot. Start it by hand with: sudo dosplex start')
     return 0
 
 
@@ -4433,7 +4474,7 @@ def ensure_autostart_unit(env):
             if facts['unit_existed'] and facts['link_existed']:
                 return
             autostart_change(env, journal, state, True, 'units')
-        say('The unit that starts Dosplex at boot was written again.')
+        say('The unit that starts DosPlex at boot was written again.')
     except DosplexError as error:
         say('The start at boot could not be set up: %s. Try: sudo dosplex autostart on --experimental' % error)
 
@@ -4442,7 +4483,7 @@ def ensure_autostart_unit(env):
 # The entry in Steam's library, and the service behind it (ADR-026)
 #
 # The first release starts only when asked, and the person asking holds a controller. So the installer leaves an
-# application entry "Dosplex" in the main user's applications (the installer asks Steam to add it to the library;
+# application entry "DosPlex" in the main user's applications (the installer asks Steam to add it to the library;
 # by hand it is "Add a Non-Steam Game"), and behind it a socket unit that systemd listens on for the main user alone. The service it starts accepts one
 # request, "start", and runs `dosplex control start`. Nothing of this runs until the entry is used.
 ENTRY_WANTS_DIR = AUTOSTART_UNIT_DIR + '/sockets.target.wants'
@@ -4450,7 +4491,7 @@ ENTRY_LINK_TARGET = '../' + ENTRY_SOCKET
 ENTRY_LIBEXEC = '/opt/dosplex/current/libexec'
 ENTRY_DESKTOP = '.local/share/applications/dosplex.desktop'
 ENTRY_SOCKET_TEXT = """[Unit]
-Description=Dosplex: the socket Steam's library entry asks to start Dosplex
+Description=DosPlex: the socket Steam's library entry asks to start DosPlex
 
 [Socket]
 ListenStream=/run/dosplex-start.sock
@@ -4462,7 +4503,7 @@ Accept=no
 WantedBy=sockets.target
 """
 ENTRY_SERVICE_TEXT = """[Unit]
-Description=Dosplex: start on request from the main player's account
+Description=DosPlex: start on request from the main player's account
 ConditionPathExists=%(libexec)s/dosplex-start-service.py
 
 [Service]
@@ -4474,6 +4515,17 @@ PrivateTmp=yes
 """
 ENTRY_DESKTOP_TEXT = """[Desktop Entry]
 Type=Application
+Name=DosPlex
+Comment=Two players, one screen
+Exec=/usr/bin/python3 %(libexec)s/dosplex-start-client.py
+Icon=/opt/dosplex/current/share/dosplex/icons/dosplex.png
+Terminal=false
+Categories=Game;
+"""
+# The application entry exactly as 0.1.0-alpha.5 wrote it: the name spelled "Dosplex", a stock icon. It is still
+# dosplex's own on a device that updates from that release.
+ENTRY_DESKTOP_TEXT_ALPHA_5 = """[Desktop Entry]
+Type=Application
 Name=Dosplex
 Comment=Two players, one screen
 Exec=/usr/bin/python3 %(libexec)s/dosplex-start-client.py
@@ -4481,6 +4533,7 @@ Icon=input-gaming
 Terminal=false
 Categories=Game;
 """
+ENTRY_LAUNCHER = 'Desktop/DosPlex.desktop'      # the same entry on the main user's desktop, when there is one
 
 
 def entry_files(env, state):
@@ -4495,7 +4548,30 @@ def entry_files(env, state):
     return {'account': account, 'wants': wants, 'link': wants / ENTRY_SOCKET,
             'root': {units / ENTRY_SOCKET: ENTRY_SOCKET_TEXT % names, units / ENTRY_SERVICE: ENTRY_SERVICE_TEXT % names,
                      env.var / 'start-service.json': config},
-            'desktop': ENTRY_DESKTOP_TEXT % names}
+            'desktop': ENTRY_DESKTOP_TEXT % names,
+            'desktop_ours': [ENTRY_DESKTOP_TEXT % names, earlier_name(ENTRY_DESKTOP_TEXT % names),
+                             ENTRY_DESKTOP_TEXT_ALPHA_5 % names]}
+
+
+def launcher_current(env, files):
+    """Whether the launcher on the main user's desktop needs nothing: there is no ~/Desktop folder, or the file there
+    is this release's text and executable, or it is somebody else's (a link or a file that is not dosplex's is left
+    alone, and does not keep the entry from being "present")."""
+    home = env.path(files['account'].home)
+    folder, path = home / 'Desktop', home / ENTRY_LAUNCHER
+    if not folder.is_dir() or folder.is_symlink() or os.path.islink(path):
+        return True
+    if not lexists(path):
+        return False
+    try:
+        if not path.is_file():
+            return True
+        found = path.read_bytes()
+        if found not in [text.encode() for text in files['desktop_ours']]:
+            return True
+        return found == files['desktop'].encode() and bool(path.stat().st_mode & 0o111)
+    except OSError:
+        return True
 
 
 def entry_facts(env, state):
@@ -4509,16 +4585,18 @@ def entry_facts(env, state):
     for path, text in files['root'].items():
         if lexists(path):
             existed.append(str(path))
-            if os.path.islink(path) or not path.is_file() or path.read_text() != text:
-                same = False
-                if path.name != 'start-service.json':      # the config is rewritten freely; a unit file is not
-                    foreign = foreign or '%s is already there and is not the one Dosplex writes; look at it first' % path
+            found = None if os.path.islink(path) or not path.is_file() else path.read_text()
+            if found != text:
+                same = False    # (a unit as an earlier release wrote it is DosPlex's, and is written again)
+                # the config is rewritten freely; a unit file is not
+                if path.name != 'start-service.json' and (found is None or not written_by_dosplex(found, text)):
+                    foreign = foreign or '%s is already there and is not the one DosPlex writes; look at it first' % path
         else:
             same = False
     link = files['link']
     if lexists(link):
         if not os.path.islink(link) or os.readlink(link) != ENTRY_LINK_TARGET:
-            foreign = foreign or '%s is already there and is not the link Dosplex makes; look at it first' % link
+            foreign = foreign or '%s is already there and is not the link DosPlex makes; look at it first' % link
     else:
         same = False
     desktop = env.path(files['account'].home) / ENTRY_DESKTOP
@@ -4526,6 +4604,7 @@ def entry_facts(env, state):
         desktop_same = desktop.is_file() and not desktop.is_symlink() and desktop.read_text() == files['desktop']
     except OSError:
         desktop_same = False
+    desktop_same = desktop_same and launcher_current(env, files)
     return {'present': same and desktop_same and not foreign, 'foreign': foreign, 'existed': existed,
             'wants_existed': lexists(files['wants']), 'link_existed': lexists(link)}
 
@@ -4537,7 +4616,7 @@ def entry_desktop(env, files, action):
     argv = [env.python, '-c', USER_ENTRY_SCRIPT, str(home), action]
     if env.real:
         argv = ['runuser', '-u', account.name, '--'] + argv
-    env.run(argv, input=files['desktop'], timeout=20)
+    env.run(argv, input=json.dumps(files['desktop_ours']).encode(), timeout=20)
 
 
 def apply_entry(env, tx, data):
@@ -4563,7 +4642,8 @@ def remove_entry_files(env, state, only=None):
     if files is None:
         return False
     desktop = env.path(files['account'].home) / ENTRY_DESKTOP
-    if not (lexists(files['link']) or lexists(desktop) or any(lexists(path) for path in files['root'])):
+    if not (lexists(files['link']) or lexists(desktop) or lexists(env.path(files['account'].home) / ENTRY_LAUNCHER)
+            or any(lexists(path) for path in files['root'])):
         return False            # never set up, or gone already: nothing to stop and nothing to reload
     removed = False
     for unit in (ENTRY_SOCKET, ENTRY_SERVICE):
@@ -4578,7 +4658,7 @@ def remove_entry_files(env, state, only=None):
         if only is not None and str(path) not in only:
             continue
         ours = lexists(path) and not os.path.islink(path) and path.is_file() and (
-            path.name == 'start-service.json' or path.read_text() == text)
+            path.name == 'start-service.json' or written_by_dosplex(path.read_text(), text))
         if ours:
             removed = env.unlink(path) or removed
     try:
@@ -4663,7 +4743,7 @@ STEAM_RETRY = 'sudo /opt/dosplex/bin/dosplex entry on'
 
 
 def steam_library_has_dosplex(env, account):
-    """Whether any Steam account of the main user lists Dosplex as a non-Steam game: shortcuts.vdf is binary, and
+    """Whether any Steam account of the main user lists DosPlex as a non-Steam game: shortcuts.vdf is binary, and
     the start client's file name is in it when the entry was added. What cannot be read counts as "no"."""
     userdata = env.path(account.home) / '.local/share/Steam/userdata'
     try:
@@ -4695,9 +4775,9 @@ def add_to_steam_library(env, account, state):
         return 'not possible', 'Steam is not running'
     try:
         if trial_status(env, state)['alive']:
-            return 'not possible', 'Dosplex is running'
+            return 'not possible', 'DosPlex is running'
     except DosplexError:
-        return 'not possible', 'Dosplex may be running'
+        return 'not possible', 'DosPlex may be running'
     entry = env.path(account.home) / ENTRY_DESKTOP
     seconds, wait = STEAM_ADD_SECONDS, STEAM_CONFIRM_SECONDS
     if not env.real and os.environ.get('DOSPLEX_TEST_STEAM_SECONDS'):
@@ -4719,9 +4799,9 @@ def add_to_steam_library(env, account, state):
 
 def say_steam_library(result, reason, tail=''):
     if result in ('added', 'already'):
-        say('Dosplex is in Steam\'s library: Library, Non-Steam, Dosplex.')
+        say('DosPlex is in Steam\'s library: Library, Non-Steam, DosPlex.')
     else:
-        say('Dosplex could not be added to Steam\'s library by itself (%s). In Desktop mode, add "Dosplex" to Steam '
+        say('DosPlex could not be added to Steam\'s library by itself (%s). In Desktop mode, add "DosPlex" to Steam '
             'once ("Add a Non-Steam Game"), or run: %s%s' % (reason, STEAM_RETRY, tail))
 
 
@@ -4769,7 +4849,7 @@ def ensure_entry(env):
         # Outside the journal's lock: Steam may take a while to answer.
         try_steam_library(env, state, tail='\nUntil then: sudo dosplex start')
     except DosplexError as error:
-        say('The entry for Steam\'s library could not be set up: %s. Dosplex still starts with: sudo dosplex start'
+        say('The entry for Steam\'s library could not be set up: %s. DosPlex still starts with: sudo dosplex start'
             % error)
 
 
@@ -4784,7 +4864,7 @@ def cmd_entry(env, args):
     wanted = args.mode == 'on'
     journal = Journal.open(env, lock=True)
     if journal is None:
-        raise NotInstalled('Dosplex is not installed. Run: sudo dosplex install BUNDLE --manifest SHA256')
+        raise NotInstalled('DosPlex is not installed. Run: sudo dosplex install BUNDLE --manifest SHA256')
     with journal:
         journal.require_clean()
         state = library_state(env)
@@ -4800,8 +4880,8 @@ def cmd_entry(env, args):
     if wanted:
         try_steam_library(env, state)
     else:
-        say('The entry and its service were removed. If you added "Dosplex" to Steam, remove it there yourself. '
-            'Start Dosplex with: sudo dosplex start')
+        say('The entry and its service were removed. If you added "DosPlex" to Steam, remove it there yourself. '
+            'Start DosPlex with: sudo dosplex start')
     return 0
 
 
@@ -4826,7 +4906,7 @@ BUS_POLICY_TEXT = re.compile(
 
 def apply_remove_bus_policies(env, tx, data):
     """Uninstall, after the session is stopped: remove the policy files that sessions left on the system bus, so
-    that the Guest account, if it stays, is an ordinary account again. Only a file with Dosplex's name that is
+    that the Guest account, if it stays, is an ordinary account again. Only a file with DosPlex's name that is
     exactly such a policy goes; anything else stays. Idempotent."""
     folder = env.path(BUS_POLICY_DIR)
     removed = []
@@ -4959,7 +5039,7 @@ UNINSTALL_APPLY = {
 
 
 def guest_fact(journal, state):
-    """What Dosplex knows about Guest, from the installed state or else from the journal history."""
+    """What DosPlex knows about Guest, from the installed state or else from the journal history."""
     if state and state.get('guest'):
         return state['guest']
     return journal.history() if journal is not None else None
@@ -4968,7 +5048,7 @@ def guest_fact(journal, state):
 def build_uninstall_plan(env, state, fact, remove_guest, confirmed_home):
     plan = []
     if state is not None:
-        plan.append({'step': 'remove-autostart', 'data': {}})     # first: a restart in the middle must not start Dosplex
+        plan.append({'step': 'remove-autostart', 'data': {}})     # first: a restart in the middle must not start DosPlex
         plan.append({'step': 'remove-entry', 'data': {}})         # and nobody may start it from Steam's library meanwhile
         plan.append({'step': 'stop-session', 'data': {
             'root': (state.get('trial') or {}).get('root'), 'host': state.get('session'),
@@ -5000,7 +5080,7 @@ def build_uninstall_plan(env, state, fact, remove_guest, confirmed_home):
 def worker_uninstall(env, opts):
     journal = Journal.open(env, lock=True)
     if journal is None:
-        raise DosplexError('there is no Dosplex journal; nothing to uninstall')
+        raise DosplexError('there is no DosPlex journal; nothing to uninstall')
     with journal:
         journal.require_clean()
         state = read_state(env)
@@ -5045,7 +5125,7 @@ def uninstall_leftovers(env, tx, guest):
     main = user_entry(env, steps.get('stop-session', {}).get('main_user') or MAIN_USER)
     with contextlib.suppress(Exception):
         if main is not None and steam_library_has_dosplex(env, main):
-            lines.append("Steam's library still lists Dosplex. Remove it in Steam: Library, Non-Steam, Dosplex, Manage, "
+            lines.append("Steam's library still lists DosPlex. Remove it in Steam: Library, Non-Steam, DosPlex, Manage, "
                          "Remove non-Steam game from your library.")
     with contextlib.suppress(Exception):
         if lexists(env.path(GAME_STORE_ROOT)):
@@ -5055,7 +5135,7 @@ def uninstall_leftovers(env, tx, guest):
         if guest.get('action') == 'kept':
             accounts.append(user_entry(env, GUEST_USER))
         if any(has_steam_setting_marker(env, account) for account in accounts if account is not None):
-            lines.append('Two Steam settings that Dosplex switched on stay as they are: Maximum Game Resolution (Native) '
+            lines.append('Two Steam settings that DosPlex switched on stay as they are: Maximum Game Resolution (Native) '
                          'and Enable Native Resolution on External Displays. Change them in Steam if you want.')
     return lines
 
@@ -5074,8 +5154,8 @@ def finish_uninstall(env, tx, guest):
 
     That folder holds the journal this very transaction is written to, and the command reads the notes back from
     it, so it cannot go before the transaction has ended: the command does it afterwards (clear_dosplex_folder).
-    A kept Guest keeps it: the journal is the record that Dosplex created Guest."""
-    tx.note('Dosplex is uninstalled.')
+    A kept Guest keeps it: the journal is the record that DosPlex created Guest."""
+    tx.note('DosPlex is uninstalled.')
     left = tx.steps().get('remove-opt', {}).get('result', {}).get('left_in_place')
     if left:
         tx.note('Left in /opt/dosplex because dosplex did not put it there: %s' % ', '.join(left))
@@ -5085,7 +5165,7 @@ def finish_uninstall(env, tx, guest):
         tx.note('Guest was put back into the groups it was taken out of: %s.' % ', '.join(back))
     action = guest.get('action')
     if action == 'kept' and guest.get('origin') == 'adopted-foreign':
-        tx.note("Guest's account and home were left as they were: %s (Dosplex did not create them)" % guest['home'])
+        tx.note("Guest's account and home were left as they were: %s (DosPlex did not create them)" % guest['home'])
     elif action == 'kept':
         tx.note("Guest's account and home were kept: %s" % guest['home'])
         # The installed program is gone when this is read: the one of a release does it.
@@ -5096,11 +5176,11 @@ def finish_uninstall(env, tx, guest):
     for line in uninstall_leftovers(env, tx, guest):
         tx.note(line)
     if action == 'kept' and guest.get('origin') != 'adopted-foreign':
-        tx.note("Dosplex's settings and its record that it created Guest stay in /var/lib/dosplex. They go away when "
+        tx.note("DosPlex's settings and its record that it created Guest stay in /var/lib/dosplex. They go away when "
                 "you remove Guest.")
         return False
     if action == 'kept':
-        tx.note("Dosplex's settings and its record of what it changed stay in /var/lib/dosplex; nothing uses them now, "
+        tx.note("DosPlex's settings and its record of what it changed stay in /var/lib/dosplex; nothing uses them now, "
                 "delete the folder if you like.")
         return False
     if perf_recordings(env):
@@ -5179,7 +5259,7 @@ def repair_release_change(env, tx, apply_table, undo_table):
             except DosplexError:
                 running = False
             if running:
-                tx.note('Dosplex keeps running the release it started with. Use %s now with: sudo dosplex stop, then '
+                tx.note('DosPlex keeps running the release it started with. Use %s now with: sudo dosplex stop, then '
                         'sudo dosplex start' % ('the new release' if what == 'update' else 'the earlier release'))
             tx.end('complete', repaired=True)
             return
@@ -5228,7 +5308,7 @@ def repair_uninstall(env, journal, tx):
 def repair_start(env, journal, tx):
     state = read_state(env)
     if state is None:
-        raise DosplexError('Dosplex is not installed; cannot repair a start')
+        raise DosplexError('DosPlex is not installed; cannot repair a start')
     tx.append('repair', action='rollback')
     session = Session(env, journal, state)
     session.tx = tx
@@ -5240,7 +5320,7 @@ def repair_start(env, journal, tx):
 def repair_stop(env, journal, tx):
     state = read_state(env)
     if state is None:
-        raise DosplexError('Dosplex is not installed; cannot repair a stop')
+        raise DosplexError('DosPlex is not installed; cannot repair a stop')
     tx.append('repair', action='roll-forward')
     session = Session(env, journal, state)
     session.tx = tx
@@ -5290,7 +5370,7 @@ def trial_status(env, state):
         proc = env.run(['systemctl', 'is-active', record['unit']], check=False, timeout=15)
         details['compositor_active'] = proc.stdout.strip() == 'active'
         if details['alive'] and proc.stdout.strip() in ('inactive', 'failed'):
-            # The record says started, the compositor is gone (it crashed or quit): Dosplex is not running, and
+            # The record says started, the compositor is gone (it crashed or quit): DosPlex is not running, and
             # stock Steam has to be brought back before anything starts again (TRL-03).
             details.update(alive=False, ended=True)
     guard = record.get('sleep_guard_unit')
@@ -5377,7 +5457,7 @@ def journal_lock_held(journal_fd, locks='/proc/locks'):
 
 def format_status(info):
     if not info['installed']:
-        lines = ['Dosplex is not installed.']
+        lines = ['DosPlex is not installed.']
         if info.get('legacy'):
             lines.append('An install under the old name, DuplOS, is on this device (%s). Run: sudo dosplex install '
                          'BUNDLE --manifest SHA256 (or --release ARCHIVE); it takes over the old install.'
@@ -5386,7 +5466,7 @@ def format_status(info):
             lines.append('Guest was kept from an earlier install: %s (remove with: sudo dosplex uninstall --remove-guest)'
                          % info['guest_kept'].get('home'))
     else:
-        lines = ['Dosplex %s (commit %s)' % (info['version'], info['commit'][:9]),
+        lines = ['DosPlex %s (commit %s)' % (info['version'], info['commit'][:9]),
                  '  manifest: %s' % info['manifest_sha256'],
                  '  installed: %s' % info['installed_utc'],
                  '  release: %s (previous: %s)' % (info['release'], info['previous'] or 'none'),
@@ -5397,7 +5477,7 @@ def format_status(info):
         if info.get('game_store'):
             lines.append('  Shared game library: %s (%s), experimental' % ({
                 'leaving': 'leaving, every game goes back to its account at the next restart of the machine or start '
-                           'of Dosplex',
+                           'of DosPlex',
                 'gone': 'off, every game is back with its account; what is left of it goes at the next restart of '
                         'the machine, or now with: sudo dosplex library slot',
             }.get(info.get('game_store_mode'), 'on'), info['game_store']))
@@ -5412,7 +5492,7 @@ def format_status(info):
             lines.append('  migrated from %(product)s %(version)s on %(utc)s' % info['migrated_from'])
         guest = info['guest'] or {}
         lines.append('  Guest: %s (uid %s), home %s, %s' % (guest.get('user'), guest.get('uid'), guest.get('home'),
-                     {'created': 'created by Dosplex', 'adopted-dosplex': 'adopted (earlier Dosplex account)',
+                     {'created': 'created by DosPlex', 'adopted-dosplex': 'adopted (earlier DosPlex account)',
                       'adopted-foreign': 'adopted (existing account)'}.get(guest.get('origin'), 'origin unknown')))
         if info['untested']:
             lines.append('  Installed on an untested configuration (--allow-untested): ' + ', '.join(info['untested']))
@@ -5425,7 +5505,7 @@ def format_status(info):
                     side['restart_count'] if side['restart_count'] is not None else 'unknown'))
                 if side['controller_tour_accounts']:
                     lines.append('      Steam shows its "Steam Controller detected!" tour for account %s and it cannot finish '
-                                 'inside Dosplex. Switch it off in this side\'s Steam: Settings > Developer > Show Steam '
+                                 'inside DosPlex. Switch it off in this side\'s Steam: Settings > Developer > Show Steam '
                                  'Controller Tour (or set "ShowIbexWelcomeTour" "0" in userdata/<account>/7/remote/'
                                  'sharedconfig.vdf with Steam closed).' % ', '.join(side['controller_tour_accounts']))
             endpoint = trial['guest_audio_endpoint']
@@ -5436,9 +5516,9 @@ def format_status(info):
             if trial.get('sleep_guard_active') is True:
                 lines.append('    Sleep guard: active (freezes both sides before the machine sleeps)')
             elif trial.get('sleep_guard_active') is False:
-                lines.append('    Warning: the sleep guard is not active. Sleep may fail until Dosplex is started again.')
+                lines.append('    Warning: the sleep guard is not active. Sleep may fail until DosPlex is started again.')
         else:
-            lines.append('  Running: no%s' % (' (the previous run is gone: the device was restarted, or Dosplex ended and stock Steam came back; '
+            lines.append('  Running: no%s' % (' (the previous run is gone: the device was restarted, or DosPlex ended and stock Steam came back; '
                                               'run: sudo dosplex start)' if trial.get('stale') else ''))
             if trial.get('ended'):
                 lines.append('    Warning: the compositor ended on its own. Stock Steam should be back; if the screen is '
@@ -5480,7 +5560,7 @@ def launch_worker(env, op, options):
         journal.close()
     unit = 'dosplex-%s-%s' % (op, uuid.uuid4().hex[:8])
     command = ['systemd-run', '--quiet', '--collect', '--wait', '--expand-environment=no', '--unit=' + unit,
-               '--property=RuntimeMaxSec=1500', '--description=Dosplex ' + op, '--', env.python, str(program),
+               '--property=RuntimeMaxSec=1500', '--description=DosPlex ' + op, '--', env.python, str(program),
                '--sysroot', str(env.sysroot),
                '_worker', op, json.dumps(options, sort_keys=True)]
     proc = env.run(command, check=False, timeout=1800)
@@ -5609,7 +5689,7 @@ def wait_for_display(env, seconds=None, poll=BOOT_DISPLAY_POLL_SECONDS, sleep=No
 def plan_start(env, args):
     """Everything `start` checks before it launches the background service; prints nothing.
 
-    Returns (worker options, status of the trial), and (None, status) when Dosplex already runs."""
+    Returns (worker options, status of the trial), and (None, status) when DosPlex already runs."""
     env.require_root()
     args.output_mode = check_output_mode(args.output_mode)
     boot = bool(getattr(args, 'boot', False))
@@ -5632,7 +5712,7 @@ def plan_start(env, args):
             journal.require_clean()
     state = read_state(env)
     if state is None:
-        raise NotInstalled('Dosplex is not installed. Run: sudo dosplex install BUNDLE --manifest SHA256%s'
+        raise NotInstalled('DosPlex is not installed. Run: sudo dosplex install BUNDLE --manifest SHA256%s'
                           % (' (it replaces the DuplOS install that is on this device)'
                              if lexists(env.path(LEGACY_OPT)) or lexists(env.path(LEGACY_VAR)) else ''))
     check_current(env, state)
@@ -5672,22 +5752,26 @@ def running_version(root):
     return name if name and '\n' not in name else None
 
 
+def say_already_running(env, probe):
+    say('DosPlex is already running (%s).' % probe['root'])
+    running = running_version(probe['root'])
+    installed = (read_state(env) or {}).get('version')
+    if running and installed and running != installed:
+        # An install over a session that runs (seen on the Steam Machine): the session goes on with what it
+        # was started with, and nothing said so.
+        say('It still runs %s, the release it was started with. To use %s: sudo %s stop, then sudo %s start'
+            % (running, installed, env.opt / 'bin' / 'dosplex', env.opt / 'bin' / 'dosplex'))
+
+
 def start_client(env, args):
     if getattr(args, 'boot', False) and boot_in_desktop_mode(env):
-        say('Dosplex does not start at boot in Desktop mode; Steam is left as it is.')
+        say('DosPlex does not start at boot in Desktop mode; Steam is left as it is.')
         return 0
     options, probe = plan_start(env, args)
     if options is None:
-        say('Dosplex is already running (%s).' % probe['root'])
-        running = running_version(probe['root'])
-        installed = (read_state(env) or {}).get('version')
-        if running and installed and running != installed:
-            # An install over a session that runs (seen on the Steam Machine): the session goes on with what it
-            # was started with, and nothing said so.
-            say('It still runs %s, the release it was started with. To use %s: sudo %s stop, then sudo %s start'
-                % (running, installed, env.opt / 'bin' / 'dosplex', env.opt / 'bin' / 'dosplex'))
+        say_already_running(env, probe)
         return 0
-    say('Starting Dosplex. This takes up to %s; it keeps going if you close this terminal.'
+    say('Starting DosPlex. This takes up to %s; it keeps going if you close this terminal.'
         % ('five minutes' if options['boot'] else 'two minutes'))
     created, proc = launch_worker(env, 'start', options)
     return finish_worker(env, 'start', created, proc)
@@ -5704,11 +5788,11 @@ def cmd_stop(env, args):
         with journal:
             journal.require_clean()
     if read_state(env) is None:
-        say('Dosplex is not installed.')
+        say('DosPlex is not installed.')
         return 0
     created, proc = launch_worker(env, 'stop', {})
     if created is None and proc.returncode == 0:
-        say('Dosplex is not running.')
+        say('DosPlex is not running.')
         return 0
     return finish_worker(env, 'stop', created, proc)
 
@@ -5772,7 +5856,7 @@ def cmd_uninstall(env, args):
         if journal is not None:
             journal.close()
     if state is not None and state.get('game_store') and library_store_gone(env, state['game_store']):
-        # `library off`, then a start of Dosplex that gave the last game back: only the units and the entry are left.
+        # `library off`, then a start of DosPlex that gave the last game back: only the units and the entry are left.
         with Journal.open(env, lock=True) as locked:
             locked.require_clean()
             finish_library_leave(env, locked, state['game_store'])
@@ -5784,15 +5868,15 @@ def cmd_uninstall(env, args):
     confirmed = None
     if args.remove_guest:
         if not fact:
-            raise DosplexError('There is no Guest that Dosplex created or adopted, so --remove-guest has nothing to remove.')
+            raise DosplexError('There is no Guest that DosPlex created or adopted, so --remove-guest has nothing to remove.')
         if fact.get('origin') == 'adopted-foreign':
-            raise DosplexError('Guest was already on this device before Dosplex (Dosplex adopted it), so Dosplex will '
+            raise DosplexError('Guest was already on this device before DosPlex (DosPlex adopted it), so DosPlex will '
                               'not remove it. Remove the account yourself if you want it gone.')
         confirmed = fact['home'] if args.yes else confirm_remove_guest(env, fact['home'])
     if state is None and not (args.remove_guest and fact):
-        say('Dosplex is not installed.')
+        say('DosPlex is not installed.')
         return 0
-    say('Uninstalling Dosplex.')
+    say('Uninstalling DosPlex.')
     created, proc = launch_worker(env, 'uninstall', {'remove_guest': bool(args.remove_guest), 'confirmed_home': confirmed})
     return finish_worker(env, 'uninstall', created, proc)
 
@@ -5859,7 +5943,7 @@ def cmd_install(env, args):
         say_verified(verified, release)
         report = preflight(env, manifest, op='install', user=args.main_user, hids=hids,
                            sample_seconds=args.sample_seconds, need_bytes=verified.total_bytes())
-        say(report.text())
+        say(report.short_text())
         report.enforce(args.allow_untested)
         legacy = inspect_legacy(env)
         plan = plan_install(env, reader, verified, args, report, program, release,
@@ -5876,32 +5960,60 @@ def cmd_install(env, args):
             say('    gpasswd -d %s %s' % (GUEST_USER, group))
         say('Uninstall puts them back unless it removes Guest.')
     if legacy:
-        say('Found an install under the old name, DuplOS%s. It is replaced: Dosplex takes over its settings and data, '
+        say('Found an install under the old name, DuplOS%s. It is replaced: DosPlex takes over its settings and data, '
             'and the old program and releases are removed.' % (' ' + legacy['version'] if legacy['version'] else ''))
         retire_legacy_session(env, legacy)
     journal = Journal.open(env, create=True, lock=True)
     with journal:
         journal.require_clean()
         run_install(env, journal, verified, args, report, plan)
-    say('Installed Dosplex %s in %s.' % (manifest.version, env.opt / 'releases' / manifest.version))
+    say('Installed DosPlex %s in %s.' % (manifest.version, env.opt / 'releases' / manifest.version))
     ensure_library_units(env)
     ensure_autostart_unit(env)
     ensure_entry(env)
     if legacy:
         record_migration(env, legacy, finish_legacy(env, legacy))
-    if args.no_start:
-        say('Not started: --no-start was given. Start it with: sudo %s start' % (env.opt / 'bin' / 'dosplex'))
-    else:
+    started = False
+    if args.start:
+        started = True
         try:
             start_client(env, args)
         except DosplexError as error:
-            raise DosplexError('Dosplex is installed, but starting it failed: %s. After fixing that run: sudo %s start'
+            raise DosplexError('DosPlex is installed, but starting it failed: %s. After fixing that run: sudo %s start'
                               % (error, env.opt / 'bin' / 'dosplex')) from error
+    else:
+        probe = trial_status(env, read_state(env))
+        if probe['alive']:
+            started = True
+            say_already_running(env, probe)
     if not (read_state(env) or {}).get('autostart'):
         # The first release starts when asked (ADR-026). The start at boot is experimental and says so.
-        say('Dosplex starts when you ask for it. A start at every boot is experimental: sudo %s autostart on '
+        say('DosPlex starts when you ask for it. A start at every boot is experimental: sudo %s autostart on '
             '--experimental' % (env.opt / 'bin' / 'dosplex'))
+    if not started:
+        say_how_to_start(env)
     return 0
+
+
+def say_how_to_start(env):
+    """After an install that did not start DosPlex: the ways to start it. The library entry and the desktop icon are
+    named only when they are there; the terminal command always works."""
+    ways = []
+    state = read_state(env) or {}
+    try:
+        files = entry_files(env, state) if state.get('entry') else None
+        if files is not None and entry_facts(env, state)['present']:
+            if steam_library_has_dosplex(env, files['account']):
+                ways.append("from Steam's library: Library, Non-Steam, DosPlex")
+            launcher = env.path(files['account'].home) / ENTRY_LAUNCHER
+            if launcher.is_file() and not launcher.is_symlink():
+                ways.append('from the DosPlex icon on the desktop')
+    except (DosplexError, OSError):
+        ways = []
+    ways.append('in a terminal: sudo %s start' % (env.opt / 'bin' / 'dosplex'))
+    say('DosPlex is installed and not started. Start it:')
+    for way in ways:
+        say('  %s' % way)
 
 
 def cmd_worker(env, args):
@@ -5910,22 +6022,22 @@ def cmd_worker(env, args):
     if args.op == 'start':
         journal = Journal.open(env, lock=True)
         if journal is None:
-            raise DosplexError('Dosplex is not installed')
+            raise DosplexError('DosPlex is not installed')
         with journal:
             journal.require_clean()
             state = read_state(env)
             if state is None:
-                raise DosplexError('Dosplex is not installed')
+                raise DosplexError('DosPlex is not installed')
             return Session(env, journal, state).start(options)
     if args.op == 'stop':
         journal = Journal.open(env, lock=True)
         if journal is None:
-            raise DosplexError('Dosplex is not installed')
+            raise DosplexError('DosPlex is not installed')
         with journal:
             journal.require_clean()
             state = read_state(env)
             if state is None:
-                raise DosplexError('Dosplex is not installed')
+                raise DosplexError('DosPlex is not installed')
             return Session(env, journal, state).stop()
     if args.op == 'uninstall':
         return worker_uninstall(env, options)
@@ -5950,9 +6062,9 @@ LIBRARY_PROGRAM = '/opt/dosplex/bin/dosplex'
 # The boot unit. ExecStart is the slot (before the display manager starts any Steam). ExecStop runs at shutdown while the
 # local filesystems are still mounted, after what is ordered after this unit (the display manager and the compositor,
 # and so the sessions and their Steam) has stopped: it unmounts every account's overlays on every disk and stashes the
-# manifests of shared games, so that a Steam without Dosplex finds none (`library release`).
+# manifests of shared games, so that a Steam without DosPlex finds none (`library release`).
 LIBRARY_UNIT_TEXT = '''[Unit]
-Description=Dosplex shared game library
+Description=DosPlex shared game library
 After=local-fs.target
 Before=display-manager.service dosplex-compositor.service
 ConditionPathExists=%(program)s
@@ -5969,8 +6081,9 @@ TimeoutStopSec=120
 WantedBy=multi-user.target
 ''' % {'program': LIBRARY_PROGRAM}
 # What earlier releases wrote: replaced at the next update or `library on`, never seen as somebody else's file.
-LIBRARY_UNIT_TEXT_EARLIER = ('''[Unit]
-Description=Dosplex shared game library
+# The first is this release's text in the spelling of 0.1.0-alpha.5, the second the unit before it had an ExecStop.
+LIBRARY_UNIT_TEXT_EARLIER = tuple(earlier_name(text) for text in (LIBRARY_UNIT_TEXT, '''[Unit]
+Description=DosPlex shared game library
 After=local-fs.target
 Before=display-manager.service
 ConditionPathExists=%(program)s
@@ -5983,7 +6096,7 @@ TimeoutStartSec=300
 
 [Install]
 WantedBy=multi-user.target
-''' % {'program': LIBRARY_PROGRAM},)
+''' % {'program': LIBRARY_PROGRAM}))
 LIBRARY_LINK_TARGET = '../' + LIBRARY_UNIT
 # A disk that appears or goes. A udev rule starts one instance of the template per block device; the instance waits for
 # SteamOS to mount the device, then mounts the shared games into the accounts' libraries there (a Steam that runs too) or,
@@ -5993,7 +6106,7 @@ DISK_SERVICE = 'dosplex-game-library-disk@.service'
 DISK_RULE = '90-dosplex-game-library.rules'
 DISK_RULES_DIR = '/etc/udev/rules.d'
 DISK_SERVICE_TEXT = '''[Unit]
-Description=Dosplex shared game library: the mounts of %%I
+Description=DosPlex shared game library: the mounts of %%I
 After=dosplex-game-library.service
 ConditionPathExists=%(program)s
 
@@ -6002,7 +6115,7 @@ Type=oneshot
 ExecStart=%(program)s library arrive %%I
 TimeoutStartSec=300
 ''' % {'program': LIBRARY_PROGRAM}
-DISK_RULE_TEXT = '''# Dosplex shared game library: a disk that appears or goes gets its shared games mounted or released.
+DISK_RULE_TEXT = '''# DosPlex shared game library: a disk that appears or goes gets its shared games mounted or released.
 SUBSYSTEM=="block", ACTION=="add|remove", KERNEL=="sd*|mmcblk*|nvme*|vd*", ENV{DEVTYPE}=="partition|disk", \\
     RUN+="/usr/bin/systemctl --no-block start dosplex-game-library-disk@%k.service"
 '''
@@ -6011,7 +6124,7 @@ AUTO_SERVICE = 'dosplex-game-library-auto.service'
 AUTO_TIMER = 'dosplex-game-library-auto.timer'
 AUTO_TIMER_WANTS_DIR = LIBRARY_UNIT_DIR + '/timers.target.wants'
 AUTO_SERVICE_TEXT = '''[Unit]
-Description=Dosplex shared game library: check new games for sharing
+Description=DosPlex shared game library: check new games for sharing
 ConditionPathExists=%(program)s
 
 [Service]
@@ -6023,7 +6136,7 @@ IOSchedulingClass=idle
 TimeoutStartSec=infinity
 ''' % {'program': LIBRARY_PROGRAM}
 AUTO_TIMER_TEXT = '''[Unit]
-Description=Dosplex shared game library: check new games every ten minutes
+Description=DosPlex shared game library: check new games every ten minutes
 
 [Timer]
 OnBootSec=3min
@@ -6089,20 +6202,21 @@ def library_writable(env):
 
 
 def disk_facts(env):
-    """What of the disk units is on disk. A file there that is not the one Dosplex writes is refused."""
+    """What of the disk units is on disk. A file there that is not the one DosPlex writes is refused."""
     service, rule, rules = disk_paths(env)
     facts = {'service_existed': lexists(service), 'rule_existed': lexists(rule), 'rules_existed': lexists(rules),
              'udev_existed': lexists(rules.parent)}
     for path, text, name in ((service, DISK_SERVICE_TEXT, LIBRARY_UNIT_DIR + '/' + DISK_SERVICE),
                              (rule, DISK_RULE_TEXT, DISK_RULES_DIR + '/' + DISK_RULE)):
-        if lexists(path) and (os.path.islink(path) or not path.is_file() or path.read_text() != text):
-            raise RefusedError('%s is already there and is not the one Dosplex writes; look at it first' % name)
+        if lexists(path) and (os.path.islink(path) or not path.is_file()
+                              or not written_by_dosplex(path.read_text(), text)):
+            raise RefusedError('%s is already there and is not the one DosPlex writes; look at it first' % name)
     return facts
 
 
 def boot_unit_facts(env):
-    """What of the boot unit is on disk: its text when it is Dosplex's (this release's or an earlier one's), and a
-    refusal when the file or the link is not Dosplex's."""
+    """What of the boot unit is on disk: its text when it is DosPlex's (this release's or an earlier one's), and a
+    refusal when the file or the link is not DosPlex's."""
     unit, link, wants = library_paths(env)
     facts = {'text': LIBRARY_UNIT_TEXT, 'unit_existed': lexists(unit), 'link_existed': lexists(link),
              'wants_existed': lexists(wants), 'previous': None, 'current': False}
@@ -6110,12 +6224,12 @@ def boot_unit_facts(env):
         known = (LIBRARY_UNIT_TEXT,) + LIBRARY_UNIT_TEXT_EARLIER
         text = unit.read_text() if (not os.path.islink(unit) and unit.is_file()) else None
         if text not in known:
-            raise RefusedError('%s is already there and is not the one Dosplex writes; look at it first'
+            raise RefusedError('%s is already there and is not the one DosPlex writes; look at it first'
                                % (LIBRARY_UNIT_DIR + '/' + LIBRARY_UNIT))
         facts['previous'] = text
         facts['current'] = text == LIBRARY_UNIT_TEXT
     if facts['link_existed'] and (not os.path.islink(link) or os.readlink(link) != LIBRARY_LINK_TARGET):
-        raise RefusedError('%s is already there and is not the link Dosplex makes; look at it first'
+        raise RefusedError('%s is already there and is not the link DosPlex makes; look at it first'
                            % (LIBRARY_WANTS_DIR + '/' + LIBRARY_UNIT))
     facts['disk'] = disk_facts(env)
     return facts
@@ -6245,16 +6359,17 @@ def auto_writable(env):
 
 
 def auto_facts(env):
-    """What of the automatic sharing units is on disk; a file or link that is not what Dosplex writes is refused."""
+    """What of the automatic sharing units is on disk; a file or link that is not what DosPlex writes is refused."""
     service, timer, link, wants = auto_paths(env)
     facts = {'service_existed': lexists(service), 'timer_existed': lexists(timer), 'link_existed': lexists(link),
              'wants_existed': lexists(wants)}
     for path, text, name in ((service, AUTO_SERVICE_TEXT, AUTO_SERVICE), (timer, AUTO_TIMER_TEXT, AUTO_TIMER)):
-        if lexists(path) and (os.path.islink(path) or not path.is_file() or path.read_text() != text):
-            raise RefusedError('%s is already there and is not the one Dosplex writes; look at it first'
+        if lexists(path) and (os.path.islink(path) or not path.is_file()
+                              or not written_by_dosplex(path.read_text(), text)):
+            raise RefusedError('%s is already there and is not the one DosPlex writes; look at it first'
                                % (LIBRARY_UNIT_DIR + '/' + name))
     if facts['link_existed'] and (not os.path.islink(link) or os.readlink(link) != AUTO_LINK_TARGET):
-        raise RefusedError('%s is already there and is not the link Dosplex makes; look at it first'
+        raise RefusedError('%s is already there and is not the link DosPlex makes; look at it first'
                            % (AUTO_TIMER_WANTS_DIR + '/' + AUTO_TIMER))
     return facts
 
@@ -6357,7 +6472,7 @@ def repair_library(env, journal, tx):
 def library_state(env):
     state = read_state(env)
     if state is None:
-        raise NotInstalled('Dosplex is not installed. Run: sudo dosplex install BUNDLE --manifest SHA256')
+        raise NotInstalled('DosPlex is not installed. Run: sudo dosplex install BUNDLE --manifest SHA256')
     return state
 
 
@@ -6379,7 +6494,7 @@ def library_on(env, args):
     place = check_store_place(args.root or GAME_STORE_ROOT)
     journal = Journal.open(env, lock=True)
     if journal is None:
-        raise NotInstalled('Dosplex is not installed. Run: sudo dosplex install BUNDLE --manifest SHA256')
+        raise NotInstalled('DosPlex is not installed. Run: sudo dosplex install BUNDLE --manifest SHA256')
     with journal:
         journal.require_clean()
         state = library_state(env)
@@ -6396,7 +6511,7 @@ def library_on(env, args):
         check_current(env, state)
         tool = game_store_tool(env, state)
         if not tool.is_file():
-            raise RefusedError('the installed release (%s) has no shared game library. Update Dosplex first: '
+            raise RefusedError('the installed release (%s) has no shared game library. Update DosPlex first: '
                                'sudo dosplex update' % state['version'])
         boot = boot_unit_facts(env)
         auto = auto_facts(env)
@@ -6418,7 +6533,7 @@ def library_on(env, args):
             raise
     say('The shared game library is on (%s).' % place)
     say('Games are shared automatically: new and updated games are checked in the background, the first check starts '
-        'in a few minutes, and they reach both accounts at the next start of Dosplex or restart of the machine.')
+        'in a few minutes, and they reach both accounts at the next start of DosPlex or restart of the machine.')
     say('To do it right away: sudo dosplex library share --all')
     return 0
 
@@ -6484,7 +6599,7 @@ def booting(uptime='/proc/uptime', limit=180):
 
 def library_store_gone(env, place):
     """The store gave its last game back and took its own config away, and its folder is still here: only the units and
-    the entry in the state are left of the library. The start of Dosplex runs the store's slot itself, so this is
+    the entry in the state are left of the library. The start of DosPlex runs the store's slot itself, so this is
     how a library looks that finished leaving there. A place that is not there at all (a disk that is not connected)
     is not that."""
     root = env.path(place)
@@ -6544,12 +6659,12 @@ def library_slot(env, args):
         proc = store_call(env, game_store_tool(env, state), 'slot', '--root', env.path(place), *wait, timeout=270)
     except DosplexError as error:
         if 'steam' in str(error).lower():
-            raise DosplexError('the shared game library cannot change while a Steam is running (%s). Stop Dosplex and '
+            raise DosplexError('the shared game library cannot change while a Steam is running (%s). Stop DosPlex and '
                                'the Steam of both accounts first, or let the restart of the machine do it.'
                                % error) from None
         raise
     report = store_json(proc, 'slot')
-    # The start of Dosplex runs the store's slot too. When that one gave the last game back, the store answers here
+    # The start of DosPlex runs the store's slot too. When that one gave the last game back, the store answers here
     # only that it has no config: the units and the entry in the state are still to be taken away.
     gone = 'config' in report and report['config'] is None and library_store_gone(env, place)
     if not gone:
@@ -6560,7 +6675,7 @@ def library_slot(env, args):
         return 0
     journal = Journal.open(env, lock=True)
     if journal is None:
-        raise NotInstalled('Dosplex is not installed')
+        raise NotInstalled('DosPlex is not installed')
     with journal:
         journal.require_clean()
         if gone and (library_state(env).get('game_store') != place or not library_store_gone(env, place)):
@@ -6576,7 +6691,7 @@ def library_off(env, args):
     place = require_library_on(state, 'turn off')
     store_call(env, game_store_tool(env, state), 'off', '--root', env.path(place))
     say('The shared game library is leaving. Every shared game goes back to the account that shared it at the next '
-        'restart of the machine (or the next start of Dosplex).')
+        'restart of the machine (or the next start of DosPlex).')
     say('Check with: sudo dosplex library status. It shows when it is done.')
     return 0
 
@@ -6620,7 +6735,7 @@ def library_share(env, args):
     shared, refused = report.get('shared') or [], report.get('refused') or []
     if shared:
         say('Queued for sharing: %s.' % ', '.join(describe_game(item) for item in shared))
-        say('The games move at the next start of Dosplex or restart of the machine.')
+        say('The games move at the next start of DosPlex or restart of the machine.')
     for item in refused:
         say('Not shared: %s: %s' % (describe_game(item), item.get('reason') if isinstance(item, dict) else item))
     for line in describe_disks_refused(report):
@@ -6655,7 +6770,7 @@ def library_share_new(env, state, place, args):
     except FileNotFoundError:
         raise CommandMissing('%s is not installed' % argv[0]) from None
     if proc.returncode < 0:
-        # Ended by a signal: a start of Dosplex, a restart or a share somebody asked for went first.
+        # Ended by a signal: a start of DosPlex, a restart or a share somebody asked for went first.
         say('The check of games was stopped; it starts again by itself.')
         return 0
     try:
@@ -6686,7 +6801,7 @@ def library_auto(env, args):
     env.require_root()
     journal = Journal.open(env, lock=True)
     if journal is None:
-        raise NotInstalled('Dosplex is not installed. Run: sudo dosplex install BUNDLE --manifest SHA256')
+        raise NotInstalled('DosPlex is not installed. Run: sudo dosplex install BUNDLE --manifest SHA256')
     wanted = args.mode == 'on'
     with journal:
         journal.require_clean()
@@ -6770,7 +6885,7 @@ def _entries(value):
 
 def format_library_status(report, place):
     mode = (report.get('config') or {}).get('mode')
-    leaving = 'leaving (it finishes at the next restart of the machine or start of Dosplex)'
+    leaving = 'leaving (it finishes at the next restart of the machine or start of DosPlex)'
     lines = ['Shared game library: %s (%s)' % ({'on': 'on', 'leaving': leaving}.get(mode, 'off'), place)]
     for key, side in _entries(report.get('sides')):
         lines += side_lines(key, side, '  ')
@@ -6782,7 +6897,7 @@ def format_library_status(report, place):
     def waiting(store, indent):
         pending = _entries(store.get('pending'))
         if pending:
-            lines.append('%sWaiting for the next start of Dosplex or restart of the machine: %s' % (indent, ', '.join(
+            lines.append('%sWaiting for the next start of DosPlex or restart of the machine: %s' % (indent, ', '.join(
                 str(item.get('appid', key) if isinstance(item, dict) else (key if key is not None else item))
                 for key, item in pending)))
     waiting(report, '  ')
@@ -6833,7 +6948,7 @@ def side_lines(key, side, indent):
         if names:
             line += ' (%s%s)' % (', '.join(names[:5]), ' and %d more' % (stash['entries'] - 5) if stash['entries'] > 5 else '')
         if side.get('steam_running'):
-            line += '; they are put back at the next start of Dosplex or restart of the machine'
+            line += '; they are put back at the next start of DosPlex or restart of the machine'
     if side.get('earlier_layer'):
         line += ', its earlier private layer is still to be moved into the library'
     lines = [line]
@@ -6952,7 +7067,7 @@ def library_events_summary(report):
 
 def library_release(env, args):
     """`library release`: what the boot unit's stop step runs at shutdown. Every account's overlays on every disk come
-    off and the manifests of shared games are set aside, so that a Steam without Dosplex finds none. A Steam that still
+    off and the manifests of shared games are set aside, so that a Steam without DosPlex finds none. A Steam that still
     runs is given 30 seconds to end first. Safe to run twice."""
     env.require_root()
     state = read_state(env)
@@ -6996,8 +7111,8 @@ def eject_disk(env, mount):
 
 
 def library_eject(env, args):
-    """`library eject MOUNT`: the Dosplex-side eject of a card that holds a store. Steam's own eject of such a card fails
-    ("target is busy") because Dosplex's overlays and binds hold it; this releases them first, then asks udisks to
+    """`library eject MOUNT`: the DosPlex-side eject of a card that holds a store. Steam's own eject of such a card fails
+    ("target is busy") because DosPlex's overlays and binds hold it; this releases them first, then asks udisks to
     unmount it as Steam would."""
     env.require_root()
     mount, report = eject_disk(env, args.mount)
@@ -7009,7 +7124,7 @@ def library_eject(env, args):
                      if isinstance(item, dict) and item.get('stash_waits'))
     if waiting:
         say('The Steam of %s was running, so its manifests of shared games stay on the card until that Steam is closed '
-            'and Dosplex is next started or the machine restarted. Stock Steam on another machine may offer to download '
+            'and DosPlex is next started or the machine restarted. Stock Steam on another machine may offer to download '
             'those games again.' % ', '.join(waiting))
     return 0
 
@@ -7028,7 +7143,7 @@ def library_forget(env, args):
         store_call(env, game_store_tool(env, state), 'forget', '--root', env.path(place), '--disk', root)
     except DosplexError as error:
         if 'steam' in str(error).lower():
-            raise DosplexError('a disk can only be forgotten while no Steam is running (%s). Stop Dosplex and the '
+            raise DosplexError('a disk can only be forgotten while no Steam is running (%s). Stop DosPlex and the '
                                'Steam of both accounts first.' % error) from None
         raise
     say('The disk %s is forgotten. The games that were shared on it are not in any account\'s library any more; '
@@ -7383,7 +7498,7 @@ def begin_operation(env, action, plan):
     refuse and returns the options the runner needs. Returns the 'accepted' answer."""
     ops = Operations.open(env)
     if ops is None:
-        raise NotInstalled('Dosplex is not installed.')
+        raise NotInstalled('DosPlex is not installed.')
     try:
         with ops.lock():
             busy = active_operations(env, ops)
@@ -7408,7 +7523,7 @@ def begin_operation(env, action, plan):
                       'options': options, 'journal_before': before}
             ops.write(record)
             command = ['systemd-run', '--quiet', '--collect', '--service-type=exec', '--expand-environment=no',
-                       '--unit=' + unit, '--property=RuntimeMaxSec=1500', '--description=Dosplex control ' + action,
+                       '--unit=' + unit, '--property=RuntimeMaxSec=1500', '--description=DosPlex control ' + action,
                        '--', env.python, str(program), '--sysroot', str(env.sysroot), '_control_op', op_id]
             failure = None
             try:
@@ -7447,12 +7562,12 @@ def cmd_control_op(env, args):
         try:
             journal = Journal.open(env, lock=True)
             if journal is None:
-                raise NotInstalled('Dosplex is not installed')
+                raise NotInstalled('DosPlex is not installed')
             with journal:
                 journal.require_clean()
                 state = read_state(env)
                 if state is None:
-                    raise NotInstalled('Dosplex is not installed')
+                    raise NotInstalled('DosPlex is not installed')
                 session = Session(env, journal, state)
                 if record['action'] == 'start':
                     session.start(record['options'])
@@ -7529,8 +7644,8 @@ def control_status(env):
             data['warnings'].append('compositor-inactive')
         if trial.get('sleep_guard_active') is False:
             data['warnings'].append('sleep-guard-inactive')
-    message = ('Dosplex %s is %s.' % (info['version'], 'running' if data['running'] else 'not running')
-               if info['installed'] else 'Dosplex is not installed.')
+    message = ('DosPlex %s is %s.' % (info['version'], 'running' if data['running'] else 'not running')
+               if info['installed'] else 'DosPlex is not installed.')
     return 'ok', message, data
 
 
@@ -7550,7 +7665,7 @@ def control_start(env):
     def plan():
         options, probe = plan_start(env, args)
         if options is None:
-            raise ControlError('already-running', 'Dosplex is already running.', {'root': probe['root']})
+            raise ControlError('already-running', 'DosPlex is already running.', {'root': probe['root']})
         return options
     return begin_operation(env, 'start', plan)
 
@@ -7562,12 +7677,12 @@ def control_stop(env):
         require_clean_journal(env)
         state = read_state(env)
         if state is None:
-            raise NotInstalled('Dosplex is not installed.')
+            raise NotInstalled('DosPlex is not installed.')
         session = Session(env, None, state)
         display = Display(env, session.account).record()
         leftover = bool(display and display.get('phase') not in (None, 'restored'))
         if session.trial_alive() is None and not state.get('trial') and not leftover:
-            raise ControlError('not-running', 'Dosplex is not running.')
+            raise ControlError('not-running', 'DosPlex is not running.')
         return {}
     return begin_operation(env, 'stop', plan)
 
@@ -7612,20 +7727,24 @@ def control_devices(env):
 
 
 def require_running(env):
-    """The trial root of a running Dosplex, or the matching control error."""
+    """The trial root of a running DosPlex, or the matching control error."""
     state = read_state(env)
     if state is None:
-        raise NotInstalled('Dosplex is not installed.')
+        raise NotInstalled('DosPlex is not installed.')
     require_clean_journal(env)
     root = trial_root_of(env, state)
     if root is None or not trial_status(env, state)['alive']:
-        raise ControlError('not-running', 'Dosplex is not running.')
+        raise ControlError('not-running', 'DosPlex is not running.')
     return root
 
 
 def control_compositor(env, body):
     """One request on the compositor's control socket, after checking the socket is the root-only one; (status, value)."""
-    root = require_running(env)
+    return compositor_request(env, require_running(env), body)
+
+
+def compositor_request(env, root, body):
+    """The same for the session at `root`, whatever the journal says of it: a stop that is under way asks through this."""
     runtime = open_root_dir(env, root / 'runtime')
     if runtime is None:
         raise ControlError('unavailable', 'The compositor runtime directory is not available.')
@@ -7795,7 +7914,7 @@ def control_forget(env, controller):
 
 def control_eject(env, mount):
     """Eject a card that holds shared games: the store tool releases every account's overlays and binds on it, then has
-    udisks unmount it (what Steam's own eject does, which fails while Dosplex's mounts hold the card)."""
+    udisks unmount it (what Steam's own eject does, which fails while DosPlex's mounts hold the card)."""
     env.require_root()
     try:
         place, report = eject_disk(env, mount)
@@ -7974,12 +8093,12 @@ def build_parser():
                                  'controller never stops a start (0 to skip; default %(default)s)')
         if 'mode' in flags:
             command.add_argument('--output-mode', nargs=3, type=int, metavar=('W', 'H', 'HZ'),
-                                 help='physical display mode to use while Dosplex runs, e.g. 3840 2160 60')
+                                 help='physical display mode to use while DosPlex runs, e.g. 3840 2160 60')
         if 'user' in flags:
             command.add_argument('--main-user', default=MAIN_USER, help=argparse.SUPPRESS)
         return command
 
-    install = add('install', 'verify a bundle or a signed release, install it, create Guest and start Dosplex',
+    install = add('install', 'verify a bundle or a signed release, install it and create Guest (does not start DosPlex)',
                   flags=('untested', 'controllers', 'mode', 'user'))
     install.add_argument('bundle', type=Path, nargs='?', metavar='BUNDLE', help='the bundle directory (needs --manifest)')
     install.add_argument('--manifest', metavar='SHA256',
@@ -7990,12 +8109,15 @@ def build_parser():
     install.add_argument('--signature', type=Path, metavar='FILE',
                          help='the signature file of the release (default: dosplex-VERSION.manifest.json.minisig '
                          'beside the archive)')
-    install.add_argument('--no-start', action='store_true', help='install only; start later with dosplex start')
+    starting = install.add_mutually_exclusive_group()
+    starting.add_argument('--start', action='store_true', help='start DosPlex right after the install')
+    starting.add_argument('--no-start', action='store_true',
+                          help='install only (this is the default now; kept so that earlier commands still work)')
     install.add_argument('--adopt-guest-strip-groups', action='store_true',
                          help='adopt an existing guest account that an older installer put into the audio, input, '
                          'seat, video or render group, by removing exactly those memberships (journaled; uninstall '
                          'puts them back unless it removes Guest)')
-    start = add('start', 'start Dosplex (a reboot returns to stock SteamOS unless autostart is on; this brings Dosplex back)',
+    start = add('start', 'start DosPlex (a reboot returns to stock SteamOS unless autostart is on; this brings DosPlex back)',
                 flags=('untested', 'controllers', 'mode'))
     start.add_argument('--layout', choices=LAYOUTS, metavar='|'.join(LAYOUTS),
                        help='how the screen starts: single is Main on the full screen (default: vertical, two splits)')
@@ -8003,13 +8125,13 @@ def build_parser():
                        help='what the boot unit runs: Main alone on the full screen; waits up to five minutes for Steam, '
                        'never leaves Desktop mode, and leaves stock Steam running when it cannot start')
     start.add_argument('--keep-on-failure', action='store_true', help=argparse.SUPPRESS)
-    add('stop', 'stop Dosplex and give Steam back')
-    boot = add('autostart', 'start Dosplex at every boot (experimental; off after an install); a start that fails leaves '
+    add('stop', 'stop DosPlex and give Steam back')
+    boot = add('autostart', 'start DosPlex at every boot (experimental; off after an install); a start that fails leaves '
                'stock Steam')
     boot.add_argument('mode', choices=('on', 'off', 'status'), help='on writes the boot unit, off removes it')
     boot.add_argument('--experimental', action='store_true',
                       help='say that you know starting at boot is experimental; `on` is refused without this')
-    entry = add('entry', 'the "Dosplex" entry for Steam\'s library and the service that starts Dosplex for it '
+    entry = add('entry', 'the "DosPlex" entry for Steam\'s library and the service that starts DosPlex for it '
                 '(set up by an install)')
     entry.add_argument('mode', choices=('on', 'off', 'status'), help='on writes the entry and its service, off removes them')
     status = add('status', 'show what is installed and what runs')
@@ -8018,16 +8140,16 @@ def build_parser():
     update = add('update', 'fetch the signed release index and install the newest release this device can run',
                  flags=('untested',))
     update.add_argument('--channel', metavar='URL',
-                        help='the signed release index to read: an https:// or file:// address (default: the Dosplex '
+                        help='the signed release index to read: an https:// or file:// address (default: the DosPlex '
                         'releases on GitHub; the environment variable %s works too)' % CHANNEL_ENV)
     update.add_argument('--check', action='store_true', help='only say whether a newer release is available')
     update.add_argument('--no-restart', action='store_true',
-                        help='leave a running Dosplex on the release it started with until you stop and start it')
+                        help='leave a running DosPlex on the release it started with until you stop and start it')
     update.add_argument('--sample-seconds', type=sample_seconds, default=SAMPLE_SECONDS, help=argparse.SUPPRESS)
     back = add('rollback', 'go back to the release before the current one, which install and update keep',
                flags=('untested',))
     back.add_argument('--no-restart', action='store_true',
-                      help='leave a running Dosplex on the release it started with until you stop and start it')
+                      help='leave a running DosPlex on the release it started with until you stop and start it')
     back.add_argument('--sample-seconds', type=sample_seconds, default=SAMPLE_SECONDS, help=argparse.SUPPRESS)
     library = add('library', 'the shared game library: games that both accounts play from one copy (experimental)')
     actions = library.add_subparsers(dest='action', metavar='ACTION')
@@ -8054,7 +8176,7 @@ def build_parser():
     arrive.add_argument('device', metavar='DEVICE', nargs='?', help='the kernel name of the device, for example sdb1')
     eject = actions.add_parser('eject', parents=[common], help='eject a card that holds shared games',
                                description='release the shared games on a card and have udisks unmount it, as Steam\'s '
-                                           'own eject would (that fails while Dosplex\'s mounts hold the card)')
+                                           'own eject would (that fails while DosPlex\'s mounts hold the card)')
     eject.add_argument('mount', metavar='MOUNT', help='where the card is mounted, as `library status` shows it')
     share = actions.add_parser('share', parents=[common], help='verify games and queue them for sharing',
                                description='verify games of one account and queue them for the shared game library; with --new, check '
@@ -8066,12 +8188,12 @@ def build_parser():
     share.add_argument('--user', metavar='NAME', help='the account that has the games (default: the main user)')
     auto = actions.add_parser('auto', parents=[common], help='turn the automatic sharing of new games on or off',
                               description='turn the automatic sharing on or off: a timer checks new and updated games '
-                                          'every ten minutes and queues them for the next start of Dosplex')
+                                          'every ten minutes and queues them for the next start of DosPlex')
     auto.add_argument('mode', choices=('on', 'off'), help='on installs the timer, off stops and removes it')
     shown = actions.add_parser('status', parents=[common], help='show the shared game library',
                                description='show the shared game library and its games')
     shown.add_argument('--json', action='store_true', help='machine-readable output (the tool\'s own)')
-    uninstall = add('uninstall', 'stop Dosplex and remove it')
+    uninstall = add('uninstall', 'stop DosPlex and remove it')
     uninstall.add_argument('--remove-guest', action='store_true',
                            help="also remove Guest's account and home (asks you to type the path)")
     uninstall.add_argument('--yes', action='store_true', help=argparse.SUPPRESS)

@@ -274,10 +274,10 @@ prepare_auth_file "$right_display" "$right_auth"
 left_runtime="$(prepare_runtime_dir "$left_user")"
 right_runtime="$(prepare_runtime_dir "$right_user")"
 
-launch_side left "$left_user" "$left_display" "$left_auth" "$screen_x" "Dosplex Left" "$left_runtime"
-launch_side right "$right_user" "$right_display" "$right_auth" "$((screen_x + half_width))" "Dosplex Right" "$right_runtime"
+launch_side left "$left_user" "$left_display" "$left_auth" "$screen_x" "DosPlex Left" "$left_runtime"
+launch_side right "$right_user" "$right_display" "$right_auth" "$((screen_x + half_width))" "DosPlex Right" "$right_runtime"
 
-echo "Dosplex nested sessions running on $display"
+echo "DosPlex nested sessions running on $display"
 echo "left=$left_user display=$left_display"
 echo "right=$right_user display=$right_display"
 

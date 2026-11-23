@@ -12,7 +12,7 @@ frames apart where the patched backend gives two with a compositor that commits 
 every frame event, and one with a compositor that commits only on change. Unpatched,
 with a compositor that commits only on change, the client got no feedback for its
 second frame and stopped there.
-Found on Dosplex running as an X11 client of SteamOS's Gamescope; applies to the
+Found on DosPlex running as an X11 client of SteamOS's Gamescope; applies to the
 bundled wlroots and to the development build's subproject (compositor/subprojects).
 
 --- a/backend/x11/output.c

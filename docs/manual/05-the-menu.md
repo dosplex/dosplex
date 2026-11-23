@@ -1,6 +1,6 @@
 # The menu
 
-Your menu shows every setting that belongs to your side of the screen. It has four pages: **Display** (picture size, the frame-rate counter, brightness), **Devices** (who has which controller, mouse and keyboard), **Audio** (where your sound goes and which microphone is yours) and **Session** (reset your side; for Main also the layout, power and **Turn off Dosplex**). The first line says whose menu it is, for example **Dosplex · Main**.
+Your menu shows every setting that belongs to your side of the screen. It has four pages: **Display** (picture size, the frame-rate counter, brightness), **Devices** (who has which controller, mouse and keyboard), **Audio** (where your sound goes and which microphone is yours) and **Session** (reset your side; for Main also the layout, power and **Turn off DosPlex**). The first line says whose menu it is, for example **DosPlex · Main**.
 
 ## Open the menu
 
@@ -8,11 +8,11 @@ On a Steam Controller, hold **Select / Back / View** first. While holding it, pr
 
 On a Steam Deck, the same chord works on its own controls: hold **View** (the left button of the pair under the screen), press **D-pad Up**, and hold both for about one second. If you set the chord to use **Menu** instead of View, hold **Menu** there. A hold that ends sooner than the configured time does not open the menu; the time is one second by default.
 
-Other gamepads, such as a DualShock 4, a DualSense, an Xbox or a Switch Pro controller, can open and drive the menu of the player they belong to with the same chord. This is experimental. Dosplex cannot filter these controllers, so the chord also reaches the game, and so would every press you make in the menu. For that reason the player's side is paused while the menu is open because of such a controller: the picture and the sound stand still, and an online game may drop its connection. The game continues when the menu closes and you have let go of the controller. If you would rather not have this, `sudo touch /var/lib/dosplex/gamepad-menu-off` and a restart of Dosplex switch it off. You can also open the menu from a Steam Controller, from the Steam Deck's own controls or from a keyboard.
+Other gamepads, such as a DualShock 4, a DualSense, an Xbox or a Switch Pro controller, can open and drive the menu of the player they belong to with the same chord. This is experimental. DosPlex cannot filter these controllers, so the chord also reaches the game, and so would every press you make in the menu. For that reason the player's side is paused while the menu is open because of such a controller: the picture and the sound stand still, and an online game may drop its connection. The game continues when the menu closes and you have let go of the controller. If you would rather not have this, `sudo touch /var/lib/dosplex/gamepad-menu-off` and a restart of DosPlex switch it off. You can also open the menu from a Steam Controller, from the Steam Deck's own controls or from a keyboard.
 
 On an assigned keyboard, use **Ctrl+Shift+M** or **Super+Shift+M**, then the arrow keys, **Enter** and **Escape**.
 
-Your game still gets **Select / Back / View** exactly when you press it, so a game menu that uses that button works as usual. Dosplex holds back only the second button of the chord, and only while the first one is held down. If you let go before the hold ends, the game gets the button straight away, so a quick Select + D-pad Up still reaches your game.
+Your game still gets **Select / Back / View** exactly when you press it, so a game menu that uses that button works as usual. DosPlex holds back only the second button of the chord, and only while the first one is held down. If you let go before the hold ends, the game gets the button straight away, so a quick Select + D-pad Up still reaches your game.
 
 ## Help
 

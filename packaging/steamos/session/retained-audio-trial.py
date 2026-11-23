@@ -109,7 +109,7 @@ def run(root,action,simulated=True):
                 raise RuntimeError('audio already prepared')
             journal.rename(root/('audio-cleaned-'+str(time.time_ns())+'.json'))
         modules=router.query('modules')
-        if any(owned(m,router) for m in modules):raise RuntimeError('pre-existing Dosplex modules; inspect before enrolling')
+        if any(owned(m,router) for m in modules):raise RuntimeError('pre-existing DosPlex modules; inspect before enrolling')
         snapshot={'baseline':modules,'default_sink':default_device(router,'sink'),
                   'default_source':default_device(router,'source'),'phase':'preparing'}
         save(journal,snapshot)

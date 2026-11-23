@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
-# Dosplex End-to-End Input Handover Test (Python IPC version)
+# DosPlex End-to-End Input Handover Test (Python IPC version)
 
 IPC_SOCK="${DOSPLEX_HUD_IPC_SOCK:-/run/dosplex/hud-ipc.sock}"
 LOG_FILE="dosplex-test.log"
@@ -29,7 +29,7 @@ check_log() {
     return 0
 }
 
-echo "--- Dosplex Input Handover Test ---"
+echo "--- DosPlex Input Handover Test ---"
 
 if [ ! -S "$IPC_SOCK" ]; then
     echo -e "${RED}[FAIL]${NC} IPC socket $IPC_SOCK not found."

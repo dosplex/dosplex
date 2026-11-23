@@ -16,6 +16,11 @@ BOOT_ID = Path('/proc/sys/kernel/random/boot_id')
 TARGETS = ('main', 'guest', 'unassigned')
 # ADR-014 (amended 2026-11-16): a controller with no saved owner belongs to Main. Unassigned is a state the user chooses.
 NEW_OWNER = 'main'
+# ADR-014 (amended 2026-11-23): the first owner is decided when a controller is first awake, not when its receiver slot
+# is first seen, and the second player gets the next one while they have none (first_owner). A record that still waits
+# for that moment carries first=FIRST_PENDING and belongs to nobody; `default` AUTO_OWNER asks observe() for such a record.
+AUTO_OWNER = 'auto'
+FIRST_PENDING = 'pending'
 MAX_INDEX = 999
 INDEX_LOCK = 'index.lock'
 FORGET_SUFFIX = '.forget'
@@ -39,6 +44,17 @@ def requested_target(record):
         except (OSError, KeyError, TypeError, ValueError):
             pass
     return target
+
+
+def first_owner(state, main_has, guest_has):
+    """Who gets a controller that nobody has given an owner yet, at the moment it is first awake.
+
+    The first one is Main's. While the second player is on the screen (every layout but Main alone) and has no
+    controller that is awake, and Main has one, it is the second player's: a person who sits down with a second
+    controller can sign in without anyone opening a menu. main_has and guest_has say whether a controller (or the Steam
+    Deck's own controls) that is awake belongs to that player. What the user chooses in Devices is kept and always wins;
+    this only answers for a controller that has no owner at all."""
+    return 'guest' if state.get('layout') != 'single' and main_has and not guest_has else NEW_OWNER
 
 
 def controller_id(info, uniq, phys):
@@ -176,13 +192,35 @@ class Registry:
             except (OSError, ValueError, TypeError, AttributeError, RuntimeError): continue
 
     def observe(self, key, name, default=NEW_OWNER, **fields):
-        """Note a controller that is connected. One with no saved record (or an unreadable one) gets one, owned by default."""
+        """Note a controller that is connected. One with no saved record (or an unreadable one) gets one, owned by default.
+
+        With default AUTO_OWNER the new record belongs to nobody and waits for its first owner (pending, decide)."""
         if key not in self.devices:
             if len(self.devices) >= 32: raise RuntimeError('controller inventory is full')
+            if default == AUTO_OWNER:
+                default, fields = 'unassigned', dict(fields, first=FIRST_PENDING)
             number = save_record(self.directory, key, dict(fields, name=name[:120], target=default))
             self.devices[key] = dict(id=key, name=name[:120], index=number, requested=default,
                 target='unassigned', connected=True, active=False, node='')
         self.devices[key]['connected'] = True
+
+    def pending(self, key):
+        """Whether the controller still waits for its first owner: its record says so, and the user has chosen none."""
+        try:
+            if read_json(self.directory / (key + '.json')).get('first') != FIRST_PENDING: return False
+        except (OSError, ValueError, TypeError, AttributeError):
+            return False
+        try:
+            return key not in self.batch().get('assignments', {})
+        except (OSError, ValueError, TypeError, AttributeError):
+            return True         # (no usable file is no choices)
+
+    def decide(self, key, owner):
+        """Give a controller that waited for it its first owner. The record keeps its number and no longer waits."""
+        if owner not in TARGETS: raise ValueError('invalid controller target')
+        record = read_json(self.directory / (key + '.json'))
+        save_record(self.directory, key, dict({k: v for k, v in record.items() if k not in ('index', 'first')}, target=owner))
+        if key in self.devices: self.devices[key]['requested'] = owner
 
     def forget_requests(self, connected, protected=()):
         """Forget the controllers that a `<id>.forget` file in the directory asks for; the ids that were forgotten.

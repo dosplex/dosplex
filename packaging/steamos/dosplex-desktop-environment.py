@@ -219,7 +219,7 @@ def update_file(path, change):
 OSK_RULE_ID = 'dosplex-steam-osk'
 OSK_SCRIPT_ID = 'dosplex-osk'
 OSK_RULE = (
-    ('Description', 'Dosplex: free the size of the Steam on-screen keyboard'),
+    ('Description', 'DosPlex: free the size of the Steam on-screen keyboard'),
     ('wmclass', 'steamwebhelper steam'),    # KWin compares the class part, so only the complete form matches
     ('wmclasscomplete', 'true'),
     ('wmclassmatch', '1'),
@@ -234,7 +234,7 @@ OSK_RULE = (
 OSK_METADATA = """{
     "KPlugin": {
         "Id": "%s",
-        "Name": "Dosplex on-screen keyboard fit",
+        "Name": "DosPlex on-screen keyboard fit",
         "Description": "Fits Steam's on-screen keyboard to the width of the side, at its bottom.",
         "Version": "1"
     },
@@ -250,7 +250,7 @@ OSK_METADATA = """{
 # window itself: its size when it appears, and every later size it sets by itself (the script's own refits are
 # told apart by the re-entry guard and by being what it set last). Sizes are KWin's logical coordinates, so the
 # scale does not matter. A window with no height yet gets a third of the screen, which is what Steam picks for 16:9.
-OSK_SCRIPT = """// Dosplex: fit Steam's on-screen keyboard to the side. Written by dosplex-desktop-environment.py.
+OSK_SCRIPT = """// DosPlex: fit Steam's on-screen keyboard to the side. Written by dosplex-desktop-environment.py.
 const keyboards = [];
 let fitting = false;
 

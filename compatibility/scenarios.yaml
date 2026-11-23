@@ -1,4 +1,4 @@
-# Dosplex compatibility scenarios: the source of truth for what "compatible" means (ADR-008, ADR-009).
+# DosPlex compatibility scenarios: the source of truth for what "compatible" means (ADR-008, ADR-009).
 #
 # This file defines scenarios. It never says that one passed. A scenario is pending until the project
 # owner locks it in accepted.lock, and a pass exists only as a result record on a named candidate. Result
@@ -155,8 +155,8 @@ games:
       - "Historical Deck regression; reproduce on the current Steam machine before treating it as current evidence."
       - "Future Deck coverage: distinguish onboard controls from the external routed gamepad."
       - "2026-05-09: Steam launched app 2310 through Proton 10.0 at 09:47:04 and removed all tracked game processes by 09:47:11."
-      - "2026-05-09: Dosplex compositor stayed alive; Steam console log only showed nested WSI env warnings and MangoHud 32-bit dependency warnings, so capture a Proton log next."
-      - "2026-05-09: Proton log from direct run crashed during SDL/video display setup after XWayland reported a 1280x720 Generic Non-PnP Monitor while Dosplex state was 1280x800."
+      - "2026-05-09: DosPlex compositor stayed alive; Steam console log only showed nested WSI env warnings and MangoHud 32-bit dependency warnings, so capture a Proton log next."
+      - "2026-05-09: Proton log from direct run crashed during SDL/video display setup after XWayland reported a 1280x720 Generic Non-PnP Monitor while DosPlex state was 1280x800."
       - "2026-05-09: Deployed explicit gamescope --output-width/--output-height/--nested-width/--nested-height from DOSPLEX_OUTPUT_WIDTH/HEIGHT; XWayland now reports 1280x800 in single-screen mode."
       - "Next run: Repeat native exclusive gameplay/input and other native regions; compare Win32 selectable modes with current monitor before applying any workaround."
       - "Next run: Capture the Steam console and Proton logs for app 2310 if it still closes."
@@ -791,7 +791,7 @@ scenarios:
       human:
         - "After a normal launch from the game's saved settings, the scene and menus fill the half without bars."
         - "Menus are navigable with the controller."
-        - "Opening and closing the Dosplex overlay returns to the game."
+        - "Opening and closing the DosPlex overlay returns to the game."
     known_issue: "A normal launch restores the game's saved window size and leaves bars; resizing the window by hand fills the half. Automatic sizing is not implemented yet."
     source: "Legacy mode machine_native_window: temporary_resize_pass_automatic_sizing_regression_open (2026-10-07, Steam Machine, game build 25730771). Second half of the window-sizing pair."
 

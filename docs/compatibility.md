@@ -2,7 +2,7 @@
 
 *This page is generated from the compatibility scenarios, the list of accepted scenarios and the project's reviewed test results. Do not edit it by hand.*
 
-Dosplex runs two Steam accounts side by side, and a game that works full screen can still fail in half a screen. This page lists every game scenario the project tracks, what it needs before it counts as working, and where it stands.
+DosPlex runs two Steam accounts side by side, and a game that works full screen can still fail in half a screen. This page lists every game scenario the project tracks, what it needs before it counts as working, and where it stands.
 
 Nothing here is a promise that a game works for you. A scenario is **Pending** until a person has played it on a named build and the result has been reviewed. Pending means unverified, not broken.
 

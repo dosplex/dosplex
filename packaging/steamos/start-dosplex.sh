@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
 #
-# Dosplex Session Start Script
+# DosPlex Session Start Script
 # Run this instead of the compositor directly for proper session setup.
 #
 # On Steam Deck (with display):
@@ -55,7 +55,7 @@ set_compositor_args() {
         # The display-manager run owns the machine: real side sessions (the
         # unit runs as root, which -s requires), machine power, idle blanking
         # and the installed audio helper. This unit is the display manager, so
-        # a restart or power-off comes back as Dosplex: the confirmations say so.
+        # a restart or power-off comes back as DosPlex: the confirmations say so.
         COMPOSITOR_ARGS+=(-s --allow-power --boots-into=dosplex --idle-policy=dim --audio-router "$AUDIO_ROUTER")
     else
         # A nested or headless development run keeps placeholder sides and
@@ -155,7 +155,7 @@ fi
 
 # Consolidate to always use dynamic stack for DRM
 if [[ "$BACKEND" == "drm" ]]; then
-    echo "[dosplex-start] === Dosplex DRM Startup ===" >> "$LOG_FILE"
+    echo "[dosplex-start] === DosPlex DRM Startup ===" >> "$LOG_FILE"
     echo "[dosplex-start] Timestamp: $(date)" >> "$LOG_FILE"
     echo "[dosplex-start] Compositor: $COMPOSITOR" >> "$LOG_FILE"
     echo "[dosplex-start] Auth helper: $AUTH_HELPER" >> "$LOG_FILE"

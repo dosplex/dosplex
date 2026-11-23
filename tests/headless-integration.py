@@ -911,8 +911,8 @@ def run(binary, client_side="left"):
                 probe = None
                 wait_for(lambda s: not s[client_side]["has_app"])
                 diagnostics = (root / "compositor.log").read_text()
-                assert f"Side toplevel mapped on {client_side} side: title='Dosplex Key Probe'" in diagnostics, diagnostics[-3000:]
-                assert f"App surface unmapped on {client_side} side: toplevel title='Dosplex Key Probe'" in diagnostics, diagnostics[-3000:]
+                assert f"Side toplevel mapped on {client_side} side: title='DosPlex Key Probe'" in diagnostics, diagnostics[-3000:]
+                assert f"App surface unmapped on {client_side} side: toplevel title='DosPlex Key Probe'" in diagnostics, diagnostics[-3000:]
 
                 # A side's new toplevel that never maps (the Steam Machine's third Reset of 2026-10-20): the map
                 # watchdog logs what is known after DOSPLEX_MAP_WATCHDOG_MS and configures the toplevel again once.
@@ -923,11 +923,11 @@ def run(binary, client_side="left"):
                 wait_for(lambda s: f"Set app_surface for {client_side} side" in (root / "compositor.log").read_text()[at:])
                 wait_for(lambda s: (root / "compositor.log").read_text()[at:].count("TOPLEVEL_CONFIGURE ") >= 1)
                 warning = re.compile(
-                    rf"WARN: the {client_side} side's toplevel 'Dosplex Key Probe' has not mapped \d+ ms after it was assigned \(check 1\): "
+                    rf"WARN: the {client_side} side's toplevel 'DosPlex Key Probe' has not mapped \d+ ms after it was assigned \(check 1\): "
                     rf"initial commit made, configure sent, scheduled serial \d+, \d+ configure\(s\) not acked, last acked serial \d+, "
                     rf"\d+ commit\(s\), buffer none, surface 0x0, it is the side's app surface")
                 resent = re.compile(
-                    rf"Re-sent configure \d+x\d+ to the {client_side} side's toplevel 'Dosplex Key Probe' from the map watchdog")
+                    rf"Re-sent configure \d+x\d+ to the {client_side} side's toplevel 'DosPlex Key Probe' from the map watchdog")
                 wait_for(lambda s: resent.search((root / "compositor.log").read_text()[at:]) is not None)
                 assert probe.poll() is None, "the held probe exited"
                 # The configures counted up to the warning, which the watchdog logs right before it re-sends the
@@ -940,7 +940,7 @@ def run(binary, client_side="left"):
                 wait_for(lambda s: "TOPLEVEL_CONFIGURE " in (root / "compositor.log").read_text()[at:][sent.end():])
                 assert "Side toplevel mapped on" not in (root / "compositor.log").read_text()[at:]
                 probe.stdin.write(b'M'); probe.stdin.flush()
-                wait_for(lambda s: f"Side toplevel mapped on {client_side} side: title='Dosplex Key Probe'" in (root / "compositor.log").read_text()[at:])
+                wait_for(lambda s: f"Side toplevel mapped on {client_side} side: title='DosPlex Key Probe'" in (root / "compositor.log").read_text()[at:])
                 wait_for(lambda s: s[client_side]["has_app"])
                 time.sleep(1.2)   # past a second watchdog period: a mapped toplevel is not warned about again
                 assert (root / "compositor.log").read_text()[at:].count("WARN: the") == 1, (root / "compositor.log").read_text()[at:]
@@ -952,12 +952,12 @@ def run(binary, client_side="left"):
                     other = subprocess.Popen([str(root / "probe"), "--test-control", "--hold-map"], env=env,
                                              stdin=subprocess.PIPE, stdout=other_out, stderr=log)
                     try:
-                        skipped = (f"No configure re-sent to the {client_side} side's toplevel 'Dosplex Key Probe' from the map "
+                        skipped = (f"No configure re-sent to the {client_side} side's toplevel 'DosPlex Key Probe' from the map "
                                    f"watchdog: it is not the side's app surface")
                         wait_for(lambda s: skipped in (root / "compositor.log").read_text()[at_other:])
                         text = (root / "compositor.log").read_text()[at_other:]
                         other_warning = re.search(
-                            rf"WARN: the {client_side} side's toplevel 'Dosplex Key Probe' has not mapped \d+ ms after it was "
+                            rf"WARN: the {client_side} side's toplevel 'DosPlex Key Probe' has not mapped \d+ ms after it was "
                             rf"assigned \(check 1\): .*, it is not the side's app surface", text)
                         assert other_warning is not None and other_warning.start() < text.index(skipped), text[-3000:]
                         assert "Re-sent configure" not in text, text[-3000:]
@@ -976,7 +976,7 @@ def run(binary, client_side="left"):
                 probe.wait(timeout=5)
                 probe = None
                 wait_for(lambda s: not s[client_side]["has_app"])
-                wait_for(lambda s: f"App surface unmapped on {client_side} side: toplevel title='Dosplex Key Probe'" in (root / "compositor.log").read_text()[at:])
+                wait_for(lambda s: f"App surface unmapped on {client_side} side: toplevel title='DosPlex Key Probe'" in (root / "compositor.log").read_text()[at:])
 
                 # The control socket (production path of `dosplex control layout`): fixed binary records on a
                 # SOCK_SEQPACKET socket, nothing else is accepted. Layout numbers: 1 single, 2 vertical, 3 horizontal.

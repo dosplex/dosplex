@@ -1,6 +1,6 @@
 # Control interface
 
-`dosplex control` is the one supported way for a user interface to ask Dosplex to do
+`dosplex control` is the one supported way for a user interface to ask DosPlex to do
 something. It replaces ad-hoc commands and test hooks. It runs as root, like the rest of the `dosplex` program, and
 answers every request with one JSON object.
 
@@ -14,7 +14,7 @@ else. A malformed request never prints usage text: it is answered with the code 
 ## The answer
 
 ```json
-{"api": 1, "ok": true, "code": "ok", "message": "Dosplex 0.2.0 is running.", "data": {}}
+{"api": 1, "ok": true, "code": "ok", "message": "DosPlex 0.2.0 is running.", "data": {}}
 ```
 
 | Field | Meaning |
@@ -36,15 +36,15 @@ The exit status of the program says the same as `code`, so a shell script can us
 | `failed` | 1 | The action failed. Read `message`. |
 | `bad-request` | 2 | The action or an argument is not on the allow-list or is not valid. Nothing was done. |
 | `refused` | 3 | A rule or a check refused it (preflight, untested versions, no known controller slots). |
-| `not-installed` | 3 | Dosplex is not installed. |
+| `not-installed` | 3 | DosPlex is not installed. |
 | `interrupted` | 4 | An earlier operation was interrupted. Run `sudo dosplex repair`. |
 | `busy` | 5 | Another operation is in progress. `data.operation` names it when it is a control operation. |
-| `already-running` | 6 | `start` found Dosplex running. Nothing was done. |
-| `not-running` | 7 | The action needs a running Dosplex (or, for `stop`, there is nothing to stop). |
+| `already-running` | 6 | `start` found DosPlex running. Nothing was done. |
+| `not-running` | 7 | The action needs a running DosPlex (or, for `stop`, there is nothing to stop). |
 | `timeout` | 8 | `wait` ran out of time. The operation goes on. |
 | `not-found` | 9 | The operation or controller does not exist. |
 | `permission-denied` | 10 | The program was not run as root, or the compositor refused the caller. |
-| `unavailable` | 11 | A part Dosplex needs did not answer (for example a compositor that has no control socket). |
+| `unavailable` | 11 | A part DosPlex needs did not answer (for example a compositor that has no control socket). |
 
 ## Actions
 
@@ -58,11 +58,11 @@ through a shell.
 | Field | Type | Meaning |
 |---|---|---|
 | `program_version` | string | Version of the `dosplex` program. |
-| `installed` | boolean | Dosplex is installed. |
+| `installed` | boolean | DosPlex is installed. |
 | `version`, `commit` | string or null | The installed release; null when not installed. |
 | `interrupted` | null or `{"op", "name"}` | An interrupted operation that needs `dosplex repair`. |
 | `in_progress` | null or `{"op", "name"}` | An operation that is still running; wait for it to finish. |
-| `running` | boolean | Dosplex started it and the session is alive. |
+| `running` | boolean | DosPlex started it and the session is alive. |
 | `layout` | `"single"`, `"vertical"`, `"horizontal"`, `"guest"` (Guest full screen) or null | The layout in effect; null when not running. |
 | `brightness` | integer 5-100 or null | The built-in screen's brightness in percent; null when not running or when the machine has no backlight. |
 | `sides` | array | Empty when not running. Otherwise `{"name": "main"\|"guest", "side": "left"\|"right", "owner", "lifecycle", "mode"}`. `mode` is `"gaming"`, `"desktop"` or null. |
@@ -115,7 +115,7 @@ an older compositor), or `permission-denied`. The compositor's control socket is
 
 Sets the built-in screen's brightness. `PERCENT` is a whole number from 0 to 100; the compositor raises anything below
 5 to 5, so the screen never goes black. `ok` with `data.brightness`, the percent in effect. The screen is shared, so
-this is Main's control: it is the same setting as the Brightness buttons in Main's menu, and Dosplex remembers it across
+this is Main's control: it is the same setting as the Brightness buttons in Main's menu, and DosPlex remembers it across
 restarts (`/var/lib/dosplex/screen/brightness.conf`, root only). Other codes: `bad-request` (not a whole number from 0
 to 100), `not-running`, `unavailable` (no control socket, or a machine with no backlight to set), `permission-denied`,
 `failed`. The compositor writes the kernel's backlight device, preferring type `raw`, then `firmware`, then `platform`
@@ -127,7 +127,7 @@ to 100), `not-running`, `unavailable` (no control socket, or a machine with no b
 
 | Field | Meaning |
 |---|---|
-| `running` | Dosplex is running. |
+| `running` | DosPlex is running. |
 | `inventory` | `"fresh"`, `"stale"`, `"missing"` or `"not-running"`: whether the brokers' controller list is current (they publish it every second; the compositor ignores one older than 5 seconds). |
 | `receivers` | `{"node", "vendor", "product", "role"}` for each Steam Controller receiver slot found; `role` is `"main"`, `"guest"` or null. |
 | `controllers` | `{"id", "name", "side", "requested_side", "connected", "active", "routing_error"}`. `side` is where the controller is routed now (`"main"`, `"guest"`, `"unassigned"`), or where it will go when it wakes. `requested_side` is the saved assignment. `routing_error` is `"not-routed"` when a connected controller is not yet where it was asked to be, else null. |
@@ -156,14 +156,14 @@ answer, or the controller directory is not trustworthy). Bluetooth pairing is no
 
 Ejects an SD card or USB drive that holds shared games (see the shared game library in `steamos-installation.md`).
 `MOUNT` is where the drive is mounted, a plain absolute path as `dosplex library status` shows it. Steam's own eject
-of such a drive fails with "target is busy", because Dosplex's overlays and binds hold it. This action releases them
+of such a drive fails with "target is busy", because DosPlex's overlays and binds hold it. This action releases them
 first (every account's library on that drive; the manifests of shared games are set aside for an account whose Steam is
 closed), then asks udisks to unmount the drive, as Steam would. If anything of the drive is in use (a game from it runs)
 or udisks refuses, what was released is mounted again and nothing is changed.
 
 `ok` with `data` `{"mount", "device", "already", "manifests_wait"}`. `already` is true when the drive was not mounted.
 `manifests_wait` lists the accounts whose Steam was running: their manifests of shared games stay on the drive until
-that Steam is closed and Dosplex is next started or the machine restarts. Other codes: `bad-request` (not a plain
+that Steam is closed and DosPlex is next started or the machine restarts. Other codes: `bad-request` (not a plain
 absolute path), `not-found` (no drive with a store is listed at that path), `refused` (the library is off, or something
 of the drive is in use or udisks said no; `message` says what), `failed`. It takes a few seconds and runs in the
 foreground. Steam's Storage page still shows its own Eject, which fails for such a drive.

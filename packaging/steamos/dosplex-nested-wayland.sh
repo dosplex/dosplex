@@ -110,7 +110,7 @@ launch_side() {
             DOSPLEX_SIDE_SOCKET="$side_socket" \
             DOSPLEX_HOST_WAYLAND_SOCKET="$host_wayland_socket" \
             DOSPLEX_OUTPUT_NAME="dosplex-${side}" \
-            DOSPLEX_OUTPUT_DESCRIPTION="Dosplex ${side} logical output" \
+            DOSPLEX_OUTPUT_DESCRIPTION="DosPlex ${side} logical output" \
             DOSPLEX_OUTPUT_WIDTH="$width" \
             DOSPLEX_OUTPUT_HEIGHT="$height" \
             DOSPLEX_OUTPUT_SCALE_MILLI="1000" \
@@ -155,7 +155,7 @@ launch_side() {
             DOSPLEX_SIDE_SOCKET="$side_socket" \
             DOSPLEX_HOST_WAYLAND_SOCKET="$host_wayland_socket" \
             DOSPLEX_OUTPUT_NAME="dosplex-${side}" \
-            DOSPLEX_OUTPUT_DESCRIPTION="Dosplex ${side} logical output" \
+            DOSPLEX_OUTPUT_DESCRIPTION="DosPlex ${side} logical output" \
             DOSPLEX_OUTPUT_WIDTH="$width" \
             DOSPLEX_OUTPUT_HEIGHT="$height" \
             DOSPLEX_OUTPUT_SCALE_MILLI="1000" \
@@ -224,7 +224,7 @@ launch_side left "$left_user" "$half_width" "$screen_height" "$left_dir"
 sleep 1
 launch_side right "$right_user" "$half_width" "$screen_height" "$right_dir"
 
-echo "Dosplex nested Wayland sessions active on ${host_wayland_socket}"
+echo "DosPlex nested Wayland sessions active on ${host_wayland_socket}"
 echo "left=${left_user} socket=dosplex-left-0"
 echo "right=${right_user} socket=dosplex-right-0"
 

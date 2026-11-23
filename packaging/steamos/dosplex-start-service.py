@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
-"""The socket service behind the Steam library entry: the one place a controller can start Dosplex.
+"""The socket service behind the Steam library entry: the one place a controller can start DosPlex.
 
 Steam's Gaming mode has no terminal and no password prompt, so the library entry runs the start client
 as the main player, and the client talks to this service over a Unix socket. systemd starts the service
@@ -44,7 +44,7 @@ def trusted(path, expect):
     """Why this file is safe for root to read or run, or None when it is.
 
     Both the config and the command to run must be regular files that root owns and that neither the
-    group nor others can write: whoever can write the config chooses the account that may start Dosplex,
+    group nor others can write: whoever can write the config chooses the account that may start DosPlex,
     and whoever can write the program chooses what root runs. A link is never trusted: it could be
     swapped while the check and the use are apart. expect names the kind of file for the caller.
     """
@@ -88,7 +88,7 @@ def refusal(message):
 
 
 def bad_request():
-    return answer('bad-request', 'This service only starts Dosplex.')
+    return answer('bad-request', 'This service only starts DosPlex.')
 
 
 def failure(message):
@@ -174,7 +174,7 @@ class Service:
         except socket.timeout:
             raw = b''
         if uid != self.uid:
-            connection.sendall(refusal('Only the main player\'s account can start Dosplex.').encode())
+            connection.sendall(refusal('Only the main player\'s account can start DosPlex.').encode())
             connection.shutdown(socket.SHUT_WR)
             return 'refused'
         if raw != b'start\n':

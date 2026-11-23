@@ -1,4 +1,4 @@
-# Dosplex configuration invariants and coverage requirements.
+# DosPlex configuration invariants and coverage requirements.
 #
 # Scenarios, their pass criteria, the acceptance policy, the acceptance lock and the history of each
 # game live in scenarios.yaml. Nothing in this file says that a game works.
@@ -114,7 +114,7 @@ configuration_invariants:
       - kind: env
         name: PROTON_USE_WAYLAND
         value: "0"
-        reason: "Keep Proton games on XWayland until native Wayland is proven stable under Dosplex."
+        reason: "Keep Proton games on XWayland until native Wayland is proven stable under DosPlex."
       - kind: env
         name: gamescope_cursor_composite
         value: "2"
@@ -132,19 +132,19 @@ configuration_invariants:
       - kind: command-contains
         command: gamescope
         contains: "--output-width"
-        reason: "Expose the Dosplex side width instead of gamescope's 720p default."
+        reason: "Expose the DosPlex side width instead of gamescope's 720p default."
       - kind: command-contains
         command: gamescope
         contains: "--output-height"
-        reason: "Expose the Dosplex side height instead of gamescope's 720p default."
+        reason: "Expose the DosPlex side height instead of gamescope's 720p default."
       - kind: command-contains
         command: gamescope
         contains: "--nested-width"
-        reason: "Keep XWayland/RANDR game size aligned with the Dosplex side surface."
+        reason: "Keep XWayland/RANDR game size aligned with the DosPlex side surface."
       - kind: command-contains
         command: gamescope
         contains: "--nested-height"
-        reason: "Keep XWayland/RANDR game size aligned with the Dosplex side surface."
+        reason: "Keep XWayland/RANDR game size aligned with the DosPlex side surface."
       - kind: command-contains
         command: gamescope
         contains: "--borderless"

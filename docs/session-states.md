@@ -1,6 +1,6 @@
 # Session states and device ownership
 
-Dosplex has three session states. Only Main's **Full screen** choice changes them: in
+DosPlex has three session states. Only Main's **Full screen** choice changes them: in
 split layouts both sessions are always Active, and there are no manual state controls.
 
 | State | Behaviour |
@@ -19,7 +19,7 @@ Guest and starts an Off Guest again, at Steam's own sign-in or onboarding screen
 that has not started yet waits until it can be shown.
 
 Sleeping the machine pauses a running session as well and wakes it afterwards; a
-Guest in Standby stays in Standby, because only what Dosplex paused itself is woken.
+Guest in Standby stays in Standby, because only what DosPlex paused itself is woken.
 
 Standby is not a saved game. It retains memory and GPU resources, does not survive
 power loss, and can cause online sessions to disconnect. GPU/game compatibility
@@ -44,9 +44,9 @@ Simulated Headset and Simulated Microphone.
 
 Main's Steam uses the shared Pulse transport, which is experimental routing
 infrastructure. Guest's Steam does not: it talks to an endpoint of its own that
-offers one output, **Dosplex sound**, and one microphone, **Dosplex microphone**.
+offers one output, **DosPlex sound**, and one microphone, **DosPlex microphone**.
 They lead to Guest's playback bus and microphone bus, so what Guest hears and
-records is still chosen in the Dosplex Audio menu. Guest's Steam cannot list
+records is still chosen in the DosPlex Audio menu. Guest's Steam cannot list
 Main's devices or the hardware, change a shared default, change any volume but
 its own, or load or unload an audio module. Its own volume and mute control only
 Guest's sound. The shared server's local TCP listener still exists, so this is

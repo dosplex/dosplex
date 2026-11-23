@@ -1,4 +1,4 @@
-# Contributing to Dosplex
+# Contributing to DosPlex
 
 Thank you for helping. Bug reports, game compatibility reports, documentation fixes and code
 are all welcome. Please read the [code of conduct](CODE_OF_CONDUCT.md) first.
@@ -21,18 +21,18 @@ evidence for a change in behavior.
 
 ## Licensing and sign-off (DCO)
 
-Dosplex code is licensed under the [GNU Affero General Public License v3.0 or later](LICENSE) and the
+DosPlex code is licensed under the [GNU Affero General Public License v3.0 or later](LICENSE) and the
 documentation under [CC BY 4.0](LICENSE-DOCS.md). Your contribution comes in under the same terms as
 the file you change (AGPL-3.0-or-later for code). You keep the copyright of your contribution.
 
 ### Contributor license agreement
 
-Before your first pull request is merged, you sign the Dosplex Individual Contributor License Agreement
+Before your first pull request is merged, you sign the DosPlex Individual Contributor License Agreement
 ([CLA.md](CLA.md)). It is a draft based on the Apache ICLA; no lawyer has reviewed it yet, and it may change. In short:
 
 - You keep your copyright. You do not assign it.
 - You grant RoyÅke (Roy-Åke Martinsson) a license to use, relicense and commercially sublicense your
-  contribution. RoyÅke offers commercial licenses for Dosplex (see [LICENSING.md](LICENSING.md)), and this
+  contribution. RoyÅke offers commercial licenses for DosPlex (see [LICENSING.md](LICENSING.md)), and this
   grant is what lets your contribution be part of them.
 - RoyÅke promises that every accepted contribution stays available under AGPL-3.0-or-later or another
   OSI-approved license.
@@ -115,11 +115,11 @@ add a header to code you copied from another project; keep its own license notic
 
 Open an issue on the [issue tracker](https://github.com/dosplex/dosplex/issues) and use the list in
 [docs/game-test-notes.md](docs/game-test-notes.md): the game and its Steam app id, your device and
-SteamOS version, the Dosplex version, what you did, what happened, and a log or short video if
+SteamOS version, the DosPlex version, what you did, what happened, and a log or short video if
 you have one. Never include passwords, Steam Guard codes or sign-in QR codes.
 
 ## Security problems and the name
 
 Report security problems privately, as [SECURITY.md](SECURITY.md) describes. How the name
-"Dosplex" may be used is in [TRADEMARKS.md](TRADEMARKS.md). The project lead makes the final
+"DosPlex" may be used is in [TRADEMARKS.md](TRADEMARKS.md). The project lead makes the final
 decisions ([MAINTAINERS.md](MAINTAINERS.md)).

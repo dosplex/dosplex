@@ -10,7 +10,7 @@ import QtQuick
 Window {
     id: window
     visible: true
-    title: "Dosplex"
+    title: "DosPlex"
     width: 960
     height: 1080
     color: "#101820"

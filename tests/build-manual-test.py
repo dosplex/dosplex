@@ -247,7 +247,7 @@ class PanelTargetSiteBuildTest(unittest.TestCase):
         first = self.html('01-first.html')
         for line in ('<!DOCTYPE html>', '<html lang="en">', '<meta charset="utf-8">',
                      '<meta name="viewport" content="width=device-width, initial-scale=1">',
-                     '<title>First · Dosplex manual</title>',
+                     '<title>First · DosPlex manual</title>',
                      '<link rel="stylesheet" href="manual.css">'):
             self.assertIn(line, first)
         # The first chapter: no "before" link, and both nav blocks sit in the page.
@@ -339,7 +339,7 @@ class PanelTargetSiteBuildTest(unittest.TestCase):
         )
         self.assertEqual(status, 0)
         index = self.html('index.html')
-        self.assertIn('<h1>Dosplex manual</h1>', index)
+        self.assertIn('<h1>DosPlex manual</h1>', index)
         self.assertIn('<a href="01-first.html">First</a>', index)
         self.assertIn('<a href="02-second.html">Second</a>', index)
         self.assertLess(index.index('01-first.html'), index.index('02-second.html'))

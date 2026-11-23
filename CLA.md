@@ -1,4 +1,4 @@
-# Dosplex Individual Contributor License Agreement
+# DosPlex Individual Contributor License Agreement
 
 Version 1.0-draft, 2026-11-17.
 
@@ -6,9 +6,9 @@ Version 1.0-draft, 2026-11-17.
 > License Agreement V2.2. It has not been reviewed by a lawyer and may change before it is final. A
 > change never applies to a contribution you made before it; you would be asked to agree again.
 
-Thank you for contributing to Dosplex. Dosplex is published under the GNU Affero General Public
+Thank you for contributing to DosPlex. DosPlex is published under the GNU Affero General Public
 License, version 3 or later (AGPL-3.0-or-later). RoyÅke (Roy-Åke Martinsson) also licenses
-Dosplex on commercial terms (see `LICENSING.md`). To do that with code that other people wrote,
+DosPlex on commercial terms (see `LICENSING.md`). To do that with code that other people wrote,
 RoyÅke needs permission. This agreement gives that permission. You keep your copyright.
 
 ## How you sign
@@ -46,7 +46,7 @@ Your Contributions.
 
    "Contribution" means any original work of authorship, including any modifications or additions
    to an existing work, that is intentionally submitted by You to RoyÅke for inclusion in, or
-   documentation of, Dosplex or any other project RoyÅke publishes under the Dosplex name (the
+   documentation of, DosPlex or any other project RoyÅke publishes under the DosPlex name (the
    "Work"). For the purposes of this definition, "submitted" means any form of electronic, verbal,
    or written communication sent to RoyÅke or its representatives, including but not limited to
    pull requests, issues, and communication on source code control systems and issue tracking

@@ -1842,7 +1842,7 @@ class ProcessTests(unittest.TestCase):
         world.wait(lambda: world.count('lock-released') == 1, 'the lock to be released')
         order = [what for _, what in world.events()]
         taken = [what for what in order if what.startswith('lock-taken')]
-        self.assertEqual(taken[0], 'lock-taken --what=sleep --mode=delay --who=Dosplex --why=Freeze both sides before '
+        self.assertEqual(taken[0], 'lock-taken --what=sleep --mode=delay --who=DosPlex --why=Freeze both sides before '
                                    'the machine sleeps')
         frozen = [i for i, what in enumerate(order) if what.startswith('freeze ') and what.endswith(' ok')]
         released = order.index('lock-released')

@@ -1,6 +1,6 @@
 # Privacy
 
-Dosplex runs on your own machine. It has no account, no telemetry and no analytics. The software sends nothing
+DosPlex runs on your own machine. It has no account, no telemetry and no analytics. The software sends nothing
 to us and collects nothing about you or your machine.
 
 ## What that means
@@ -8,7 +8,7 @@ to us and collects nothing about you or your machine.
 - No usage counts, no crash reports and no logs leave your machine.
 - This release has no feedback form. When you want to tell us something, you write it yourself, on Discord or
   GitHub. [Tell us how it went](docs/manual/16-tell-us-how-it-went.md) says where.
-- Dosplex does not look for updates by itself.
+- DosPlex does not look for updates by itself.
 
 ## What does use the network
 
@@ -30,7 +30,7 @@ The software collects nothing. The project does handle a little personal data, a
   gave. The sign-off of a commit carries the name and email you put in it. Both stay as long as your contribution
   is in the project.
 - **Discord and GitHub** are services of their own, with their own accounts and privacy terms. What you post in a
-  public channel or in an issue can be read by other people. Notes that moderators make on the Dosplex server are
+  public channel or in an issue can be read by other people. Notes that moderators make on the DosPlex server are
   kept only as long as needed to keep the community safe.
 - **Donations** go through Buy Me a Coffee, which is responsible for its own processing. We see the name and the
   message you choose to leave.

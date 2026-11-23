@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
-# Dosplex release build image (T-007). Built and used by build.sh; README.md explains every choice.
+# DosPlex release build image (T-007). Built and used by build.sh; README.md explains every choice.
 #
 # The payload has to run on SteamOS 3.8 and later (glibc 2.41), so it is built against the SteamOS 3.8 package
 # set. Valve's core-3.8 repository is, package for package and byte for byte, the Arch Linux Archive snapshot of

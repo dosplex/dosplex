@@ -13,7 +13,7 @@ What the nodes of one pad go through:
   discovery   sysfs: every hidraw and input (event, js) node is anchored to its HID device (Bluetooth or USB) or, for a driver
               that has no HID device (xpad), to its USB device. The nodes of one anchor are one pad, with its touchpad and
               motion sub-devices. A group counts as a pad when it is a known family (Sony, Microsoft, Nintendo ids below) or has
-              an evdev node with EV_ABS and BTN_GAMEPAD. Valve (28de) devices and Dosplex's own virtual pads never count.
+              an evdev node with EV_ABS and BTN_GAMEPAD. Valve (28de) devices and DosPlex's own virtual pads never count.
   identity    sha256 of [vendor, product, uniq] when the device has a uniq (the Bluetooth address, which a DualSense and a DS4
               report over USB as well, so one pad keeps its side across both); else [bus, vendor, product, phys].
   host        a runtime udev rule keeps the nodes of the known families root-only and out of uaccess/seat (and out of libinput,
@@ -191,12 +191,12 @@ def anchor_of(device, base):
 
 
 def emulated(device, found):
-    """Whether a node belongs to a pad that software made up (Steam's virtual pads, Dosplex's routed ones: uinput
+    """Whether a node belongs to a pad that software made up (Steam's virtual pads, DosPlex's routed ones: uinput
     devices below /devices/virtual/input) and not to a real one.
 
     A real Bluetooth pad can be below /devices/virtual as well: BlueZ hands its reports to the kernel through uhid
     (its default since 5.7x), and the HID device is then /devices/virtual/misc/uhid/0005:VVVV:PPPP.NNNN. Taking all of
-    /devices/virtual for emulated hid a DualSense from Dosplex while the udev rule had already taken it from Steam
+    /devices/virtual for emulated hid a DualSense from DosPlex while the udev rule had already taken it from Steam
     (seen on the Steam Machine, SteamOS 3.9.5). Such a device counts as real when its HID bus is Bluetooth (0005)."""
     if '/devices/virtual/' not in str(device):
         return False
@@ -266,7 +266,7 @@ def assemble(item):
     for device in inputs:
         caps_ev, caps_key = bitmap(read(device / 'capabilities/ev')), bitmap(read(device / 'capabilities/key'))
         name = read(device / 'name')
-        if name.startswith('Dosplex routed') or read(device / 'phys').startswith('dosplex-gamepad-arbiter'):
+        if name.startswith('DosPlex routed') or read(device / 'phys').startswith('dosplex-gamepad-arbiter'):
             return None
         if caps_ev >> EV_ABS & 1 and caps_key >> BTN_GAMEPAD & 1:
             gamepad = True
@@ -296,7 +296,7 @@ def rule_text(owner='dosplex'):
     the known families, and any joystick input node, are root-only and invisible to uaccess, the seat and libinput.
 
     The first part matches the place of the device (/devices/virtual/input, where the kernel puts what /dev/uinput makes) and
-    nothing the creator chooses: not its name, vendor or product. It comes before the lines that leave Valve's and Dosplex's
+    nothing the creator chooses: not its name, vendor or product. It comes before the lines that leave Valve's and DosPlex's
     own pads alone, which are name and vendor matches that a Guest process could imitate. Bluetooth pads handed over through
     uhid are below /devices/virtual/misc/uhid and are not matched. The one exception is TEST_SEAT_FILE, which only root can make."""
     virtual = 'SUBSYSTEM=="input", DEVPATH=="/devices/virtual/input/*"'
@@ -305,7 +305,7 @@ def rule_text(owner='dosplex'):
              '%s, IMPORT{file}="%s"' % (virtual, TEST_SEAT_FILE),
              '%s, ENV{DOSPLEX_TEST_SEAT}!="1", TAG-="uaccess", TAG-="seat", ENV{LIBINPUT_IGNORE_DEVICE}="1"' % virtual,
              'SUBSYSTEM=="input", ATTRS{id/vendor}=="28de", GOTO="dosplex_pads_end"',
-             'SUBSYSTEM=="input", ATTRS{name}=="Dosplex routed*", GOTO="dosplex_pads_end"']
+             'SUBSYSTEM=="input", ATTRS{name}=="DosPlex routed*", GOTO="dosplex_pads_end"']
     lock = 'OWNER:="root", GROUP:="root", MODE:="0600", TAG-="uaccess", TAG-="seat"'
     for vendor, products in sorted(FAMILIES.items()):
         for bus in (BUS_BLUETOOTH, BUS_USB):
@@ -388,7 +388,7 @@ class HostOps:
 
 
 def trigger_change(names, udevadm='udevadm'):
-    """Let udev apply its normal rules to these sysfs paths again (after the Dosplex rule was removed)."""
+    """Let udev apply its normal rules to these sysfs paths again (after the DosPlex rule was removed)."""
     for name in names:
         subprocess.run([udevadm, 'trigger', '--action=change', name], check=False, timeout=5, capture_output=True)
 
@@ -458,8 +458,8 @@ class NamespaceDelivery:
         A node mounted in the launcher's namespace before the client's container exists is copied into that container
         when it is made, and a copied mount is locked there: nothing can take it away again. It works until the pad's
         node is removed (the pad reconnects, or goes to the other player and comes back); then the replacement fails
-        with EINVAL and the pad never reaches that Steam again until Dosplex is started again. Seen on a Steam Deck: a
-        DualShock 4 that was connected when Dosplex started could be given to Guest and not back to Main; and, with a
+        with EINVAL and the pad never reaches that Steam again until DosPlex is started again. Seen on a Steam Deck: a
+        DualShock 4 that was connected when DosPlex started could be given to Guest and not back to Main; and, with a
         first form of this wait that looked for one process, three of its nodes were mounted in the half second in
         which the launcher and a child it had just forked were the family. The pad is tried again with the next pass.
         After LAUNCHER_WAIT_SECONDS the pad is delivered anyway: a Steam that stays in one namespace must not be left
@@ -1094,10 +1094,25 @@ class PadManager:
 
     # -- assignment
 
-    def default_target(self):
-        """ADR-014 (amended 2026-11-16) for a pad this machine has never seen: Main's, whatever else is connected. The user
-        can release it or give it to Guest, and the choice is kept."""
-        return self.reg.NEW_OWNER
+    def awake_owners(self):
+        """The owners of the pads that are connected and recorded ('main', 'guest' or 'unassigned' each)."""
+        owners = []
+        for key in self.pads:
+            if key in self.names and key in self.registry.devices:
+                try:
+                    owners.append(self.registry.target(key))
+                except Exception:
+                    pass
+        return owners
+
+    def default_target(self, state=None, others=()):
+        """ADR-014 (amended 2026-11-23) for a pad this machine has never seen: the first controller is Main's, and while
+        the second player is on the screen with none, the next one is theirs (registry first_owner). others are the rows
+        of the router's own controllers (the receivers' and the Steam Deck's controls). The user can release the pad or
+        give it to the other player, and the choice is kept."""
+        owners = [row.get('requested', row.get('target')) for row in others if isinstance(row, dict) and row.get('connected')]
+        owners += self.awake_owners()
+        return self.reg.first_owner(state or {'layout': 'single'}, 'main' in owners, 'guest' in owners)
 
     def remember(self, pad, target):
         number = self.reg.save_record(self.registry.directory, pad.id,
@@ -1123,23 +1138,22 @@ class PadManager:
                 table.pop(key, None)
         self.pads = found
 
-    def new_pads(self):
-        """Give every pad without a preference its first owner, which is Main, and a number. Nothing else decides it: not
-        the layout, and not the controllers that are already there."""
+    def new_pads(self, state=None, others=()):
+        """Give every pad without a preference its first owner (default_target) and a number."""
         for key, pad in sorted(self.pads.items()):
             if key in self.names:
                 continue
             if len(self.names) >= 28:
                 self.errors[key] = 'controller inventory is full'
                 continue
-            target = self.default_target()
+            target = self.default_target(state, others)
             self.remember(pad, target)
             self.log({'native_pad_new': pad.name, 'id': key, 'target': target})
 
     def tick(self, state, others=()):
         """One pass: look for pads when udev said so (or now and then), lock them down, move and deliver them.
 
-        others: the rows of the router's own controllers (they no longer matter to a pad's first owner). Never raises."""
+        others: the rows of the router's own controllers (they count for a new pad's first owner). Never raises."""
         now = self.clock()
         try:
             self.bind_due(now)
@@ -1147,7 +1161,7 @@ class PadManager:
             if changed or now >= self.scan_due:
                 self.scan()
                 self.scan_due = now + self.SCAN_SECONDS
-            self.new_pads()
+            self.new_pads(state, others)
             for key, pad in sorted(self.pads.items()):
                 self.settle(key, pad, state, now)
             if self.menu_on:
@@ -1389,7 +1403,7 @@ def bluez_policy(guest_user):
     user = quoteattr(guest_user)
     return ('<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN"\n'
             ' "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">\n'
-            '<!-- Owned by Dosplex; removed by recovery. Guest\'s Steam must not pair, forget or configure Bluetooth devices, '
+            '<!-- Owned by DosPlex; removed by recovery. Guest\'s Steam must not pair, forget or configure Bluetooth devices, '
             'update the system or use SteamOS Manager. -->\n'
             '<busconfig>\n  <policy user=%s>\n    <deny own_prefix="org.bluez"/>\n    <deny send_destination="org.bluez"/>\n'
             '    <deny receive_sender="org.bluez"/>\n'

@@ -8,7 +8,7 @@ Window {
     height: 800
     visible: true
     color: "#5b2e14"
-    title: "Dosplex Right"
+    title: "DosPlex Right"
 
     property string typedText: ""
     property string pointerText: "Touch or click to test input"

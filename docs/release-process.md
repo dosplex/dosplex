@@ -1,4 +1,4 @@
-# Releasing Dosplex
+# Releasing DosPlex
 
 How a release is built, signed offline and published, how devices find it, and
 how the release key is replaced. Players use the

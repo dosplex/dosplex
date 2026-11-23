@@ -259,7 +259,7 @@ def read_token(path):
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Bridge TCP remote input commands into the Dosplex primary input socket."
+        description="Bridge TCP remote input commands into the DosPlex primary input socket."
     )
     parser.add_argument("--listen-host", default="127.0.0.1")
     parser.add_argument("--listen-port", type=int, default=24802)

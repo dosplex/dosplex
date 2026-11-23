@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
-"""Generate THIRD-PARTY-NOTICES.md for a Dosplex release payload from its SBOM.
+"""Generate THIRD-PARTY-NOTICES.md for a DosPlex release payload from its SBOM.
 
   generate-notices.py SBOM [-o FILE] [--rights-holder-file FILE] [--strict]
   generate-notices.py SBOM --check NOTICES [--strict]
@@ -44,7 +44,7 @@ FORMAT_VERSION = 1
 # The statement about the controller report layouts. THIRD-PARTY-NOTICES.md in the repository carries the same
 # paragraph (tests/notices-test.py keeps the two equal).
 CONTROLLER_LAYOUT_NOTE = (
-    'The controller report layouts that Dosplex reads (the byte offsets and bit masks of the HID reports of the '
+    'The controller report layouts that DosPlex reads (the byte offsets and bit masks of the HID reports of the '
     'supported controllers) were derived from public Linux kernel documentation. No code was copied from the kernel '
     'sources.')
 
@@ -327,13 +327,13 @@ def generate(sbom, rights_holder):
     observed = _unique(item.get('observed') for item in host_libraries(sbom))
     out = [
         '# Third-Party Notices',
-        'Dosplex %s, built from commit %s.' % (_text(package.get('version'), 'unknown version'),
+        'DosPlex %s, built from commit %s.' % (_text(package.get('version'), 'unknown version'),
                                               _text(package.get('commit'), 'unknown')),
         'This file is generated from the SBOM of this release (`sbom/dosplex-sbom.json`) by '
         '`tools/generate-notices.py`; it is not edited by hand. It lists the third-party components that the release '
         'bundles or compiles in, and the libraries and Python modules that it expects the host system to provide.',
-        "Dosplex's own files are licensed under the GNU Affero General Public License, version 3 or later (`licenses/dosplex-LICENSE`). The "
-        'copyright holder is %s (`licenses/dosplex-NOTICE`). The AGPL covers Dosplex-owned files '
+        "DosPlex's own files are licensed under the GNU Affero General Public License, version 3 or later (`licenses/dosplex-LICENSE`). The "
+        'copyright holder is %s (`licenses/dosplex-NOTICE`). The AGPL covers DosPlex-owned files '
         'only. It does not replace or override the license of any component listed here.' % holder,
         '## Bundled components',
     ]

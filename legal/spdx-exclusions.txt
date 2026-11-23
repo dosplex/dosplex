@@ -11,3 +11,4 @@ packaging/release-build/patches/*.patch                  patches to third-party 
 packaging/release-build/texts/*/*                        license texts of packages that install none, copied unchanged from the package's source archive (assemble.py RECIPE_TEXTS); they ship in a release's licenses folder
 compositor/subprojects/packagefiles/*.patch              the same patches, copied for meson's wrap of the development build (tests/release-sources-test.py keeps them equal)
 tools/steam/*.template.vdf                              steamcmd build-script templates (Valve KeyValues text); they carry a PREPARATORY banner, and build-depot.py render strips their comment lines before steamcmd reads them
+packaging/steamos/icons/dosplex.svg                       the DosPlex icon (source of dosplex.png): a brand image by RoyÅke (Roy-Åke Martinsson), under CC BY 4.0 like the documentation; an image carries no header

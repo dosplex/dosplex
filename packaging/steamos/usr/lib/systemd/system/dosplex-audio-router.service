@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
 [Unit]
-Description=Dosplex Audio Router
+Description=DosPlex Audio Router
 After=multi-user.target
 Wants=dosplex-compositor.service
 

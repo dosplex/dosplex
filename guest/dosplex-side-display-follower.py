@@ -110,7 +110,7 @@ away in 3 s).
   * Steam's own lock (org.freedesktop.ScreenSaver.Inhibit, which Steam owns on the side's session bus) was tried
     first and does not do it: with the lock held for 70 minutes both sides still asked for sleep at 3600 s.
   * With Main alone on the screen (layout ALONE_LAYOUT, `single`) nothing is written: Main's Steam idles and
-    sleeps the machine as it does without Dosplex. Guest's follower is frozen with its side then.
+    sleeps the machine as it does without DosPlex. Guest's follower is frozen with its side then.
   * The first write goes out with the first cycle, and with the first cycle after Main was alone, so a Steam that
     was close to its sleep time when the second player came does not ask a moment later.
   * A layout the supervisor does not name counts as two players: holding is the safe side.
@@ -139,7 +139,7 @@ repairs it: the input focus goes to the root window and straight back to Steam's
     `xwininfo -root -int`. A tool that fails, or a window that is gone (BadWindow), is logged once and the cycle is
     not repeated for that window.
 
-Gamescope 3.16.30, the version Dosplex targets, defines both (checked in its source at that tag):
+Gamescope 3.16.30, the version DosPlex targets, defines both (checked in its source at that tag):
   * src/steamcompmgr.cpp, handle_property_notify, gamescopeXWaylandModeControl: a CARDINAL
     property of exactly four values {server index, width, height, allowSuperRes}; the property
     is deleted again by configure_win when the root window changes size.
@@ -322,7 +322,7 @@ def scaling_filter(scale_mode, monitor, region):
 
     NEAREST gives each game pixel a crisp block, and is only right for a whole-number scale: Keep ratio (fit) when the
     scale that Gamescope's fit uses, the smaller of the two ratios, is a whole number; Stretch when each axis
-    scales by a whole number. Fit (zoom) is scaled by the Dosplex compositor, so Gamescope stays linear. A region
+    scales by a whole number. Fit (zoom) is scaled by the DosPlex compositor, so Gamescope stays linear. A region
     that is unknown, or smaller than the monitor, is linear.
     """
     (mw, mh), (rw, rh) = monitor, region

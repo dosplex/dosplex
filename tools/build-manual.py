@@ -381,7 +381,7 @@ def site_page(title, body, nav):
             '<head>\n'
             '<meta charset="utf-8">\n'
             '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-            '<title>%s \u00b7 Dosplex manual</title>\n'
+            '<title>%s \u00b7 DosPlex manual</title>\n'
             '<link rel="stylesheet" href="manual.css">\n'
             '</head>\n'
             '<body>\n'
@@ -467,11 +467,11 @@ def build_site(source, out, strict):
     (out / 'manual.css').write_text(SITE_CSS, encoding='utf-8')
     written.add('manual.css')
     (out / 'index.html').write_text(site_page(
-        'Dosplex manual',
-        '<h1>Dosplex manual</h1>\n<ol>\n%s\n</ol>' % '\n'.join(
+        'DosPlex manual',
+        '<h1>DosPlex manual</h1>\n<ol>\n%s\n</ol>' % '\n'.join(
             '<li><a href="%s">%s</a></li>' % (entry['file'], escape(entry['title']))
             for entry in entries),
-        '<a href="#">Dosplex manual</a>'), encoding='utf-8')
+        '<a href="#">DosPlex manual</a>'), encoding='utf-8')
     written.add('index.html')
     for path in out.iterdir():
         if path.suffix == '.html' and path.name not in written:

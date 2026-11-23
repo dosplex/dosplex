@@ -9,11 +9,11 @@ username="${2:-$(id -un)}"
 case "$side" in
   left)
     bg_color="#123c73"
-    title_prefix="Dosplex Left"
+    title_prefix="DosPlex Left"
     ;;
   right)
     bg_color="#6b1f1f"
-    title_prefix="Dosplex Right"
+    title_prefix="DosPlex Right"
     ;;
   *)
     echo "invalid side: $side" >&2
@@ -27,7 +27,7 @@ fi
 
 if command -v xterm >/dev/null 2>&1; then
   exec xterm -T "${title_prefix} - ${username}" -fa Monospace -fs 11 -e \
-    "printf 'Dosplex %s side is now owned by %s on %s\n' '$side' '$username' '$DISPLAY'; printf 'Exit this shell to return to the login screen.\n'; exec bash -l"
+    "printf 'DosPlex %s side is now owned by %s on %s\n' '$side' '$username' '$DISPLAY'; printf 'Exit this shell to return to the login screen.\n'; exec bash -l"
 fi
 
 if command -v glxgears >/dev/null 2>&1; then

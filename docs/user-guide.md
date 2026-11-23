@@ -1,16 +1,16 @@
-# Using Dosplex
+# Using DosPlex
 
-Dosplex gives two people their own Steam session on one screen. Play together,
+DosPlex gives two people their own Steam session on one screen. Play together,
 play different games, or let one person watch a movie while the other plays.
 This guide is the long form. [The manual](manual/README.md) is the short one, and the
-same pages open from **Help** in the Dosplex menu. Dosplex 0.1.0 is an alpha: read
+same pages open from **Help** in the DosPlex menu. DosPlex 0.1.0 is an alpha: read
 [the limits](manual/15-limits-of-the-alpha.md) first.
 
 ## Start and sign in
 
-Connect your TV or monitor. Controllers are optional: Dosplex starts without
+Connect your TV or monitor. Controllers are optional: DosPlex starts without
 one, and a keyboard, a mouse or a generic gamepad works for Main. On a Steam Deck
-you can also play undocked: with no external display connected, Dosplex starts on
+you can also play undocked: with no external display connected, DosPlex starts on
 the built-in screen (shown as 1280x800) and uses the TV mode you saved only when
 the Deck is docked again. Started by hand with `dosplex start`, Main uses one
 half and Guest uses the other; `dosplex start --layout single` gives Main the
@@ -19,22 +19,22 @@ uses Steam's own interface and sign-in, including QR code and Steam Guard.
 Steam may ask for language or other first-run setup before showing sign-in.
 You can leave Guest signed out while using Main.
 
-Starting at boot is experimental. To have Dosplex start by itself, run
+Starting at boot is experimental. To have DosPlex start by itself, run
 `sudo dosplex autostart on --experimental` once. From then
-on the device starts Dosplex at every boot with Main alone on the full screen,
+on the device starts DosPlex at every boot with Main alone on the full screen,
 and you open a split for Guest from the menu when you want one. If it cannot
 start (the device is in Desktop mode, Steam is busy for five minutes, or
 something fails), you get stock Steam as before. The installation guide has
 the details under "Start at boot".
 
 Each person needs their own Steam account and access to the game they want to
-play. Dosplex does not change Steam's game-ownership or online-play requirements.
+play. DosPlex does not change Steam's game-ownership or online-play requirements.
 
-To start Dosplex with a controller, open **Dosplex** in Steam's library and
-press **Play**. The installer adds it to Steam's library by itself while Steam is
+To start DosPlex with a controller, open **DosPlex** in Steam's library and
+press **Play**. You can also start it from the DosPlex icon on the desktop. An install does not start it by itself unless you add `--start`. The installer adds it to Steam's library by itself while Steam is
 running. If it says it could not, run `sudo /opt/dosplex/bin/dosplex entry on`
 with Steam running, or add it once by hand: in Desktop mode, in Steam, choose
-**Games**, then **Add a Non-Steam Game to My Library**, and tick **Dosplex**.
+**Games**, then **Add a Non-Steam Game to My Library**, and tick **DosPlex**.
 
 ## Open your menu
 
@@ -53,20 +53,20 @@ default) does not open the menu.
 
 Other gamepads, such as a DualShock 4, a DualSense, an Xbox or a Switch Pro
 controller, can open and drive the menu of the player they belong to with the
-same chord. This is experimental. Dosplex cannot filter these controllers, so
+same chord. This is experimental. DosPlex cannot filter these controllers, so
 the chord also reaches the game, and the player's side is paused while the menu
 is open because of one of them (picture and sound stand still, an online game
 may drop its connection). It continues when the menu closes.
-`sudo touch /var/lib/dosplex/gamepad-menu-off` and a restart of Dosplex switch
+`sudo touch /var/lib/dosplex/gamepad-menu-off` and a restart of DosPlex switch
 this off. A Steam Controller, the Deck's own controls and a keyboard open the
 menu without any of that.
 
 Your game always gets **Select / Back / View** straight away, exactly as you press
-it, so a game that uses it for its own menu works as usual. Dosplex holds back
+it, so a game that uses it for its own menu works as usual. DosPlex holds back
 only the second button of the chord, and only while the first is down. If you let
 go before the hold ends, the game gets that button right then, so a quick
 Select + D-pad Up still reaches it. D-pad Up on its own is never delayed. When
-the menu opens, the game has already seen Select; Dosplex then releases it for
+the menu opens, the game has already seen Select; DosPlex then releases it for
 you so the game does not think it is stuck. The other chords work the same way:
 with **D-pad Up + Menu** the first button you press reaches the game and the
 second is held back, and the same for **Select + Menu**.
@@ -87,7 +87,7 @@ The top row of your menu has **?** beside **X**.
 read, left and right change the chapter, and **B** closes it. It covers only
 your side of the screen and runs only while it is open.
 
-This release has no feedback form: Dosplex sends nothing by itself. The manual's
+This release has no feedback form: DosPlex sends nothing by itself. The manual's
 chapter [Tell us how it went](manual/16-tell-us-how-it-went.md) says where to
 write to us.
 
@@ -103,7 +103,7 @@ Open **Display** in your menu.
 | 16:9 | Gives the game the largest 16:9 resolution that fits your part of the screen. |
 | Keep ratio | Fits that picture into your space, adding bars when needed. |
 | Stretch | Fills your space with the game's picture, changing its proportions. Steam's own menus always keep their proportions. |
-| Fit | Crops the picture to the screen's shape and fills it. For games that show black bars. Nothing is stretched, and the edges of the picture that do not fit are hidden. Dosplex never picks it for you. |
+| Fit | Crops the picture to the screen's shape and fills it. For games that show black bars. Nothing is stretched, and the edges of the picture that do not fit are hidden. DosPlex never picks it for you. |
 
 Native is always the first button. The 1:1, 4:3 and 16:9 buttons follow it,
 from the one that fills your part of the screen most to the one that fills it
@@ -120,10 +120,10 @@ outputs:
 | 16:9 | 1920×1080 | 960×540 | 1920×1080 | 960×540 |
 
 In full screen your part is the whole output. On 4K, Native and 16:9 are
-3840×2160, 4:3 is 2880×2160 and 1:1 is 2160×2160. Dosplex recalculates the
+3840×2160, 4:3 is 2880×2160 and 1:1 is 2160×2160. DosPlex recalculates the
 largest fitting size when you change the layout. The overlay shows the selected
 size. A 4K-capable TV does not by itself mean the host is sending 4K; check the
-size displayed in Dosplex.
+size displayed in DosPlex.
 
 **Steam's own resolution settings work in each part of the screen.** Steam in
 each side has the settings of SteamOS: Settings → Display → Maximum Game
@@ -132,20 +132,20 @@ Resolution for one game. Steam's list starts from your part of the screen
 (Native is that size) and offers smaller sizes. A smaller size makes a heavy
 game lighter in a split; Gamescope scales it up to your part of the screen.
 Like on SteamOS, Steam recommends a size and uses it until you choose another,
-so pick Native there if you want the full size of your part. Dosplex does not
+so pick Native there if you want the full size of your part. DosPlex does not
 change these saved Steam preferences. For a compatibility check, first use Steam's Default
-setting and test Dosplex Native, 1:1, 4:3 and 16:9. Then repeat with a custom Steam
+setting and test DosPlex Native, 1:1, 4:3 and 16:9. Then repeat with a custom Steam
 resolution and record both settings in your notes. A pass with a Steam override
-does not show that the game works at the Dosplex Native mode.
+does not show that the game works at the DosPlex Native mode.
 
-**A game window that can be resized fills the game monitor.** Dosplex resizes it
+**A game window that can be resized fills the game monitor.** DosPlex resizes it
 to the size of the game monitor when the game starts. A game that remembers an
 earlier window size is still resized to fit. A game whose window has a fixed
 size is left alone: it keeps the size it asks for, and **Keep ratio** or
 **Stretch** decides how that picture fills your space.
 
 **A game keeps the game monitor it started with.** Not every game copes with its
-monitor changing while it runs, so Dosplex does not change your game monitor
+monitor changing while it runs, so DosPlex does not change your game monitor
 while a game is running in your session. If you change the layout, or press
 **Apply** for another picture size, Steam's interface and every game you start
 afterwards use the new size. The game that is running keeps the monitor it
@@ -153,22 +153,22 @@ started with, and Gamescope scales its picture into your new area: **Keep ratio*
 adds bars when the shapes differ, and **Stretch** stretches
 the picture; **Fit** crops it to your area's shape, which helps when
 the game shows black bars. You choose Fit yourself with **Apply**;
-Dosplex never does. With Fit the overlay says **Fitted**,
+DosPlex never does. With Fit the overlay says **Fitted**,
 with Keep ratio or Stretch it says **Scaled**. To make the running game fill the
 new area, change its resolution in its own video settings, or close it and start
-it again. When no game is running any more, Dosplex applies your latest choice to
+it again. When no game is running any more, DosPlex applies your latest choice to
 the game monitor by itself.
 
-**Dosplex holds Steam's idle sleep while two players share the screen.** The machine
+**DosPlex holds Steam's idle sleep while two players share the screen.** The machine
 then does not go to sleep by itself; use **Sleep** on Main's **Session** page or the
 power button. Steam's screensaver still comes on a side nobody uses, and about once
 an hour that side's picture comes back for five minutes. With Main alone
 on the screen Steam idles and sleeps the machine as usual.
 
-**Dosplex wakes an idle Steam when a game starts.** If nobody has used your
+**DosPlex wakes an idle Steam when a game starts.** If nobody has used your
 session for a while, Steam shows its screensaver, and a game that starts then can
 stay behind Steam's window, so you see nothing. If Steam is still in front of the
-game three seconds after it started, Dosplex sends one Escape key press to your
+game three seconds after it started, DosPlex sends one Escape key press to your
 Steam to wake it. It does this once for each game that starts, and not when the
 game already has the screen.
 
@@ -212,21 +212,20 @@ game at 3840x2160. Keep ratio shows the whole picture; relaunch the game to
 use the whole area." To fill your part again, change
 the game's resolution in the game, or relaunch it.
 
-In the development build, Dosplex also corrects Proton's generated mode list for
+In the development build, DosPlex also corrects Proton's generated mode list for
 portrait Native monitors. If a game is being played for the first time, its
-Proton prefix may not exist until that game exits. Dosplex repairs the prefix
+Proton prefix may not exist until that game exits. DosPlex repairs the prefix
 after exit and briefly shows a notice in that player's menu; reopen the game to
 use the corrected list. This portrait fix is still under hardware and game
 acceptance testing.
 
 ## Choose your controls
 
-Open **Devices** to see connected controls and their owner. Every controller
-you connect is **Main's** at first, a controller that appears never changes the
-layout, and Dosplex needs no controller to start. A controller you named for
-Guest when you installed or started Dosplex starts with Guest. You can release a
+Open **Devices** to see connected controls and their owner. The first controller is Main's. While two players share the screen and the second player has no controller, the next controller that wakes goes to the second player by itself. On a Steam Deck the built-in controls are Main's, so the first other controller is the second player's. You can change who has which controller at any time in the menu, under Devices, and DosPlex remembers what you chose. A controller that appears never changes the
+layout, and DosPlex needs no controller to start. A controller you named for
+Guest when you installed or started DosPlex starts with Guest. You can release a
 controller (it is then Unassigned) or give it to Guest, from the overlay or with
-`dosplex control assign`, and Dosplex remembers your choice across a stop and a
+`dosplex control assign`, and DosPlex remembers your choice across a stop and a
 reboot.
 
 Each controller has a small number that stays with it: the Devices page shows it
@@ -291,7 +290,7 @@ The left trackpad does nothing in the chord, and the button below Steam (Quick
 Access) is not part of it. If a pop-up still cannot be reached, check whether
 Steam's "Steam Controller detected!" tour is on; it holds the input until it is
 switched off (see [Current limitations](limitations.md)). Clicking with a real
-controller in a Dosplex side has not been checked on a device yet.
+controller in a DosPlex side has not been checked on a device yet.
 
 Main's last available menu control cannot be handed away by an ordinary transfer.
 Moving Main to the other screen position is separate from assigning a controller.
@@ -299,7 +298,7 @@ Wake a sleeping controller before trying to move it between players.
 
 ## Choose your sound
 
-The first time Dosplex runs, Main gets the output your system already uses (the
+The first time DosPlex runs, Main gets the output your system already uses (the
 TV, for example), so you hear sound without opening the menu. Guest gets no
 output until Guest or Main chooses one.
 
@@ -311,7 +310,7 @@ reserved for them.
 An output you claim stays yours across restarts and reboots until you release it.
 If the device is not connected at that moment, for example a headset that is
 switched off, the claim stays and shows as disconnected, and the sound starts when
-the device appears. Dosplex never plays your sound on another device in the
+the device appears. DosPlex never plays your sound on another device in the
 meantime. Microphone claims are not kept; claim the microphone again after a
 restart.
 
@@ -332,8 +331,8 @@ Positioned stereo mix provides a speaker balance; the two people can still hear
 each other's audio. Headsets provide separate listening. Check the selected
 output and volume if a game is silent.
 
-Guest's own Steam shows just one output, **Dosplex sound**, and one microphone,
-**Dosplex microphone**. Choose the real devices in the Dosplex Audio menu; Steam's
+Guest's own Steam shows just one output, **DosPlex sound**, and one microphone,
+**DosPlex microphone**. Choose the real devices in the DosPlex Audio menu; Steam's
 own audio settings cannot change them.
 
 ## Take the whole screen, then return to two people
@@ -357,27 +356,27 @@ Standby is experimental. It keeps using memory, does not survive power loss,
 and online games can disconnect. Save normally before relying on it.
 
 **Reset my side** closes and reopens your session. Main can reset both with a
-warning. Steam's own menu provides Desktop mode; Dosplex's overlay stays
+warning. Steam's own menu provides Desktop mode; DosPlex's overlay stays
 available there too.
 
-Main's **Session** page has **Turn off Dosplex**. It asks first. Then it asks Steam to quit on both sides, as
-Restart does, stops both sessions and Dosplex, and the screen returns to normal SteamOS. The machine stays on.
+Main's **Session** page has **Turn off DosPlex**. It asks first. Then it asks Steam to quit on both sides, as
+Restart does, stops both sessions and DosPlex, and the screen returns to normal SteamOS. The machine stays on.
 Both players' games close, so save first. If something goes wrong the screen returns to Main's menu on the
 Session page with a message. It has not been shown to work on a Steam Deck or a Steam Machine yet.
 
 Main's **Session** page also has machine power:
 
-- **Sleep** suspends the machine. Both sessions stay open and resume. Just before the machine goes to sleep Dosplex
+- **Sleep** suspends the machine. Both sessions stay open and resume. Just before the machine goes to sleep DosPlex
   pauses both sessions, and when it wakes it lets them run again. Without that pause a controller read that is still
   waiting can keep the machine from going to sleep. A session that was in Standby stays in Standby.
 - **Restart** and **Shut down** ask Steam to quit on both sides (the way
   SteamOS itself closes it for a session switch) and wait up to 45 seconds for
   each, so that it can finish syncing saves to the cloud. They then stop
-  both sessions and Dosplex, and restart or turn off the machine. A Steam that
+  both sessions and DosPlex, and restart or turn off the machine. A Steam that
   does not quit in time is stopped. Save first all the same. After a restart
   the machine comes back as normal SteamOS, unless you turned on `sudo dosplex
-  autostart on`, which starts Dosplex again at boot; if not, run
-  `sudo dosplex start` to bring Dosplex back. If something goes wrong the screen returns to Main's menu on the
+  autostart on`, which starts DosPlex again at boot; if not, run
+  `sudo dosplex start` to bring DosPlex back. If something goes wrong the screen returns to Main's menu on the
   Session page with a message, and both players' controls work again.
 
 These three have not been shown to work on a Steam Deck or a Steam Machine yet.
@@ -398,8 +397,8 @@ rows on a small screen) the control takes the place of the FPS counter's buttons
 Steam's own brightness slider in the Quick Access Menu does not work inside a
 side: it never reaches the panel. Use Main's menu instead.
 
-Dosplex remembers the value across restarts and puts it back when it starts. When
-Dosplex stops it leaves the screen as you set it. A controller or script can set
+DosPlex remembers the value across restarts and puts it back when it starts. When
+DosPlex stops it leaves the screen as you set it. A controller or script can set
 it too: `sudo dosplex control brightness 70`.
 
 ## Performance overlay and performance logs
@@ -428,21 +427,21 @@ overlay. Keep the overlay at level 1 or higher while you measure: on current
 SteamOS Gamescope stops its mangoapp a few seconds after the overlay is hidden
 (level 0), and a stopped mangoapp writes no log.
 
-### Dosplex's own FPS counter and recording
+### DosPlex's own FPS counter and recording
 
-Dosplex can show and record the frame rate of each side itself, without Steam's
+DosPlex can show and record the frame rate of each side itself, without Steam's
 overlay. Open your menu, stay on the **Display** tab and look under the picture
 buttons:
 
 - **FPS counter on this side:** **Off**, **FPS**, or **FPS + frame time**. It
   takes effect at once, needs no **Apply**, and does not restart anything. It is
-  off by default. Each side has its own setting, and Dosplex remembers it
+  off by default. Each side has its own setting, and DosPlex remembers it
   across restarts.
 - **Record performance:** starts and stops a CSV recording for your side.
-  Recording is off after every start of Dosplex.
+  Recording is off after every start of DosPlex.
 
 The counter sits in the top-left corner of your side, above the game and below
-your menu. Dosplex draws it, not the game, so it takes no input and does not
+your menu. DosPlex draws it, not the game, so it takes no input and does not
 change the game's frames. Its size follows the side: about 15 px text on a
 1280x800 screen and 45 px on a 3840x2160 output. It updates once a second:
 
@@ -452,12 +451,12 @@ change the game's frames. Its size follows the side: about 15 px text on a
   the average means stutter.
 
 For scripts, `FPS <left|right> <off|fps|fps+frametime>` and
-`RECORD <left|right> <on|off>` on Dosplex's control socket do what the buttons do.
+`RECORD <left|right> <on|off>` on DosPlex's control socket do what the buttons do.
 
 **Where the files go.** `/var/lib/dosplex/perf/`, owned by root and readable by
 everyone. Root owns the folder so a side's account cannot redirect or change the
 files. Each recording is one file named
-`perf-<date>-<time>-<main|guest>.csv`, and Dosplex keeps the newest 20.
+`perf-<date>-<time>-<main|guest>.csv`, and DosPlex keeps the newest 20.
 `fps-counter.conf` in the same folder holds the counter settings. To take the
 files off a Deck, use `scp` as a normal user.
 An uninstall never deletes this folder while it holds recordings.
@@ -492,7 +491,7 @@ Steam's own menu offers Desktop mode. It opens a KDE Plasma desktop in your part
 of the screen while the other person's session keeps running, and **Return to
 Gaming Mode** on the desktop brings your Steam back.
 
-**The desktop opens at a readable scale.** Dosplex chooses it from the size of
+**The desktop opens at a readable scale.** DosPlex chooses it from the size of
 your part of the screen when Desktop mode starts: 200 % when your part is at
 least 1600 pixels tall or 3000 pixels wide (a half or the whole of a 4K screen),
 150 % when it is at least 1000 pixels tall (the whole of a 1080p screen, or its
@@ -503,7 +502,7 @@ desktop is open does not change the scale.
 settings stay in the folder `~/.local/share/dosplex/desktop` in that player's own
 home folder and are there again the next time Desktop mode opens.
 If you used this under the old name, DuplOS, that folder was `~/.local/share/duplos`; the first start
-of Dosplex moves it, with your chosen scale, to the new place (see
+of DosPlex moves it, with your chosen scale, to the new place (see
 [Upgrading from DuplOS](#upgrading-from-duplos)).
 
 **Flatpak apps are there too.** Apps installed as Flatpaks, for the whole machine
@@ -520,15 +519,15 @@ echo 1.5 > ~/.local/share/dosplex/desktop/desktop-scale
 ```
 
 The choice is kept for your side with the rest of your desktop. Anything else in
-the file is ignored, and deleting the file returns to the scale Dosplex chooses
+the file is ignored, and deleting the file returns to the scale DosPlex chooses
 from the size. The overlay does not offer this setting. KDE's own display
 scale setting has no effect in this desktop (see
 [Current limitations](limitations.md)).
 
 ## Upgrading from DuplOS
 
-Dosplex was called DuplOS until October 2026. A device has one or the other, never
-both: installing Dosplex over a DuplOS install replaces it. If DuplOS is running,
+DosPlex was called DuplOS until October 2026. A device has one or the other, never
+both: installing DosPlex over a DuplOS install replaces it. If DuplOS is running,
 the install stops it first (your games end, so save them), keeps your Guest
 account and its Steam library, the controller choices and the sound and display
 settings, and removes the old `/opt/duplos` program. You do not need to uninstall
@@ -541,8 +540,8 @@ Desktop folder `~/.local/share/duplos` (with the scale you chose) becomes
 `~/.local/share/dosplex`, and the workspace folder `~/DuplOS` becomes `~/Dosplex`.
 A folder is moved only when the new name is free. Nothing is merged or
 overwritten; if both exist, the old one stays where it is and the launch log
-says so. The DuplOS `update` command cannot find Dosplex releases, so install
-the first Dosplex release by hand.
+says so. The DuplOS `update` command cannot find DosPlex releases, so install
+the first DosPlex release by hand.
 
 ## Help us improve compatibility
 

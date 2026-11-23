@@ -708,7 +708,11 @@ class World:
         proc = subprocess.run(command, input=input, capture_output=True, text=True, env=env, timeout=timeout)
         return Result(proc)
 
-    def install(self, bundle, *args, **options):
+    def install(self, bundle, *args, start=True, **options):
+        # An install does not start DosPlex by itself. Most tests want a running session, so they get --start here;
+        # a test that passes --no-start or --start itself, or start=False, sees the default.
+        if start and '--no-start' not in args and '--start' not in args:
+            args += ('--start',)
         return self.run('install', bundle.path, '--manifest', bundle.sha256, '--sample-seconds', '0.3', *args, **options)
 
     def controllers(self):
@@ -771,6 +775,33 @@ class World:
         return json.loads((self.tree / 'var/lib/dosplex/state.json').read_text())
 
 
+# The files that 0.1.0-alpha.5 put on a device, by SHA-256 (for the main user "deck"). That release spelled the name
+# "Dosplex"; a device that updates from it holds these files, and they are DosPlex's own, not somebody else's.
+ALPHA_5_SHA256 = {
+    'socket': 'd14f8388e017fce3e650792711b5366ee9ecb06cdcd98a973c79e5de48e41b2b',
+    'service': 'af87ed92c509a6b5f4f01a8bce8a30af1868a6522a74a0f054786da427efb08b',
+    'desktop': 'd0fdc66ae88722d1a69376374bf3a2278ecfef6343d3afe5bb5ffb5fbb90e0b7',
+    'autostart': '03dc6d428791ed359b3a1449cfc60d5982ff4c5ed2b7432c2e94cabeef86d65b',
+    'library': '86f02c91c7a069feec355db34ce0af77716d6ff6d501f8f3df4d220caf738de1',
+    'disk service': '19ccdce0624b6f5587cd47965284766004fa356a7896b3a2c0b72b4a72655958',
+    'disk rule': '3694aad2a0da429bc3f18c9f9cbd34ac3745a6c8e7d4e1dd27d0d3a5d4abbc7e',
+    'auto service': '5d422665fa7c0abf2d7f256de78a437d50bd8ad6bebd6d6b145716e0d3f86be6',
+    'auto timer': 'a277c6122b873a71c047291ede94229671db19a8a000e523a0d73ade95250cf6',
+}
+
+
+def as_alpha_5_wrote(test, path, key):
+    """Turn a file that this release wrote into the one 0.1.0-alpha.5 wrote, and check that it is that file exactly."""
+    text = path.read_text()
+    test.assertIn('DosPlex', text)
+    text = text.replace('DosPlex', 'Dosplex')
+    if key == 'desktop':
+        # that release named a stock icon; this one names its own
+        text = text.replace('Icon=/opt/dosplex/current/share/dosplex/icons/dosplex.png', 'Icon=input-gaming')
+    path.write_text(text)
+    test.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), ALPHA_5_SHA256[key], path.name)
+
+
 class Base(unittest.TestCase):
     def world(self, **options):
         previous = os.umask(0o022)      # the fake tree is built the way root would build it
@@ -803,7 +834,7 @@ class CleanSysroot(Base):
         world = self.world()
         result = world.run('status')
         self.assertOk(result)
-        self.assertIn('Dosplex is not installed.', result.out)
+        self.assertIn('DosPlex is not installed.', result.out)
         info = json.loads(world.run('status', '--json').out)
         self.assertFalse(info['installed'])
         self.assertEqual(world.snapshot(exclude=()), world.initial_full)
@@ -921,21 +952,58 @@ class InstallLayout(Base):
         result = world.install(world.bundle())
         self.assertOk(result)
         self.assertNotIn('Not started', result.out)
-        self.assertIn('Dosplex is running (', result.out)
+        self.assertIn('DosPlex is running (', result.out)
         (external,) = world.events('external.run')
         self.assertEqual((external['main'], external['guest'], external['builtin_deck']), (None, None, False))
         self.assertEqual(world.events('trial.start')[0]['layout'], 'vertical')       # by hand: the two splits (ADR-013)
         # The one line at the end says how to start at boot; it is off after an install.
         self.assertEqual(result.out.splitlines()[-1],
-                         'Dosplex starts when you ask for it. A start at every boot is experimental: sudo %s autostart on '
+                         'DosPlex starts when you ask for it. A start at every boot is experimental: sudo %s autostart on '
                          '--experimental' % (world.tree / 'opt/dosplex/bin/dosplex'))
         self.assertEqual(world.state().get('autostart'), None)
-        # --no-start still installs only.
-        other = self.world()
-        result = other.install(other.bundle(), '--no-start')
+
+    def test_an_install_starts_nothing_unless_it_is_asked_to_and_says_how_to_start(self):
+        for arguments in ((), ('--no-start',)):
+            with self.subTest(arguments=arguments):
+                world = self.world()
+                result = world.install(world.bundle(), *arguments, start=False)
+                self.assertOk(result)
+                self.assertNotIn('DosPlex is running', result.out)
+                self.assertNotIn('Starting DosPlex', result.out)
+                self.assertEqual(world.commands('systemd-run'), [])
+                self.assertEqual(world.events('trial.start'), [])
+                lines = result.out.splitlines()
+                self.assertEqual(lines[-2], 'DosPlex is installed and not started. Start it:')
+                self.assertEqual(lines[-1], '  in a terminal: sudo %s start' % (world.tree / 'opt/dosplex/bin/dosplex'))
+                self.assertNotIn("Steam's library: Library", '\n'.join(lines[-3:]))     # no entry set up: not promised
+        both = self.world()
+        bundle = both.bundle()
+        refused = both.run('install', bundle.path, '--manifest', bundle.sha256, '--start', '--no-start')
+        self.assertFailed(refused, 'not allowed with argument')
+        self.assertNothingChanged(both)
+        started = self.world()
+        result = started.install(started.bundle(), '--start')
         self.assertOk(result)
-        self.assertIn('Not started: --no-start was given.', result.out)
-        self.assertEqual(other.commands('systemd-run'), [])
+        self.assertIn('DosPlex is running (', result.out)
+        self.assertNotIn('not started', result.out)
+
+    def test_the_precheck_in_an_install_is_one_line_and_preflight_stays_whole(self):
+        world = self.world()
+        result = world.install(world.bundle(), '--no-start', start=False)
+        self.assertOk(result)
+        self.assertRegex(result.out, r'Precheck: \d+ checks? passed\.')
+        self.assertNotIn('[ok', result.out)
+        self.assertNotIn('Preflight', result.out)
+        full = world.run('preflight')
+        self.assertIn('[ok', full.out)
+        self.assertIn('Preflight', full.out)
+        # A check that is not ok is still printed whole: a controller that was asked for and is not there.
+        other = self.world()
+        warned = other.install(other.bundle(), '--no-start', '--main-hid', '/dev/hidraw9', start=False)
+        shown = [line for line in warned.out.splitlines() if line.startswith('  [')]
+        self.assertEqual(warned.code == 0, not any('FAIL' in line for line in shown), warned.text)
+        self.assertTrue(shown, warned.text)
+        self.assertTrue(all('[ok' not in line for line in shown), shown)
 
     def test_install_needs_root(self):
         world = self.world()
@@ -947,7 +1015,7 @@ class InstallLayout(Base):
 
 
 def add_guest(world, groups=(), mode=0o755, home=True, uid=1500):
-    """A guest account that was there before Dosplex, in the fake sysroot."""
+    """A guest account that was there before DosPlex, in the fake sysroot."""
     with (world.tree / 'etc/passwd').open('a') as stream:
         stream.write('guest:x:%d:%d::/home/guest:/bin/bash\n' % (uid, uid))
     rows = [line.split(':') for line in (world.tree / 'etc/group').read_text().splitlines()]
@@ -1022,7 +1090,7 @@ class GuestAccount(Base):
         (world.tree / 'home/guest').mkdir(parents=True)
         world.initial_full = world.snapshot(exclude=())
         result = world.install(world.bundle(), '--no-start')
-        self.assertFailed(result, 'Dosplex will not take over', code=3)
+        self.assertFailed(result, 'DosPlex will not take over', code=3)
         self.assertNothingChanged(world)
 
     def test_plain_uninstall_keeps_guest_and_a_reinstall_adopts_it(self):
@@ -1036,12 +1104,12 @@ class GuestAccount(Base):
         self.assertFalse((world.tree / 'opt/dosplex').exists())
         self.assertFalse((world.tree / 'var/lib/dosplex/state.json').exists())
         result = world.run('status')
-        self.assertIn('Dosplex is not installed.', result.out)
+        self.assertIn('DosPlex is not installed.', result.out)
         self.assertIn('Guest was kept', result.out)
         self.assertOk(world.install(world.bundle(), '--no-start'))
         self.assertEqual(len(world.commands('useradd')), 1)           # not created a second time
         self.assertEqual(world.state()['guest']['origin'], 'adopted-dosplex')
-        # Dosplex made this account, so the owner may still ask for it to be removed.
+        # DosPlex made this account, so the owner may still ask for it to be removed.
         self.assertOk(world.run('uninstall', '--remove-guest', '--yes'))
         self.assertEqual(world.snapshot(), world.initial)
         self.assertEqual(world.users(), world.initial_users)
@@ -1182,7 +1250,7 @@ class GuestAccount(Base):
         self.assertFailed(world.run('uninstall', '--remove-guest', '--yes'), self.STILL_THERE)
         result = world.run('repair')
         self.assertOk(result)
-        self.assertIn('Dosplex is uninstalled.', result.out)
+        self.assertIn('DosPlex is uninstalled.', result.out)
         self.assertIn('Guest was not removed: removing it needs a new confirmation.', result.out)
         self.assertIn("Guest's account and home were kept: /home/guest", result.out)
         self.assertIn('take the dosplex program out of a release archive', result.out)
@@ -1192,7 +1260,7 @@ class GuestAccount(Base):
         self.assertEqual(world.commands('userdel'), [])
         self.assertTrue((world.tree / 'home/guest').is_dir())
         self.assertEqual(world.run('repair').out.strip(), 'Nothing to repair.')
-        # Guest is kept, so the record that Dosplex made it stays, and Guest can still be removed.
+        # Guest is kept, so the record that DosPlex made it stays, and Guest can still be removed.
         self.assertTrue((world.tree / 'var/lib/dosplex/journal').is_dir())
         shutil.rmtree(world.tree / 'proc/200')
         self.assertOk(world.run('uninstall', '--remove-guest', '--yes'))
@@ -1201,10 +1269,10 @@ class GuestAccount(Base):
 
 
     # --- what the closing summary says is still on the machine ---------------------------------------------------
-    LIST = "Steam's library still lists Dosplex."
+    LIST = "Steam's library still lists DosPlex."
     FOLDER = 'The shared library folder /home/dosplex-library stays.'
-    SETTINGS = 'Two Steam settings that Dosplex switched on stay as they are'
-    OWN_FOLDER_KEPT = "Dosplex's settings and its record that it created Guest stay in /var/lib/dosplex."
+    SETTINGS = 'Two Steam settings that DosPlex switched on stay as they are'
+    OWN_FOLDER_KEPT = "DosPlex's settings and its record that it created Guest stay in /var/lib/dosplex."
     PERF = 'Your performance recordings stay in /var/lib/dosplex/perf.'
 
     def test_the_closing_summary_has_only_the_lines_that_apply(self):
@@ -1212,10 +1280,10 @@ class GuestAccount(Base):
         self.assertOk(world.install(world.bundle(), '--no-start'))
         result = world.run('uninstall', '--remove-guest', '--yes')
         self.assertOk(result)
-        for words in (self.LIST, self.FOLDER, self.SETTINGS, self.PERF, "Dosplex's settings"):
+        for words in (self.LIST, self.FOLDER, self.SETTINGS, self.PERF, "DosPlex's settings"):
             self.assertNotIn(words, result.out)
         self.assertEqual(result.out.strip().splitlines(),
-                         ['Uninstalling Dosplex.', 'Dosplex is uninstalled.',
+                         ['Uninstalling DosPlex.', 'DosPlex is uninstalled.',
                           "Guest's account and home were removed: /home/guest"])
 
     def test_the_closing_summary_names_each_thing_that_is_left(self):
@@ -1226,11 +1294,11 @@ class GuestAccount(Base):
         world.write('home/deck/.local/share/dosplex/native-external-resolution', '1\n')
         result = world.run('uninstall')
         self.assertOk(result)
-        self.assertIn("Steam's library still lists Dosplex. Remove it in Steam: Library, Non-Steam, Dosplex, Manage, "
+        self.assertIn("Steam's library still lists DosPlex. Remove it in Steam: Library, Non-Steam, DosPlex, Manage, "
                       "Remove non-Steam game from your library.", result.out)
         self.assertIn('The shared library folder /home/dosplex-library stays. It holds no games and you may delete it.',
                       result.out)
-        self.assertIn('Two Steam settings that Dosplex switched on stay as they are: Maximum Game Resolution (Native) '
+        self.assertIn('Two Steam settings that DosPlex switched on stay as they are: Maximum Game Resolution (Native) '
                       'and Enable Native Resolution on External Displays. Change them in Steam if you want.', result.out)
         self.assertIn("Guest's account and home were kept: /home/guest", result.out)
         self.assertIn('sudo ./dosplex-VERSION/dosplex uninstall --remove-guest', result.out)
@@ -1249,7 +1317,7 @@ class GuestAccount(Base):
         world = self.world()
         self.assertOk(world.install(world.bundle(), '--no-start'))
         self.assertOk(world.run('uninstall'))
-        self.assertTrue((world.tree / 'var/lib/dosplex/journal').is_dir())     # the record that Dosplex made Guest
+        self.assertTrue((world.tree / 'var/lib/dosplex/journal').is_dir())     # the record that DosPlex made Guest
         self.assertOk(world.run('uninstall', '--remove-guest', '--yes'))
         self.assertFalse((world.tree / 'var/lib/dosplex').exists())
         self.assertEqual(world.snapshot(exclude=()), world.initial_full)
@@ -1279,10 +1347,10 @@ class GuestAccount(Base):
         self.assertOk(world.install(world.bundle(), '--no-start'))
         result = world.run('uninstall', '--remove-guest', '--yes')
         self.assertOk(result)
-        self.assertIn('Dosplex is uninstalled.', result.out)
+        self.assertIn('DosPlex is uninstalled.', result.out)
         self.assertIn("Guest's account and home were removed: /home/guest", result.out)
         self.assertFalse((world.tree / 'var/lib/dosplex').exists())
-        self.assertIn('Dosplex is not installed.', world.run('status').out)
+        self.assertIn('DosPlex is not installed.', world.run('status').out)
 
     def test_repair_that_finishes_an_uninstall_of_a_removed_guest_clears_the_folder_too(self):
         world = self.world()
@@ -1303,7 +1371,7 @@ class GuestAccount(Base):
         (world.tree / 'var/lib/dosplex/stuck').chmod(0o555)         # a file in it cannot be unlinked
         result = world.run('uninstall', '--remove-guest', '--yes')
         self.assertOk(result)
-        self.assertIn('Dosplex is uninstalled.', result.out)
+        self.assertIn('DosPlex is uninstalled.', result.out)
         self.assertIn('Could not remove /var/lib/dosplex', result.out)
 
 
@@ -1426,7 +1494,7 @@ class VersionGate(Base):
                 world = self.world()
                 result = world.install(world.bundle(), '--no-start', *args)
                 self.assertOk(result)
-                self.assertIn(expected, result.out)
+                self.assertIn(expected, world.run('preflight', *args).out)     # the install prints only what is not ok
         world = self.world()
         (world.tree / 'dev/hidraw5').write_bytes(b'')            # asleep: it sends no report
         result = world.install(world.bundle(), '--no-start', *world.controllers())
@@ -2028,8 +2096,9 @@ class Session(Base):
         self.assertOk(world.install(world.bundle(), *world.controllers(), '--no-start'))
         result = world.run('start', '--sample-seconds', '0.3', FAKE_UNASSIGNED='/dev/hidraw2,/dev/hidraw3,/dev/hidraw6')
         self.assertOk(result)
-        self.assertIn("Further controller slots: /dev/hidraw2, /dev/hidraw3, /dev/hidraw6. A controller you wake there is "
-                      "Main's until a player moves it in Devices.", result.out)
+        self.assertIn("Controller slots of the receiver: /dev/hidraw2, /dev/hidraw3, /dev/hidraw6. The first controller "
+                      "that wakes is Main's, the next is the second player's while they have none; Devices in the menu "
+                      "changes it.", result.out)
         records = world.journal()['0002-start.jsonl']
         (intent,) = [r for r in records if r['kind'] == 'intent' and r['step'] == 'controllers']
         (done,) = [r for r in records if r['kind'] == 'done' and r['step'] == 'controllers']
@@ -2043,7 +2112,7 @@ class Session(Base):
         self.assertOk(world.install(world.bundle(), *world.controllers(), '--no-start'))
         result = world.run('start', '--sample-seconds', '0.3')
         self.assertOk(result)
-        self.assertNotIn('Further controller slots', result.out)
+        self.assertNotIn('Controller slots of the receiver', result.out)
         records = world.journal()['0002-start.jsonl']
         (done,) = [r for r in records if r['kind'] == 'done' and r['step'] == 'controllers']
         self.assertEqual(done.get('data', {}), {})
@@ -2053,12 +2122,12 @@ class Session(Base):
         result = world.install(world.bundle(), *world.controllers())
         self.assertOk(result)
         self.assertIn('Switching to Gaming mode', result.out)
-        self.assertIn('Dosplex is running (', result.out)
-        self.assertIn('Dosplex is running (', (world.fake / 'worker.log').read_text())        # what a journal holds
+        self.assertIn('DosPlex is running (', result.out)
+        self.assertIn('DosPlex is running (', (world.fake / 'worker.log').read_text())        # what a journal holds
         result = world.run('stop')
-        self.assertIn('Dosplex stopped; Steam is back to normal (Desktop mode restored).', result.out)
+        self.assertIn('DosPlex stopped; Steam is back to normal (Desktop mode restored).', result.out)
         result = world.run('uninstall')
-        self.assertIn('Dosplex is uninstalled.', result.out)
+        self.assertIn('DosPlex is uninstalled.', result.out)
         self.assertIn("Guest's account and home were kept: /home/guest", result.out)
         self.assertIn('dosplex uninstall --remove-guest', result.out)
         # A failure inside the service reaches the person through the journal as well.
@@ -2080,8 +2149,8 @@ class Session(Base):
         world, bundle = self.started()
         result = world.run('status')
         self.assertOk(result)
-        for expected in ('Dosplex 0.1.0-test', bundle.sha256, 'Running: yes', 'Main  (left, deck): lifecycle running, restarts 0',
-                         'Guest (right, guest): lifecycle running, restarts 1', 'created by Dosplex',
+        for expected in ('DosPlex 0.1.0-test', bundle.sha256, 'Running: yes', 'Main  (left, deck): lifecycle running, restarts 0',
+                         'Guest (right, guest): lifecycle running, restarts 1', 'created by DosPlex',
                          'Guest audio endpoint: unix:' + str(self.trial_roots(world)[0]) + '/audio-guest/pulse/native (present)'):
             self.assertIn(expected, result.out)
         info = json.loads(world.run('status', '--json').out)
@@ -2105,7 +2174,7 @@ class Session(Base):
         self.assertTrue(json.loads(world.run('status', '--json').out)['trial']['sleep_guard_active'])
         (world.fake / 'units' / guard).unlink()
         result = world.run('status')
-        self.assertIn('Warning: the sleep guard is not active. Sleep may fail until Dosplex is started again.', result.out)
+        self.assertIn('Warning: the sleep guard is not active. Sleep may fail until DosPlex is started again.', result.out)
         self.assertFalse(json.loads(world.run('status', '--json').out)['trial']['sleep_guard_active'])
 
     def test_status_tells_when_a_side_supervisor_found_steams_controller_tour_on(self):
@@ -2118,7 +2187,7 @@ class Session(Base):
         result = world.run('status')
         self.assertOk(result)
         self.assertIn('Steam shows its "Steam Controller detected!" tour for account 190558236 and it cannot finish inside '
-                      'Dosplex.', result.out)
+                      'DosPlex.', result.out)
         self.assertIn('Settings > Developer > Show Steam Controller Tour', result.out)
         self.assertIn('"ShowIbexWelcomeTour" "0"', result.out)
         self.assertNotIn('rm', result.out.split('account ')[1].split(' and')[0])
@@ -2175,7 +2244,7 @@ class Session(Base):
         (world.tree / 'proc/100/comm').write_text('gamescope-wl\n')
         result = world.run('status')
         self.assertIn('Running: no', result.out)
-        self.assertIn('the previous run is gone: the device was restarted, or Dosplex ended', result.out)
+        self.assertIn('the previous run is gone: the device was restarted, or DosPlex ended', result.out)
         switches = len([c for c in world.commands('steamosctl') if c['argv'][0] == 'switch-to-game-mode'])
         result = world.run('start')
         self.assertOk(result)
@@ -2365,7 +2434,7 @@ class Session(Base):
         version = world.state()['version']
         again = world.run('start')
         self.assertOk(again)
-        self.assertIn('Dosplex is already running', again.out)
+        self.assertIn('DosPlex is already running', again.out)
         self.assertNotIn('It still runs', again.out)                  # the stand-in session names no release
         (root / 'bundle/share/dosplex').mkdir(parents=True)
         (root / 'bundle/share/dosplex/VERSION').write_text(version + '\n')
@@ -2543,12 +2612,12 @@ class Interrupted(Base):
                 self.assertEqual(self.installed_part(world.snapshot()), reference_tree)
                 self.assertEqual(self.stripped(world.state()), reference_state)
                 self.assertEqual(os.readlink(world.tree / 'opt/dosplex/current'), 'releases/0.1.0-test')
-                self.assertEqual(world.run('status').out.splitlines()[0], 'Dosplex 0.1.0-test (commit 012345678)')
+                self.assertEqual(world.run('status').out.splitlines()[0], 'DosPlex 0.1.0-test (commit 012345678)')
                 self.assertOk(world.run('uninstall', '--remove-guest', '--yes'))
                 outcome = 'completed'
             else:
                 self.assertEqual(after[-1]['outcome'], 'rolled-back')
-                self.assertIn('Dosplex is not installed.', world.run('status').out)
+                self.assertIn('DosPlex is not installed.', world.run('status').out)
                 outcome = 'rolled back'
             self.assertBackToStart(world)
             return outcome
@@ -2587,7 +2656,7 @@ class Interrupted(Base):
                 self.assertEqual(world.state()['guest']['stripped_groups'], stripped)
                 self.assertOk(world.run('uninstall'))                    # which puts the memberships back
             else:
-                self.assertIn('Dosplex is not installed.', world.run('status').out)
+                self.assertIn('DosPlex is not installed.', world.run('status').out)
             self.assertBackToStart(world)
             return 'completed' if completed else 'rolled back'
         self.assertEqual(set(self.each(points, work)), {'completed', 'rolled back'})
@@ -2734,7 +2803,7 @@ class Interrupted(Base):
                 self.assertIn('dosplex uninstall --remove-guest', world.run('status').out)
                 self.assertOk(world.run('uninstall', '--remove-guest', '--yes'))
             self.assertBackToStart(world)
-            self.assertIn('Dosplex is not installed.', world.run('status').out)
+            self.assertIn('DosPlex is not installed.', world.run('status').out)
         self.each(points, work)
 
     def test_a_plain_uninstall_interrupted_at_every_point_is_finished_by_repair(self):
@@ -3289,7 +3358,7 @@ class StripGroups(Base):
         self.assertOk(result)
         # It said what it was going to do before it did it.
         self.assertIn('--adopt-guest-strip-groups removes exactly these memberships', result.out)
-        self.assertLess(result.out.index('gpasswd -d guest audio'), result.out.index('Installed Dosplex'))
+        self.assertLess(result.out.index('gpasswd -d guest audio'), result.out.index('Installed DosPlex'))
         self.assertIn('Uninstall puts them back unless it removes Guest.', result.out)
         removals = [c['argv'] for c in world.commands('gpasswd')]
         self.assertEqual(removals, [['--root', str(world.tree), '-d', 'guest', group] for group in self.ALL])
@@ -3460,7 +3529,7 @@ class DeckControls(Base):
         self.assertOk(world.run('preflight', bundle.path, '--manifest', bundle.sha256))
         result = world.install(bundle, '--no-start')
         self.assertOk(result)
-        self.assertIn('no controller slot given; Dosplex starts without one', result.out)
+        self.assertIn("no controller is needed for this. The first controller you wake is Main's", result.out)
         world = self.world()
         bundle = world.bundle()
         result = world.run('preflight', bundle.path, '--manifest', bundle.sha256, '--main-hid', '/dev/hidraw4',
@@ -3955,7 +4024,7 @@ class Control(Base):
         self.assertEqual(len(world.events('trial.start')), 1)
         status = world.run('status')
         self.assertIn('Warning: Steam client 1760000000 is not in the tested set', status.out)
-        self.assertIn('Dosplex started anyway, because Steam updates itself', status.out)
+        self.assertIn('DosPlex started anyway, because Steam updates itself', status.out)
 
     def test_a_start_from_the_library_still_refuses_another_steamos(self):
         world = self.installed()
@@ -4402,7 +4471,7 @@ class Control(Base):
         (world.fake / 'hold').unlink()
         finished = self.finish(world, answer)
         self.assertEqual((finished['state'], finished['code']), ('succeeded', 'ok'))
-        self.assertRegex(finished['message'], 'Dosplex is running')
+        self.assertRegex(finished['message'], 'DosPlex is running')
         self.assertEqual([s['step'] for s in finished['steps']],
                          ['verify-release', 'preflight', 'host-mode', 'idle-steam', 'trial', 'controllers', 'running'])
         self.assertTrue(all(s['status'] == 'done' for s in finished['steps']))
@@ -4422,7 +4491,7 @@ class Control(Base):
         world = self.running()
         finished = self.finish(world, self.ctl(world, 'stop', expect='accepted'))
         self.assertEqual((finished['action'], finished['state'], finished['code']), ('stop', 'succeeded', 'ok'))
-        self.assertIn('Dosplex stopped', finished['message'])
+        self.assertIn('DosPlex stopped', finished['message'])
         self.assertFalse(self.ctl(world, 'status')['data']['running'])
         self.ctl(world, 'stop', expect='not-running')
 
@@ -4557,7 +4626,7 @@ class SharedGameLibrary(Base):
     AUTO_TIMER = 'etc/systemd/system/dosplex-game-library-auto.timer'
     AUTO_LINK = 'etc/systemd/system/timers.target.wants/dosplex-game-library-auto.timer'
     EXPECTED_AUTO_SERVICE = '''[Unit]
-Description=Dosplex shared game library: check new games for sharing
+Description=DosPlex shared game library: check new games for sharing
 ConditionPathExists=/opt/dosplex/bin/dosplex
 
 [Service]
@@ -4569,7 +4638,7 @@ IOSchedulingClass=idle
 TimeoutStartSec=infinity
 '''
     EXPECTED_AUTO_TIMER = '''[Unit]
-Description=Dosplex shared game library: check new games every ten minutes
+Description=DosPlex shared game library: check new games every ten minutes
 
 [Timer]
 OnBootSec=3min
@@ -4579,7 +4648,7 @@ OnUnitInactiveSec=10min
 WantedBy=timers.target
 '''
     EXPECTED_UNIT = '''[Unit]
-Description=Dosplex shared game library
+Description=DosPlex shared game library
 After=local-fs.target
 Before=display-manager.service dosplex-compositor.service
 ConditionPathExists=/opt/dosplex/bin/dosplex
@@ -4613,7 +4682,7 @@ WantedBy=multi-user.target
     DISK_SERVICE = 'etc/systemd/system/dosplex-game-library-disk@.service'
     DISK_RULE = 'etc/udev/rules.d/90-dosplex-game-library.rules'
     EXPECTED_DISK_SERVICE = '''[Unit]
-Description=Dosplex shared game library: the mounts of %I
+Description=DosPlex shared game library: the mounts of %I
 After=dosplex-game-library.service
 ConditionPathExists=/opt/dosplex/bin/dosplex
 
@@ -4622,7 +4691,7 @@ Type=oneshot
 ExecStart=/opt/dosplex/bin/dosplex library arrive %I
 TimeoutStartSec=300
 '''
-    EXPECTED_DISK_RULE = '''# Dosplex shared game library: a disk that appears or goes gets its shared games mounted or released.
+    EXPECTED_DISK_RULE = '''# DosPlex shared game library: a disk that appears or goes gets its shared games mounted or released.
 SUBSYSTEM=="block", ACTION=="add|remove", KERNEL=="sd*|mmcblk*|nvme*|vd*", ENV{DEVTYPE}=="partition|disk", \\
     RUN+="/usr/bin/systemctl --no-block start dosplex-game-library-disk@%k.service"
 '''
@@ -4686,7 +4755,7 @@ SUBSYSTEM=="block", ACTION=="add|remove", KERNEL=="sd*|mmcblk*|nvme*|vd*", ENV{D
         self.assertOk(result)
         self.assertIn('The shared game library is on (%s).' % self.PLACE, result.out)
         self.assertIn('Games are shared automatically: new and updated games are checked in the background, the first '
-                      'check starts in a few minutes, and they reach both accounts at the next start of Dosplex or '
+                      'check starts in a few minutes, and they reach both accounts at the next start of DosPlex or '
                       'restart of the machine.', result.out)
         self.assertIn('To do it right away: sudo ', result.out)
         self.assertIn('library share --all', result.out)
@@ -4757,10 +4826,10 @@ SUBSYSTEM=="block", ACTION=="add|remove", KERNEL=="sd*|mmcblk*|nvme*|vd*", ENV{D
         empty = self.world()
         self.assertFailed(self.on(empty), 'not installed')
         self.assertEqual(empty.snapshot(exclude=()), empty.initial_full)
-        # A unit file that is not the one Dosplex writes, and one that is already the same.
+        # A unit file that is not the one DosPlex writes, and one that is already the same.
         world = self.installed()
         (world.tree / self.UNIT).write_text('[Unit]\nDescription=mine\n')
-        self.assertFailed(self.on(world), 'not the one Dosplex writes')
+        self.assertFailed(self.on(world), 'not the one DosPlex writes')
         self.assertEqual(self.store(world), [])
         (world.tree / self.UNIT).write_text(self.EXPECTED_UNIT)
         self.assertOk(self.on(world))
@@ -4861,10 +4930,10 @@ SUBSYSTEM=="block", ACTION=="add|remove", KERNEL=="sd*|mmcblk*|nvme*|vd*", ENV{D
 
     def test_automatic_units_that_are_not_the_ones_dosplex_writes_are_refused_and_nothing_changes(self):
         for path, make, words in (
-                (self.AUTO_SERVICE, lambda p: p.write_text('[Unit]\nDescription=mine\n'), 'not the one Dosplex writes'),
-                (self.AUTO_TIMER, lambda p: p.write_text('[Timer]\nOnBootSec=1\n'), 'not the one Dosplex writes'),
-                (self.AUTO_TIMER, lambda p: p.symlink_to('/dev/null'), 'not the one Dosplex writes'),
-                (self.AUTO_LINK, lambda p: p.symlink_to('../other.timer'), 'not the link Dosplex makes')):
+                (self.AUTO_SERVICE, lambda p: p.write_text('[Unit]\nDescription=mine\n'), 'not the one DosPlex writes'),
+                (self.AUTO_TIMER, lambda p: p.write_text('[Timer]\nOnBootSec=1\n'), 'not the one DosPlex writes'),
+                (self.AUTO_TIMER, lambda p: p.symlink_to('/dev/null'), 'not the one DosPlex writes'),
+                (self.AUTO_LINK, lambda p: p.symlink_to('../other.timer'), 'not the link DosPlex makes')):
             with self.subTest(path=path, words=words):
                 world = self.installed()
                 target = world.tree / path
@@ -5085,7 +5154,7 @@ SUBSYSTEM=="block", ACTION=="add|remove", KERNEL=="sd*|mmcblk*|nvme*|vd*", ENV{D
         self.assertEqual(world.state()['game_store'], self.PLACE)
 
     def left_at_a_start(self, world):
-        """What the start of Dosplex leaves when its own slot gave the last game back: the store's folder without a
+        """What the start of DosPlex leaves when its own slot gave the last game back: the store's folder without a
         config, the units and the state's entry as they were."""
         place = self.place(world)
         (place / 'sides').mkdir(parents=True, exist_ok=True)
@@ -5210,7 +5279,7 @@ SUBSYSTEM=="block", ACTION=="add|remove", KERNEL=="sd*|mmcblk*|nvme*|vd*", ENV{D
         self.assertIn('verifying 620', result.err)                     # the tool's progress comes through
         self.assertIn('Queued for sharing: 620 (Portal 2), 70.', result.out)
         self.assertIn('Not shared: 400: its files are not all there', result.out)
-        self.assertIn('move at the next start of Dosplex or restart of the machine', result.out)
+        self.assertIn('move at the next start of DosPlex or restart of the machine', result.out)
         result = world.run('library', 'share', '--all', '--user', 'guest')
         self.assertOk(result)
         self.assertEqual(self.store(world, 'share')[1][1][2:], ['--user', 'guest', '--all'])
@@ -5268,11 +5337,11 @@ SUBSYSTEM=="block", ACTION=="add|remove", KERNEL=="sd*|mmcblk*|nvme*|vd*", ENV{D
                      'deck: its library /home/deck/.local/share/Steam, shared games shown in it\n',
                      'guest: its library /home/guest/.local/share/Steam, shared games not shown in it yet, Steam is running, '
                      '3 manifests of shared games are set aside until it is shown again; they are put back at the next '
-                     'start of Dosplex or restart of the machine, its earlier private layer is still to be moved into the '
+                     'start of DosPlex or restart of the machine, its earlier private layer is still to be moved into the '
                      'library',
                      'kept aside because the library had them already (nothing was overwritten): layer/steamapps, '
                      'stash/appmanifest_5.acf',
-                     'Portal 2 (620), shared by deck', 'Waiting for the next start of Dosplex or restart of the machine: 70'):
+                     'Portal 2 (620), shared by deck', 'Waiting for the next start of DosPlex or restart of the machine: 70'):
             self.assertIn(line, result.out)
         self.assertEqual(json.loads(world.run('library', 'status', '--json').out), report)
         report['config']['mode'] = 'leaving'
@@ -5413,7 +5482,7 @@ SUBSYSTEM=="block", ACTION=="add|remove", KERNEL=="sd*|mmcblk*|nvme*|vd*", ENV{D
             with self.subTest(path=path):
                 world = self.installed()
                 make(world.tree / path)
-                self.assertFailed(self.on(world), 'not the one Dosplex writes')
+                self.assertFailed(self.on(world), 'not the one DosPlex writes')
                 self.assertEqual(self.store(world), [])
                 self.assertNotIn('game_store', world.state())
 
@@ -5433,7 +5502,7 @@ SUBSYSTEM=="block", ACTION=="add|remove", KERNEL=="sd*|mmcblk*|nvme*|vd*", ENV{D
         self.assertIn('At the last disk that appeared or went (2026-11-18T11:00:00Z): 1 libraries mounted', out)
         self.assertIn('not shown in the library of every account yet', out)
         self.assertIn('2 manifests of shared games are set aside until it is shown again (appmanifest_1.acf, common/G/x)', out)
-        self.assertIn('they are put back at the next start of Dosplex', out)
+        self.assertIn('they are put back at the next start of DosPlex', out)
         self.canned(world, 'store-status.json', {
             'config': {'mode': 'on'}, 'disks': [{'root': self.USB_ROOT, 'mount': self.USB, 'present': True, 'apps': {},
                                                   'sides': {'deck': {'library': '/l', 'mounted': True, 'steam_running': True,
@@ -5485,7 +5554,7 @@ SUBSYSTEM=="block", ACTION=="add|remove", KERNEL=="sd*|mmcblk*|nvme*|vd*", ENV{D
         out = world.run('library', 'status').out
         for line in ('  Disk %s: shown in the library of every account, stored games: 1' % self.USB,
                      '    Half-Life (70), shared by deck',
-                     '    Waiting for the next start of Dosplex or restart of the machine: 80',
+                     '    Waiting for the next start of DosPlex or restart of the machine: 80',
                      '  Disk /run/media/deck/gone: not connected (/run/media/deck/gone is not mounted). Its games come '
                      'back when it is. If it is gone for good: sudo ', ' library forget /run/media/deck/gone'):
             self.assertIn(line, out)
@@ -5511,7 +5580,7 @@ SUBSYSTEM=="block", ACTION=="add|remove", KERNEL=="sd*|mmcblk*|nvme*|vd*", ENV{D
         self.assertNotIn('At the last start', world.run('library', 'status').out)
 
     def test_a_background_check_that_was_stopped_ends_quietly(self):
-        # A start of Dosplex stops the check with a signal; the timer's service must not be left as failed.
+        # A start of DosPlex stops the check with a signal; the timer's service must not be left as failed.
         world = self.turned_on()
         self.canned(world, 'store-exit-share', '-15')
         result = world.run('library', 'share', '--new')
@@ -5714,7 +5783,7 @@ class StartLayoutAndBoot(Base):
         before = world.snapshot(exclude=())
         result = world.run('start', '--boot')
         self.assertOk(result)
-        self.assertEqual(result.out.strip(), 'Dosplex does not start at boot in Desktop mode; Steam is left as it is.')
+        self.assertEqual(result.out.strip(), 'DosPlex does not start at boot in Desktop mode; Steam is left as it is.')
         self.assertEqual(world.events('trial.start'), [])
         self.assertEqual(world.commands('systemd-run'), [])
         self.assertEqual(self.switches(world), [])
@@ -5724,7 +5793,7 @@ class StartLayoutAndBoot(Base):
         world = self.installed(desktop=False)
         result = world.run('start', '--boot')
         self.assertOk(result)
-        self.assertIn('Dosplex is running (', result.out)
+        self.assertIn('DosPlex is running (', result.out)
         (trial,) = world.events('trial.start')
         self.assertEqual(trial['layout'], 'single')
         (external,) = world.events('external.run')
@@ -5749,7 +5818,7 @@ class StartLayoutAndBoot(Base):
         (world.fake / 'busy').write_text('')           # a game, or Steam updating itself
         result = world.run('start', '--boot')
         self.assertOk(result)
-        self.assertIn('Steam was not idle after 5 minutes, so Dosplex did not start at boot; Steam is left running.',
+        self.assertIn('Steam was not idle after 5 minutes, so DosPlex did not start at boot; Steam is left running.',
                       result.out)
         self.assertEqual(world.events('trial.start'), [])
         self.assertEqual(world.events('trial.recover'), [])
@@ -5831,7 +5900,7 @@ class StartLayoutAndBoot(Base):
         result = world.run('start', '--boot')
         self.assertOk(result)
         self.assertIn('An earlier start at boot was interrupted', result.out)
-        self.assertIn('Dosplex is running (', result.out)
+        self.assertIn('DosPlex is running (', result.out)
         journal = world.journal()
         names = sorted(journal)
         self.assertEqual(journal[names[1]][-1]['outcome'], 'rolled-back')       # repair undid it
@@ -5949,13 +6018,15 @@ class StartLayoutAndBoot(Base):
 
 
 class LibraryEntry(Base):
-    """The "Dosplex" entry for Steam's library and the service behind it (ADR-026): what an install leaves so that a
-    person with a controller can start Dosplex, and what takes it away again."""
+    """The "DosPlex" entry for Steam's library and the service behind it (ADR-026): what an install leaves so that a
+    person with a controller can start DosPlex, and what takes it away again."""
     SOCKET = 'etc/systemd/system/dosplex-start.socket'
     SERVICE = 'etc/systemd/system/dosplex-start.service'
     LINK = 'etc/systemd/system/sockets.target.wants/dosplex-start.socket'
     CONFIG = 'var/lib/dosplex/start-service.json'
     DESKTOP = 'home/deck/.local/share/applications/dosplex.desktop'
+    LAUNCHER = 'home/deck/Desktop/DosPlex.desktop'
+    ICON = 'Icon=/opt/dosplex/current/share/dosplex/icons/dosplex.png'
     ON = {'DOSPLEX_TEST_ENTRY': '1'}
 
     def installed(self, **options):
@@ -5985,7 +6056,7 @@ class LibraryEntry(Base):
         self.assertEqual(config, {'uid': UID, 'program': '/opt/dosplex/bin/dosplex'})
         self.assertEqual(stat.S_IMODE((world.tree / self.CONFIG).stat().st_mode), 0o644)
         desktop = (world.tree / self.DESKTOP).read_text()
-        self.assertIn('Name=Dosplex', desktop)
+        self.assertIn('Name=DosPlex', desktop)
         self.assertIn('Exec=/usr/bin/python3 /opt/dosplex/current/libexec/dosplex-start-client.py', desktop)
         self.assertIn(['start', 'dosplex-start.socket'], self.systemctl(world))
         self.assertNotIn(['start', 'dosplex-start.service'], self.systemctl(world))
@@ -6035,7 +6106,7 @@ class LibraryEntry(Base):
 
     def test_an_entry_the_user_changed_is_left_alone_when_the_rest_goes(self):
         world = self.installed()
-        mine = '[Desktop Entry]\nName=Dosplex, my way\nExec=/bin/true\n'
+        mine = '[Desktop Entry]\nName=DosPlex, my way\nExec=/bin/true\n'
         (world.tree / self.DESKTOP).write_text(mine)
         self.assertOk(world.run('entry', 'off'))
         self.assertEqual((world.tree / self.DESKTOP).read_text(), mine)
@@ -6048,12 +6119,40 @@ class LibraryEntry(Base):
         unit.write_text('[Socket]\nListenStream=/run/somebody-else.sock\n')
         result = world.install(world.bundle(), '--no-start', **self.ON)
         self.assertOk(result)                                            # the install itself is not failed by it
-        self.assertIn('not the one Dosplex writes', result.out)
+        self.assertIn('not the one DosPlex writes', result.out)
         self.assertEqual(unit.read_text(), '[Socket]\nListenStream=/run/somebody-else.sock\n')
         self.assertFalse(os.path.lexists(world.tree / self.SERVICE))
         self.assertFalse((world.tree / self.DESKTOP).exists())
         refused = world.run('entry', 'on')
-        self.assertFailed(refused, 'not the one Dosplex writes', code=3)
+        self.assertFailed(refused, 'not the one DosPlex writes', code=3)
+
+    def alpha_5_entry(self, world):
+        for name, key in ((self.SOCKET, 'socket'), (self.SERVICE, 'service'), (self.DESKTOP, 'desktop')):
+            as_alpha_5_wrote(self, world.tree / name, key)
+
+    def test_the_entry_that_0_1_0_alpha_5_wrote_is_dosplexs_and_an_install_writes_it_again(self):
+        world = self.installed()
+        self.alpha_5_entry(world)
+        self.assertEqual(world.run('entry', 'status').out.strip(), 'Start from Steam\'s library: not set up')
+        result = world.install(world.bundle(), '--no-start', **self.ON)
+        self.assertOk(result)
+        self.assertNotIn('not the one DosPlex writes', result.out)
+        self.assertNotIn('not set up', result.out)
+        self.assertIn('Description=DosPlex: the socket', (world.tree / self.SOCKET).read_text())
+        self.assertIn('Description=DosPlex: start on request', (world.tree / self.SERVICE).read_text())
+        self.assertIn('Name=DosPlex', (world.tree / self.DESKTOP).read_text())
+        self.alpha_5_entry(world)
+        self.assertOk(world.run('entry', 'on'))                         # and so does `entry on`
+        self.assertIn('Name=DosPlex', (world.tree / self.DESKTOP).read_text())
+
+    def test_off_and_uninstall_take_away_the_entry_that_0_1_0_alpha_5_wrote(self):
+        for command in (('entry', 'off'), ('uninstall',)):
+            with self.subTest(command=command):
+                world = self.installed()
+                self.alpha_5_entry(world)
+                self.assertOk(world.run(*command))
+                for name in (self.SOCKET, self.SERVICE, self.LINK, self.CONFIG, self.DESKTOP):
+                    self.assertFalse(os.path.lexists(world.tree / name), name)
 
     def test_uninstall_takes_the_entry_away_and_leaves_the_home_as_it_was(self):
         world = self.world()
@@ -6071,6 +6170,139 @@ class LibraryEntry(Base):
         for name in (self.SOCKET, self.SERVICE, self.LINK, self.CONFIG, self.DESKTOP):
             self.assertFalse(os.path.lexists(world.tree / name), name)
         self.assertEqual(main_home_and_units(), before)
+
+    # --- the launcher on the main user's desktop, and what an install says about starting ----------------------
+    def with_desktop(self):
+        world = self.world()
+        (world.tree / 'home/deck/Desktop').mkdir()
+        world.reset_baseline()
+        return world
+
+    def test_a_desktop_launcher_is_written_executable_with_the_icon_beside_the_entry(self):
+        world = self.with_desktop()
+        result = world.install(world.bundle(), '--no-start', start=False, **self.ON)
+        self.assertOk(result)
+        launcher = world.tree / self.LAUNCHER
+        self.assertEqual(launcher.read_text(), (world.tree / self.DESKTOP).read_text())
+        self.assertIn(self.ICON, launcher.read_text())
+        self.assertNotIn('input-gaming', launcher.read_text())
+        self.assertEqual(stat.S_IMODE(launcher.stat().st_mode), 0o755)
+        self.assertEqual(sorted(p.name for p in (world.tree / 'home/deck/Desktop').iterdir()), ['DosPlex.desktop'])
+        lines = result.out.splitlines()
+        self.assertEqual(lines[-3:-1], ['DosPlex is installed and not started. Start it:',
+                                        '  from the DosPlex icon on the desktop'])        # no Steam entry in the library yet
+        self.assertEqual(lines[-1], '  in a terminal: sudo %s start' % (world.tree / 'opt/dosplex/bin/dosplex'))
+
+    def test_the_start_lines_name_the_library_entry_when_it_is_there(self):
+        world = self.with_desktop()
+        self.steam_running(world)
+        result = world.install(world.bundle(), '--no-start', start=False, **self.ON)
+        self.assertOk(result)
+        self.assertEqual(result.out.splitlines()[-4:],
+                         ['DosPlex is installed and not started. Start it:',
+                          "  from Steam's library: Library, Non-Steam, DosPlex",
+                          '  from the DosPlex icon on the desktop',
+                          '  in a terminal: sudo %s start' % (world.tree / 'opt/dosplex/bin/dosplex')])
+
+    def test_the_start_lines_promise_nothing_when_the_entry_is_off(self):
+        world = self.with_desktop()
+        self.assertOk(world.install(world.bundle(), '--no-start', start=False, **self.ON))
+        self.assertOk(world.run('entry', 'off'))
+        result = world.install(world.bundle(), '--no-start', start=False, **self.ON)
+        self.assertOk(result)
+        self.assertEqual(result.out.splitlines()[-2:],
+                         ['DosPlex is installed and not started. Start it:',
+                          '  in a terminal: sudo %s start' % (world.tree / 'opt/dosplex/bin/dosplex')])
+        self.assertFalse(os.path.lexists(world.tree / self.LAUNCHER))
+
+    def test_without_a_desktop_folder_there_is_no_launcher_and_no_error(self):
+        world = self.world()
+        result = world.install(world.bundle(), '--no-start', start=False, **self.ON)
+        self.assertOk(result)
+        self.assertFalse((world.tree / 'home/deck/Desktop').exists())
+        self.assertTrue((world.tree / self.DESKTOP).is_file())
+        self.assertNotIn('desktop', result.out.split('Start it:')[-1])
+        self.assertIn("Start from Steam's library: ready", world.run('status').out)
+        self.assertOk(world.run('entry', 'off'))
+        self.assertFalse((world.tree / 'home/deck/Desktop').exists())
+
+    def test_a_desktop_that_is_a_link_is_left_alone(self):
+        world = self.world()
+        other = world.root / 'elsewhere'
+        other.mkdir()
+        (world.tree / 'home/deck/Desktop').symlink_to(other)
+        self.assertOk(world.install(world.bundle(), '--no-start', start=False, **self.ON))
+        self.assertEqual(list(other.iterdir()), [])
+        self.assertTrue((world.tree / self.DESKTOP).is_file())
+
+    def test_a_launcher_that_is_not_dosplexs_is_left_alone_and_blocks_nothing(self):
+        world = self.with_desktop()
+        mine = '[Desktop Entry]\nName=DosPlex, my own\nExec=/bin/true\n'
+        (world.tree / self.LAUNCHER).write_text(mine)
+        result = world.install(world.bundle(), '--no-start', start=False, **self.ON)
+        self.assertOk(result)
+        self.assertEqual((world.tree / self.LAUNCHER).read_text(), mine)
+        self.assertTrue((world.tree / self.DESKTOP).is_file())
+        self.assertTrue((world.tree / self.SOCKET).is_file())
+        self.assertIs(world.state()['entry'], True)
+        self.assertNotIn('could not be set up', result.out)
+        calls = len(self.systemctl(world))
+        self.assertOk(world.install(world.bundle(), '--no-start', start=False, **self.ON))     # nothing is redone for it
+        self.assertNotIn(['start', 'dosplex-start.socket'], self.systemctl(world)[calls:])
+        self.assertOk(world.run('entry', 'off'))
+        self.assertEqual((world.tree / self.LAUNCHER).read_text(), mine)
+        self.assertFalse((world.tree / self.DESKTOP).exists())
+
+    def test_a_launcher_that_is_a_link_is_not_followed_or_replaced(self):
+        world = self.with_desktop()
+        target = world.root / 'target.desktop'
+        target.write_text('x\n')
+        (world.tree / self.LAUNCHER).symlink_to(target)
+        self.assertOk(world.install(world.bundle(), '--no-start', start=False, **self.ON))
+        self.assertTrue(os.path.islink(world.tree / self.LAUNCHER))
+        self.assertEqual(target.read_text(), 'x\n')
+        self.assertOk(world.run('entry', 'off'))
+        self.assertTrue(os.path.islink(world.tree / self.LAUNCHER))
+
+    def test_off_and_uninstall_remove_the_launcher_and_leave_the_folder_and_the_other_files(self):
+        for command in (('entry', 'off'), ('uninstall',)):
+            with self.subTest(command=command):
+                world = self.with_desktop()
+                (world.tree / 'home/deck/Desktop/Notes.txt').write_text('mine\n')
+                self.assertOk(world.install(world.bundle(), '--no-start', start=False, **self.ON))
+                self.assertTrue((world.tree / self.LAUNCHER).is_file())
+                self.assertOk(world.run(*command))
+                self.assertFalse(os.path.lexists(world.tree / self.LAUNCHER))
+                self.assertEqual(sorted(p.name for p in (world.tree / 'home/deck/Desktop').iterdir()), ['Notes.txt'])
+
+    def test_a_missing_or_stale_launcher_is_written_again_by_an_install(self):
+        world = self.with_desktop()
+        self.assertOk(world.install(world.bundle(), '--no-start', start=False, **self.ON))
+        (world.tree / self.LAUNCHER).unlink()
+        self.assertEqual(world.run('entry', 'status').out.strip(), "Start from Steam's library: not set up")
+        self.assertOk(world.install(world.bundle(), '--no-start', start=False, **self.ON))
+        self.assertEqual(stat.S_IMODE((world.tree / self.LAUNCHER).stat().st_mode), 0o755)
+
+    def test_an_install_over_the_entry_that_0_1_0_alpha_5_wrote_writes_the_new_entry_and_the_launcher(self):
+        world = self.with_desktop()
+        self.assertOk(world.install(world.bundle(), '--no-start', start=False, **self.ON))
+        self.alpha_5_entry(world)
+        (world.tree / self.LAUNCHER).unlink()
+        old = (world.tree / self.DESKTOP).read_text()
+        self.assertIn('Icon=input-gaming', old)
+        self.assertEqual(world.run('entry', 'status').out.strip(), "Start from Steam's library: not set up")
+        result = world.install(world.bundle(), '--no-start', start=False, **self.ON)
+        self.assertOk(result)
+        for name in (self.DESKTOP, self.LAUNCHER):
+            text = (world.tree / name).read_text()
+            self.assertIn('Name=DosPlex', text)
+            self.assertIn(self.ICON, text)
+        self.assertEqual(stat.S_IMODE((world.tree / self.LAUNCHER).stat().st_mode), 0o755)
+        # An earlier launcher with the old text is dosplex's too: it is replaced, not left as foreign.
+        (world.tree / self.LAUNCHER).write_text(old)
+        self.assertOk(world.run('entry', 'on'))
+        self.assertIn(self.ICON, (world.tree / self.LAUNCHER).read_text())
+
 
     def test_a_change_cut_short_is_finished_or_undone_by_repair(self):
         probe = self.world()
@@ -6100,7 +6332,7 @@ class LibraryEntry(Base):
     # --- adding the entry to Steam's library (steamos-add-to-steam) ---------------------------------------------
     TOOL = 'steamos-add-to-steam'
     SHORTCUTS = 'home/deck/.local/share/Steam/userdata/4242/config/shortcuts.vdf'
-    IN_LIBRARY = "Dosplex is in Steam's library: Library, Non-Steam, Dosplex."
+    IN_LIBRARY = "DosPlex is in Steam's library: Library, Non-Steam, DosPlex."
     SLOW = {'DOSPLEX_TEST_STEAM_SECONDS': '1'}
 
     def steam_running(self, world):
@@ -6146,7 +6378,7 @@ class LibraryEntry(Base):
             (world.tree / self.SHORTCUTS).unlink()              # the install added it; this case is about a library without
         cases = (('Steam is not running', None, False),
                  ('this system has no steamos-add-to-steam', without_tool, True),
-                 ('Dosplex is running', with_session, True))
+                 ('DosPlex is running', with_session, True))
         for reason, prepare, steam in cases:
             with self.subTest(reason):
                 world = self.world()
@@ -6154,16 +6386,16 @@ class LibraryEntry(Base):
                     self.steam_running(world)
                 if prepare:
                     prepare(world)
-                if reason == 'Dosplex is running':
+                if reason == 'DosPlex is running':
                     result = world.run('entry', 'on', **self.ON)
                 else:
                     result = world.install(world.bundle(), '--no-start', **self.ON)
                 self.assertOk(result)
-                self.assertIn("Dosplex could not be added to Steam's library by itself (%s)" % reason, result.out)
+                self.assertIn("DosPlex could not be added to Steam's library by itself (%s)" % reason, result.out)
                 self.assertIn('"Add a Non-Steam Game"', result.out)
                 self.assertIn('sudo /opt/dosplex/bin/dosplex entry on', result.out)
-                self.assertEqual(len(self.added(world)), 1 if reason == 'Dosplex is running' else 0)   # the install's own
-                if reason != 'Dosplex is running':
+                self.assertEqual(len(self.added(world)), 1 if reason == 'DosPlex is running' else 0)   # the install's own
+                if reason != 'DosPlex is running':
                     self.assertRegex(result.out, r'Until then: sudo \S*dosplex start')
 
     def test_a_tool_that_fails_hangs_or_writes_nothing_does_not_fail_the_install(self):
@@ -6174,7 +6406,7 @@ class LibraryEntry(Base):
                 (world.fake / flag).write_text('')
                 result = world.install(world.bundle(), '--no-start', **self.ON, **self.SLOW)
                 self.assertOk(result)
-                self.assertIn("Dosplex could not be added to Steam's library by itself (", result.out)
+                self.assertIn("DosPlex could not be added to Steam's library by itself (", result.out)
                 self.assertIn('sudo /opt/dosplex/bin/dosplex entry on', result.out)
                 self.assertRegex(result.out, r'Until then: sudo \S*dosplex start')
                 self.assertIs(world.state()['entry'], True)
@@ -6218,7 +6450,7 @@ class BusPolicies(Base):
     away at a stop, one that a hard restart wiped out cannot, and the Guest account would stay shut out for good."""
     FOLDER = 'etc/dbus-1/system.d'
     OURS_NOW = ('<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN"\n'
-                ' "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">\n<!-- Dosplex -->\n<busconfig>\n'
+                ' "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">\n<!-- DosPlex -->\n<busconfig>\n'
                 '  <policy user="guest">\n    <deny own_prefix="org.bluez"/>\n    <deny send_destination="org.bluez"/>\n'
                 '    <deny send_destination="com.steampowered.SteamOSManager1"/>\n  </policy>\n</busconfig>\n')
 
@@ -6262,7 +6494,7 @@ class Autostart(Base):
     UNIT = 'etc/systemd/system/dosplex-autostart.service'
     LINK = 'etc/systemd/system/graphical.target.wants/dosplex-autostart.service'
     EXPECTED_UNIT = '''[Unit]
-Description=Dosplex at boot
+Description=DosPlex at boot
 After=display-manager.service
 ConditionPathExists=/opt/dosplex/bin/dosplex
 
@@ -6287,7 +6519,7 @@ WantedBy=graphical.target
         world = self.world()
         result = world.install(world.bundle(), '--no-start')
         self.assertOk(result)
-        self.assertIn('autostart on --experimental', result.out.splitlines()[-1])
+        self.assertIn('autostart on --experimental', result.out.splitlines()[-3])   # then the lines on how to start
         self.assertFalse((world.tree / self.UNIT).exists())
         self.assertNotIn('autostart', world.state())
         self.assertIn('Starts at boot: no', world.run('status').out)
@@ -6334,10 +6566,10 @@ WantedBy=graphical.target
 
     def test_a_file_or_link_that_is_not_dosplexs_is_refused_and_nothing_changes(self):
         for name, make, words in (
-                ('a unit', lambda w: (w.tree / self.UNIT).write_text('[Unit]\nDescription=mine\n'), 'not the one Dosplex writes'),
-                ('a linked unit', lambda w: (w.tree / self.UNIT).symlink_to('/dev/null'), 'not the one Dosplex writes'),
+                ('a unit', lambda w: (w.tree / self.UNIT).write_text('[Unit]\nDescription=mine\n'), 'not the one DosPlex writes'),
+                ('a linked unit', lambda w: (w.tree / self.UNIT).symlink_to('/dev/null'), 'not the one DosPlex writes'),
                 ('a link', lambda w: ((w.tree / self.LINK).parent.mkdir(), (w.tree / self.LINK).symlink_to('../other.service')),
-                 'not the link Dosplex makes')):
+                 'not the link DosPlex makes')):
             with self.subTest(name):
                 world = self.installed()
                 make(world)
@@ -6347,7 +6579,7 @@ WantedBy=graphical.target
                 self.assertNotIn('autostart', world.state())
                 self.assertEqual(self.systemctl(world), [])
                 self.assertEqual(world.run('repair').out.strip(), 'Nothing to repair.')
-                # Off leaves what is not Dosplex's alone when Dosplex never turned it on.
+                # Off leaves what is not DosPlex's alone when DosPlex never turned it on.
                 self.assertOk(world.run('autostart', 'off'))
                 self.assertEqual(world.snapshot(), before)
 
@@ -6413,6 +6645,31 @@ WantedBy=graphical.target
         # (The journal is gone with the rest of /var/lib/dosplex after this uninstall: the fault log has the order.)
         points = log.read_text().splitlines()
         self.assertLess(points.index('uninstall:done:remove-autostart'), points.index('uninstall:intent:stop-session'))
+
+    def test_the_unit_that_0_1_0_alpha_5_wrote_is_dosplexs(self):
+        for command in (('autostart', 'off'), ('uninstall',)):
+            with self.subTest(command=command):
+                world = self.installed()
+                before = world.snapshot()
+                self.assertOk(world.run('autostart', 'on', '--experimental'))
+                as_alpha_5_wrote(self, world.tree / self.UNIT, 'autostart')
+                self.assertEqual(world.run('autostart', 'status').out.strip(), 'Starts at boot: yes')
+                again = world.run('autostart', 'on', '--experimental')
+                self.assertOk(again)
+                self.assertNotIn('not the one DosPlex writes', again.out)
+                self.assertOk(world.run(*command))
+                self.assertFalse(os.path.lexists(world.tree / self.UNIT))
+                self.assertFalse(os.path.lexists(world.tree / self.LINK))
+                if command[0] == 'autostart':
+                    self.assertEqual(world.snapshot(), before)
+        # An install over an install that has it on keeps it on with that unit in place.
+        world = self.installed()
+        self.assertOk(world.run('autostart', 'on', '--experimental'))
+        as_alpha_5_wrote(self, world.tree / self.UNIT, 'autostart')
+        result = world.install(world.bundle(), '--no-start')
+        self.assertOk(result)
+        self.assertNotIn('could not be kept', result.out)
+        self.assertIs(world.state()['autostart'], True)
 
     def test_uninstall_leaves_a_file_that_is_not_dosplexs_where_it_is(self):
         world = self.installed()

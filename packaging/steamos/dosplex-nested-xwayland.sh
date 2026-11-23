@@ -179,11 +179,11 @@ write_side_state left "$left_user" 0
 write_side_state right "$right_user" 0
 sleep 1
 
-launch_side left "$left_user" "$left_display" "$left_auth" "Dosplex Left" "$left_dir"
+launch_side left "$left_user" "$left_display" "$left_auth" "DosPlex Left" "$left_dir"
 sleep 1
-launch_side right "$right_user" "$right_display" "$right_auth" "Dosplex Right" "$right_dir"
+launch_side right "$right_user" "$right_display" "$right_auth" "DosPlex Right" "$right_dir"
 
-echo "Dosplex nested X sessions active on ${host_display}"
+echo "DosPlex nested X sessions active on ${host_display}"
 echo "left=${left_user} display=${left_display}"
 echo "right=${right_user} display=${right_display}"
 

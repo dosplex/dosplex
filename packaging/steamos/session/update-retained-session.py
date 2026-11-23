@@ -22,9 +22,9 @@ import time
 # The compositor's runtime policy is chosen by its flags, never by its backend. The product runs it as a
 # nested X11 client with real side sessions (-s), host keyboards counted as menu controls (--host-keyboards) and
 # machine power (--allow-power): Main's Sleep, Restart and Shut down run bundle/libexec/dosplex-power-action,
-# which closes both sides and stops Dosplex before a restart or shutdown. Their confirmations say what the
+# which closes both sides and stops DosPlex before a restart or shutdown. Their confirmations say what the
 # machine comes back as (--boots-into): a trial, and `dosplex start`, which runs this file, leave normal SteamOS
-# behind; nothing starts Dosplex at boot. The display is never blanked (no --idle-policy).
+# behind; nothing starts DosPlex at boot. The display is never blanked (no --idle-policy).
 # root-session-trial.py repeats this list (it is staged separately); a test keeps the two equal.
 COMPOSITOR_FLAGS = ('-b', 'x11', '-s', '--host-keyboards', '--allow-power', '--boots-into=steamos')
 # Engineering only: a session started with test hooks (the transaction's test_hooks) keeps them across an
@@ -45,7 +45,7 @@ LAYOUTS = ('single', 'vertical', 'horizontal')
 # a test keeps them equal).
 RELAY_RESTART = ('--property=Restart=on-failure', '--property=RestartSec=1', '--property=StartLimitIntervalSec=0')
 # The capture router, the output watcher and the slot guards start again after a failure (one uncaught exception would
-# otherwise end routing, the menu chord or pad delivery until Dosplex is started again). Unlike the relays they have a start
+# otherwise end routing, the menu chord or pad delivery until DosPlex is started again). Unlike the relays they have a start
 # limit: one that fails ten times in two minutes stays failed, where the journal shows it, and does not spin.
 SERVICE_RESTART=('--property=Restart=on-failure','--property=RestartSec=2','--property=StartLimitIntervalSec=120','--property=StartLimitBurst=10')
 

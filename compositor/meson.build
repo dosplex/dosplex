@@ -49,7 +49,7 @@ endif
 wayland_server_dep = dependency('wayland-server', required: true)
 wayland_client_dep = dependency('wayland-client', required: true)
 xkbcommon_dep = dependency('xkbcommon', required: true)
-# wlroots' X11 backend (how Dosplex runs as a client of SteamOS's Gamescope) keeps its connection to the display to
+# wlroots' X11 backend (how DosPlex runs as a client of SteamOS's Gamescope) keeps its connection to the display to
 # itself; the compositor opens one of its own to bring the host pointer back to the middle of the output while a game
 # holds a pointer lock. wlroots.pc already requires xcb, so a host that builds against wlroots has it.
 xcb_dep = dependency('xcb', required: true)

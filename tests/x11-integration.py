@@ -200,7 +200,7 @@ def main():
                     mouse(840, 400)
                     both_cursors = cursor_patches()
                     # A side with a mapped application draws its own cursor (nested
-                    # Gamescope or KWin), so Dosplex's marker stays hidden there. The
+                    # Gamescope or KWin), so DosPlex's marker stays hidden there. The
                     # empty side gets the marker and keeps it when the pointer leaves.
                     if side == 'left':
                         assert left_cursor[0] == baseline[0], 'marker drawn over the mapped application'

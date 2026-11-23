@@ -1,11 +1,11 @@
 #!/usr/bin/python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
-"""The program Steam's library entry runs: asks the root service to start Dosplex, and tells a person.
+"""The program Steam's library entry runs: asks the root service to start DosPlex, and tells a person.
 
 The main player presses the entry; this runs as that player, not as root. It connects to the socket the
 service listens on, sends the one request the service accepts ("start\n") and prints the service's
-message. Exit status 0 means Dosplex is starting, already running, or was already refused by a
+message. Exit status 0 means DosPlex is starting, already running, or was already refused by a
 deliberate choice; 1 means it is not there, or it said no.
 
     dosplex-start-client.py [--socket PATH]
@@ -18,7 +18,7 @@ import subprocess
 import sys
 
 DEFAULT_SOCKET = '/run/dosplex-start.sock'
-NOT_THERE = ('Dosplex is not installed on this machine, or its start service is not there. '
+NOT_THERE = ('DosPlex is not installed on this machine, or its start service is not there. '
              'In Desktop mode, run: sudo dosplex repair')
 ANSWER_LIMIT = 64 * 1024
 ANSWER_TIMEOUT = 100
@@ -44,14 +44,14 @@ def tell(message, window):
     print(message)
     if window and shutil.which('kdialog'):
         try:
-            subprocess.run(['kdialog', '--title', 'Dosplex', '--error', message], timeout=120, check=False,
+            subprocess.run(['kdialog', '--title', 'DosPlex', '--error', message], timeout=120, check=False,
                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except (OSError, subprocess.SubprocessError):
             pass
 
 
 def main():
-    parser = argparse.ArgumentParser(description='ask Dosplex\'s start service to start it')
+    parser = argparse.ArgumentParser(description='ask DosPlex\'s start service to start it')
     parser.add_argument('--no-window', action='store_true', help='print only; never show a message window')
     parser.add_argument('--socket', default=DEFAULT_SOCKET)
     arguments = parser.parse_args()
@@ -72,12 +72,12 @@ def main():
     except (UnicodeDecodeError, ValueError):
         value = None
     if not isinstance(value, dict) or not isinstance(value.get('message'), str):
-        tell('Dosplex did not answer with a message. In Desktop mode, run: sudo dosplex repair',
+        tell('DosPlex did not answer with a message. In Desktop mode, run: sudo dosplex repair',
              not arguments.no_window)
         return 1
     started = bool(value.get('ok')) or value.get('code') == 'already-running'
     # "accepted" is the control interface's word for a start that now runs in the background; say it for a person.
-    message = 'Dosplex is starting. The screen changes in a moment.' if value.get('code') == 'accepted' else value['message']
+    message = 'DosPlex is starting. The screen changes in a moment.' if value.get('code') == 'accepted' else value['message']
     tell(message, not started and not arguments.no_window)
     return 0 if started else 1
 

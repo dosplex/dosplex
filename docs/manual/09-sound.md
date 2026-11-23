@@ -2,15 +2,15 @@
 
 Each player has their own sound output and their own microphone, and the two sides can also share the same speakers.
 
-The first time Dosplex runs, Main gets the output your system already uses (the TV, for example), so you hear sound without opening the menu. Guest gets no output until Guest or Main chooses one.
+The first time DosPlex runs, Main gets the output your system already uses (the TV, for example), so you hear sound without opening the menu. Guest gets no output until Guest or Main chooses one.
 
 ## Your own output
 
 Open **Audio** and claim a real output: TV/HDMI, speakers or a headset. Each person can claim a separate microphone too. A device already claimed by someone else is reserved for them, so release a device before the other person claims it.
 
-An output you claim stays yours across restarts and reboots until you release it. If the device is not connected at that moment, for example a headset that is switched off, the claim stays and shows as disconnected, and the sound starts when the device appears. Dosplex never plays your sound on another device in the meantime. Microphone claims are not kept; claim the microphone again after a restart.
+An output you claim stays yours across restarts and reboots until you release it. If the device is not connected at that moment, for example a headset that is switched off, the claim stays and shows as disconnected, and the sound starts when the device appears. DosPlex never plays your sound on another device in the meantime. Microphone claims are not kept; claim the microphone again after a restart.
 
-Guest's own Steam shows just one output, **Dosplex sound**, and one microphone, **Dosplex microphone**. The real devices are chosen in the Dosplex Audio menu; Steam's own audio settings cannot change them.
+Guest's own Steam shows just one output, **DosPlex sound**, and one microphone, **DosPlex microphone**. The real devices are chosen in the DosPlex Audio menu; Steam's own audio settings cannot change them.
 
 ## The shared mix
 

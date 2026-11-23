@@ -68,6 +68,8 @@ packaging/steamos/panel/Panel.qml
 packaging/steamos/panel/README.md
 packaging/steamos/panel/logic.mjs
 packaging/steamos/panel/test/logic.test.mjs
+packaging/steamos/icons/dosplex.png
+packaging/steamos/icons/dosplex.svg
 packaging/steamos/dosplex-power-action
 packaging/steamos/dosplex-primary-input-bridge.py
 packaging/steamos/dosplex-red-test.qml

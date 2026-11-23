@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
-"""Apply and undo Dosplex's portrait Wine mode-list setting.
+"""Apply and undo DosPlex's portrait Wine mode-list setting.
 
 The side supervisor runs this module as root. Wine registry files are always
 read and atomically replaced by the account that owns them; the durable
@@ -138,7 +138,7 @@ def restore_registry_value(data, before, created_section=False, separator_added=
     elif before == 'absent':
         del lines[index]
         if created_section:
-            # Remove only the section Dosplex created, and only if it remains
+            # Remove only the section DosPlex created, and only if it remains
             # empty. Any later Wine/user values keep the section in place.
             section = state['section']
             if section is not None:
@@ -614,7 +614,7 @@ def active_prefixes(uid, proc_root=Path('/proc')):
 
 def _ensure_journal_dir(journal_base, uid):
     if os.geteuid() != 0:
-        raise PermissionError('Dosplex Wine journal requires the root supervisor')
+        raise PermissionError('DosPlex Wine journal requires the root supervisor')
     base = Path(journal_base)
     # Do not traverse a symlink in any persistent journal path component. A
     # fresh host has no journal directory yet, so create what is missing,
@@ -623,7 +623,7 @@ def _ensure_journal_dir(journal_base, uid):
     try:
         info = os.fstat(base_fd)
         if info.st_uid != 0 or info.st_mode & 0o022:
-            raise PermissionError('unsafe Dosplex journal directory')
+            raise PermissionError('unsafe DosPlex journal directory')
     finally:
         os.close(base_fd)
     owner_dir = base / str(uid)
@@ -643,17 +643,17 @@ def _read_journal(path, uid, account):
     except FileNotFoundError:
         return {'schema': SCHEMA, 'uid': uid, 'account': account, 'updated_at': now(), 'entries': []}
     if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o077 or info.st_nlink != 1:
-        raise PermissionError('unsafe Dosplex Wine journal')
+        raise PermissionError('unsafe DosPlex Wine journal')
     raw = path.read_bytes()
     if len(raw) > 4 * 1024 * 1024:
-        raise ValueError('Dosplex Wine journal is too large')
+        raise ValueError('DosPlex Wine journal is too large')
     journal = json.loads(raw)
     if journal.get('schema') == LEGACY_SCHEMA:
         journal['schema'] = SCHEMA
     if (journal.get('schema') != SCHEMA or journal.get('uid') != uid or
             journal.get('account') != account or not isinstance(journal.get('entries'), list) or
             len(journal['entries']) > 4096):
-        raise ValueError('invalid Dosplex Wine journal schema')
+        raise ValueError('invalid DosPlex Wine journal schema')
     for entry in journal['entries']:
         if (not isinstance(entry, dict) or entry.get('uid') != uid or entry.get('account') != account or
                 entry.get('key') != 'HKCU\\Software\\Wine\\X11 Driver' or
@@ -668,7 +668,7 @@ def _read_journal(path, uid, account):
                 not isinstance(entry.get('path'), str) or not Path(entry['path']).is_absolute() or
                 not isinstance(entry.get('library'), str) or not Path(entry['library']).is_absolute() or
                 not isinstance(entry.get('proton_version'), str) or len(entry['proton_version']) > 96):
-            raise ValueError('invalid Dosplex Wine journal entry')
+            raise ValueError('invalid DosPlex Wine journal entry')
     return journal
 
 
@@ -695,7 +695,7 @@ def _journal_lock(path):
     info = os.fstat(fd)
     if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1 or info.st_mode & 0o077:
         os.close(fd)
-        raise PermissionError('unsafe Dosplex Wine journal lock')
+        raise PermissionError('unsafe DosPlex Wine journal lock')
     fcntl.flock(fd, fcntl.LOCK_EX)
     return fd
 
@@ -825,7 +825,7 @@ def _apply_one(item, account, uid, entries, journal, journal_path, live_prefixes
     for previous in reversed(entries):
         if previous['path'] == key and previous['status'] == 'preserved-later-change':
             # A later explicit setting owns this value. Do not fight it on
-            # subsequent scans; changing/removing that value lets Dosplex
+            # subsequent scans; changing/removing that value lets DosPlex
             # manage the prefix again.
             if state['value'] == previous.get('observed_value'):
                 return 'preserved-user-setting'

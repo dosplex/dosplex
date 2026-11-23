@@ -135,7 +135,7 @@ def load_side_owner(side):
 
 
 def physical_nodes(kind, nodes):
-    """The sinks or sources among `nodes` that a player can choose: not Dosplex's own buses, and no monitors."""
+    """The sinks or sources among `nodes` that a player can choose: not DosPlex's own buses, and no monitors."""
     for device in nodes:
         name = device.get("name", "")
         # Virtual buses and playback monitors are never microphone choices.
@@ -889,8 +889,8 @@ GUEST_SIDE = "right"
 GUEST_UPSTREAM = "tcp:127.0.0.1:4713"
 GUEST_LATENCY_MS = 60
 GUEST_RESTART_SECONDS = 5
-GUEST_SOUND_LABEL = "Dosplex sound"
-GUEST_MIC_LABEL = "Dosplex microphone"
+GUEST_SOUND_LABEL = "DosPlex sound"
+GUEST_MIC_LABEL = "DosPlex microphone"
 CHILD_PATH = "/usr/local/bin:/usr/bin:/bin"
 UPSTREAM_PATTERN = re.compile(r"unix:/[A-Za-z0-9_./+-]+|tcp:[A-Za-z0-9_.-]+(?::[0-9]{1,5})?")
 
@@ -1407,7 +1407,7 @@ def overlay_snapshot(side=None, kind=None, device=None):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Dosplex PipeWire/PulseAudio side router")
+    parser = argparse.ArgumentParser(description="DosPlex PipeWire/PulseAudio side router")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("list-sinks")
     sub.add_parser("list-sources")

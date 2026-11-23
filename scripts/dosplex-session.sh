@@ -13,11 +13,11 @@ shift || true
 case "$side" in
   left)
     bg_color="#1f3c88"
-    title="Dosplex Left"
+    title="DosPlex Left"
     ;;
   right)
     bg_color="#7a1f1f"
-    title="Dosplex Right"
+    title="DosPlex Right"
     ;;
   *)
     echo "invalid side: $side" >&2
@@ -39,7 +39,7 @@ fi
 
 if command -v xterm >/dev/null 2>&1; then
   exec xterm -T "$title" -fa Monospace -fs 11 -e \
-    "printf 'Dosplex %s session on %s\n' '$side' '$DISPLAY'; exec bash"
+    "printf 'DosPlex %s session on %s\n' '$side' '$DISPLAY'; exec bash"
 fi
 
 if command -v chromium >/dev/null 2>&1; then

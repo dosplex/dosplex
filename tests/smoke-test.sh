@@ -36,4 +36,4 @@ bash "$project_root/scripts/dosplex-launch.sh" --same-user-demo --dry-run >/tmp/
 grep -q "Xephyr user=" /tmp/dosplex-smoke.out || fail "launcher dry-run did not describe Xephyr plan"
 grep -q "Session command:" /tmp/dosplex-smoke.out || fail "launcher dry-run did not describe session command"
 
-printf 'PASS: Dosplex smoke test completed\n'
+printf 'PASS: DosPlex smoke test completed\n'

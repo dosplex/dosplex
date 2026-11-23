@@ -102,7 +102,7 @@ launch_side() {
         DOSPLEX_OWNER="$user" \
         DOSPLEX_SIDE_ROLE="$side_role" \
         DOSPLEX_OUTPUT_NAME="dosplex-${side}" \
-        DOSPLEX_OUTPUT_DESCRIPTION="Dosplex ${side} logical output" \
+        DOSPLEX_OUTPUT_DESCRIPTION="DosPlex ${side} logical output" \
         DOSPLEX_OUTPUT_WIDTH="$side_width" \
         DOSPLEX_OUTPUT_HEIGHT="$side_height" \
         DOSPLEX_OUTPUT_SCALE_MILLI="1000" \
@@ -185,7 +185,7 @@ sleep 1
 supervise_side right "$right_user" "$right_dir" &
 RIGHT_SUPERVISOR_PID=$!
 
-echo "Dosplex direct Wayland sessions active on ${host_wayland_socket}"
+echo "DosPlex direct Wayland sessions active on ${host_wayland_socket}"
 echo "left=${left_user}"
 echo "right=${right_user}"
 

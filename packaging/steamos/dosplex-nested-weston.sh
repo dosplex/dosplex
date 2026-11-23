@@ -3,7 +3,7 @@
 # Copyright 2026 RoyÅke (Roy-Åke Martinsson)
 set -euo pipefail
 
-# Dosplex nested side stack using weston with pixman (software) renderer.
+# DosPlex nested side stack using weston with pixman (software) renderer.
 # Uses shared memory buffers instead of DMA-BUF, avoiding the black-screen
 # issue when nested Wayland compositors submit DMA-BUF to wlroots.
 
@@ -98,7 +98,7 @@ launch_side() {
     export DOSPLEX_SIDE_SOCKET="$side_socket"
     export DOSPLEX_HOST_WAYLAND_SOCKET="$host_wayland_socket"
     export DOSPLEX_OUTPUT_NAME="dosplex-${side}"
-    export DOSPLEX_OUTPUT_DESCRIPTION="Dosplex ${side} logical output"
+    export DOSPLEX_OUTPUT_DESCRIPTION="DosPlex ${side} logical output"
     export DOSPLEX_OUTPUT_WIDTH="$width"
     export DOSPLEX_OUTPUT_HEIGHT="$height"
     export DOSPLEX_OUTPUT_SCALE_MILLI="1000"
@@ -168,7 +168,7 @@ launch_side left "$left_user" "$half_width" "$screen_height" "$left_dir"
 sleep 1
 launch_side right "$right_user" "$half_width" "$screen_height" "$right_dir"
 
-echo "Dosplex nested Weston sessions active on ${host_wayland_socket}"
+echo "DosPlex nested Weston sessions active on ${host_wayland_socket}"
 echo "left=${left_user} socket=dosplex-left-0"
 echo "right=${right_user} socket=dosplex-right-0"
 

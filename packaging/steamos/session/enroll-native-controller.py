@@ -26,10 +26,10 @@ import uuid
 MAX_EXTRA_SLOTS=8
 # A relay that fails starts again a second later, so one failed slot does not stop routing for the others. It has
 # no start limit: with systemd's default (five starts in ten seconds) a relay that fails at once, a refused repin
-# for example, would stay dead until Dosplex is stopped and started.
+# for example, would stay dead until DosPlex is stopped and started.
 RELAY_RESTART=('--property=Restart=on-failure','--property=RestartSec=1','--property=StartLimitIntervalSec=0')
 # The capture router, the output watcher and the slot guards start again after a failure (one uncaught exception would
-# otherwise end routing, the menu chord or pad delivery until Dosplex is started again). Unlike the relays they have a start
+# otherwise end routing, the menu chord or pad delivery until DosPlex is started again). Unlike the relays they have a start
 # limit: one that fails ten times in two minutes stays failed, where the journal shows it, and does not spin.
 SERVICE_RESTART=('--property=Restart=on-failure','--property=RestartSec=2','--property=StartLimitIntervalSec=120','--property=StartLimitBurst=10')
 
@@ -104,10 +104,11 @@ def enroll_locked(root,hid,sysroot=Path('/sys')):
     native=load('native',lib/'native-deck-plan.py')
     side='left';uid=tx['steam_input_owners'][side]
     plan=native.create_for_devices(side,uid,[hid])
-    # The slot starts held by nobody and the router hands it to its owner on its first pass: the saved one, else Main.
+    # The slot starts held by nobody. The router hands it to its saved owner on its first pass; a slot without one gets
+    # its first owner when a controller is first awake on it (ADR-014 as amended 2026-11-23: 'auto').
     plan.update(protocol='ibex',relay_id=uuid.uuid4().hex,routing_id=key,
                 routing_side='unassigned',routing_uid=0)
-    entry=dict(name=slot_name(specs),default_target='main',plan=plan,
+    entry=dict(name=slot_name(specs),default_target='auto',plan=plan,
         unit='dosplex-native-controller-'+token+'-'+tx['id']+'.service',
         guard_unit='dosplex-native-slot-guard-'+token+'-'+tx['id']+'.service')
     delivery=load('delivery',lib/'native-hid-delivery.py')

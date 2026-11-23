@@ -321,7 +321,7 @@ def auto_login_side(side, username):
         fail("unknown user")
 
     if not eligible_login_user(user):
-        fail("user is not eligible for Dosplex side auto-login")
+        fail("user is not eligible for DosPlex side auto-login")
 
     require_exclusive_identity(side, user)
     existing = load_state(side)
@@ -366,7 +366,7 @@ def login_side(side, username, password):
         fail("unknown user")
 
     if not eligible_login_user(user):
-        fail("user is not eligible for Dosplex side login")
+        fail("user is not eligible for DosPlex side login")
 
     require_exclusive_identity(side, user)
     existing = load_state(side)

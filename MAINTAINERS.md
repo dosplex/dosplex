@@ -4,7 +4,7 @@
 | --- | --- | --- |
 | Roy-Åke Martinsson | Project lead | <https://royake.com> |
 
-Roy-Åke Martinsson makes the final decisions about the direction of Dosplex, what
+Roy-Åke Martinsson makes the final decisions about the direction of DosPlex, what
 is merged, what is released and how the project name is used. Other contributors
 may become maintainers by invitation; this file lists them when they do.
 

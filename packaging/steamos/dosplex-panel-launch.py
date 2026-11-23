@@ -263,7 +263,7 @@ def _write_outbox(home: str, entries: list) -> bool:
     if len(entries) > OUTBOX_MAX:
         entries = entries[-OUTBOX_MAX:]
     # Write through a temp file in the same folder
-    # The folder is the account's own Dosplex folder and usually exists, with other things in it: it is made
+    # The folder is the account's own DosPlex folder and usually exists, with other things in it: it is made
     # private only when this program makes it. The outbox file itself is always 0600.
     try:
         if not folder.exists():

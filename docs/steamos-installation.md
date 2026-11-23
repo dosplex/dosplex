@@ -1,11 +1,11 @@
-# Installing Dosplex
+# Installing DosPlex
 
-Dosplex 0.1.0 is an alpha. It installs on a Steam Deck or a Steam Machine that runs
+DosPlex 0.1.0 is an alpha. It installs on a Steam Deck or a Steam Machine that runs
 stock SteamOS with the read-only system partition left on. It writes nothing
 under `/usr`, never runs the package manager, does not touch the display manager
 or the SteamOS updater, and grants no groups to anyone. A reboot returns the
 device to normal SteamOS unless you turned on [starting at boot](#start-at-boot);
-one command brings Dosplex back either way.
+one command brings DosPlex back either way.
 
 After setup, follow the [user guide](user-guide.md) for the menu, picture size,
 device assignment and sound, and the [game notes template](game-test-notes.md)
@@ -17,7 +17,7 @@ for compatibility reports. Read the [known limitations](limitations.md) first.
   [tested set](#tested-versions). Anything else is refused unless you say so.
 - A TV or monitor, connected and switched on. A Steam Deck can also use its own
   screen when it is not docked.
-- No controller is needed to start. Dosplex starts with Main alone on the screen
+- No controller is needed to start. DosPlex starts with Main alone on the screen
   and a keyboard, a mouse or a generic gamepad works. Steam Controllers are
   optional; they are the controllers the alpha was tested with, each on its
   USB wireless receiver (28de:1304 or 28de:1305). Other combinations are not
@@ -55,7 +55,7 @@ for compatibility reports. Read the [known limitations](limitations.md) first.
    ```
 
 4. Install. `--output-mode` is optional: a mode your TV advertises, which
-   Dosplex uses while it runs.
+   DosPlex uses while it runs.
 
    ```bash
    sudo ./dosplex install ./bundle --manifest MANIFEST_SHA256 --output-mode 3840 2160 60
@@ -88,25 +88,30 @@ Installing:
   `/opt/dosplex/current` at it and keeps one earlier release;
 - creates the `guest` account with a private home, or adopts one that is
   already there and safe to use;
-- starts Dosplex.
+- starts nothing: an install leaves DosPlex stopped unless you add `--start`.
 
-Starting switches the device to Gaming mode, so save desktop work first. It
-takes up to two minutes. It runs as a system service, so closing the terminal or
-the ssh connection does not stop it. Use `--no-start` to install without
-starting. The last line of the install says how to
-[start Dosplex at every boot](#start-at-boot); that is off until you turn it on.
+The install prints one line for the checks that passed and the whole line for
+each check that did not. `preflight` prints every check. The last lines say how
+to start DosPlex: from Steam's library (Library, Non-Steam, DosPlex), from the
+DosPlex icon on the desktop, or with `sudo /opt/dosplex/bin/dosplex start` in a
+terminal. With `--start`, DosPlex starts right after the install. Starting
+switches the device to Gaming mode, so save desktop work first. It takes up to
+two minutes. It runs as a system service, so closing the terminal or the ssh
+connection does not stop it. `--no-start` is accepted and does nothing, because
+not starting is the default. A line before those says how to
+[start DosPlex at every boot](#start-at-boot); that is off until you turn it on.
 
 Starting also lists every other controller slot of the receivers that you gave
 in Devices, awake or not, up to eight slots in all. Without a slot it lists
 every slot of every receiver that is plugged in, and without a receiver it
-starts with the keyboard, mouse and generic gamepads only. A controller you wake
-in one of those slots is Main's until a player moves it from the menu; see
+starts with the keyboard, mouse and generic gamepads only.
+The first controller is Main's. While two players share the screen and the second player has no controller, the next controller that wakes goes to the second player by itself. On a Steam Deck the built-in controls are Main's, so the first other controller is the second player's. You can change who has which controller at any time in the menu, under Devices, and DosPlex remembers what you chose. See
 [Choose your controls](user-guide.md#choose-your-controls).
 
 ### A guest account that is already there
 
 `install` adopts an existing `guest` account only when that is safe. An older
-Dosplex installer put Guest into the `audio`, `input` and `seat` groups, which
+DosPlex installer put Guest into the `audio`, `input` and `seat` groups, which
 would let Guest reach the other player's devices, so `install` stops and names
 the groups. If the account is that leftover, run the same command again with
 `--adopt-guest-strip-groups`. It prints what it will do, then removes exactly
@@ -168,11 +173,11 @@ sudo /opt/dosplex/bin/dosplex start
 To type less, add `alias dosplex='/opt/dosplex/bin/dosplex'` and
 `alias sudo='sudo '` to `~/.bashrc`; then `sudo dosplex status` works.
 
-- `dosplex status` shows the installed version and manifest, whether Dosplex runs,
+- `dosplex status` shows the installed version and manifest, whether DosPlex runs,
   each side's state and restart count, and Guest's audio endpoint.
 - `dosplex stop` gives Steam back and returns to Desktop mode if that is where
   you started.
-- `dosplex start` starts Dosplex again with the two players side by side. Controller slots you
+- `dosplex start` starts DosPlex again with the two players side by side. Controller slots you
   gave are remembered, but only while each still is a receiver slot; one that is
   not is left out with a note and never stops the start. Pass `--main-hid` and
   `--guest-hid` if a receiver moved. `--layout single` starts with Main alone on
@@ -186,29 +191,30 @@ To type less, add `alias dosplex='/opt/dosplex/bin/dosplex'` and
 
 ## Start from the Steam library
 
-You do not need a terminal to start Dosplex. An install leaves an application
-called **Dosplex** in the main user's account and, while Steam is running in the
-main user's session, asks Steam to add it to the library. It says "Dosplex is in
+You do not need a terminal to start DosPlex. An install leaves an application
+called **DosPlex** in the main user's account, with the DosPlex icon, and the same
+launcher on the desktop (`~/Desktop/DosPlex.desktop`, when that folder exists). While Steam is running in the
+main user's session, asks Steam to add it to the library. It says "DosPlex is in
 Steam's library" when that worked. If it says it could not (Steam was not
-running, there is no `steamos-add-to-steam` on the system, or Dosplex itself was
+running, there is no `steamos-add-to-steam` on the system, or DosPlex itself was
 running), start Steam and run `sudo /opt/dosplex/bin/dosplex entry on` to try
 again, or add it by hand once:
 
 1. In Desktop mode, open Steam.
 2. Choose **Games**, then **Add a Non-Steam Game to My Library**.
-3. Tick **Dosplex** and choose **Add Selected Programs**.
+3. Tick **DosPlex** and choose **Add Selected Programs**.
 
-From then on, open **Dosplex** under **Non-Steam** in Gaming mode and press
+From then on, open **DosPlex** under **Non-Steam** in Gaming mode and press
 **Play**. Steam closes, and after about half a minute both sides are there.
 
 Behind the entry is a small service that systemd starts only when the entry is
 used. It accepts one request, "start", and only from the main user's account:
-Guest's account and every other account are refused. Nothing of Dosplex runs
+Guest's account and every other account are refused. Nothing of DosPlex runs
 before you press Play.
 
 Steam updates its own client often. A start from the library does not stop for
 that: a Steam client that is not in the [tested set](#tested-versions) is shown
-as a warning in `dosplex status`, and Dosplex starts. Another SteamOS or
+as a warning in `dosplex status`, and DosPlex starts. Another SteamOS or
 Gamescope version still stops it, with a window that says so; see
 [Start at boot](#start-at-boot) for what to do then. A start typed in a terminal
 stops for all three, because there you can add `--allow-untested`.
@@ -221,10 +227,10 @@ An update keeps your choice, and an uninstall removes both.
 ## After a reboot
 
 A reboot returns the device to stock SteamOS, unless you turned on
-[starting at boot](#start-at-boot). Press **Play** on Dosplex in Steam's
+[starting at boot](#start-at-boot). Press **Play** on DosPlex in Steam's
 library, or run `sudo /opt/dosplex/bin/dosplex start`, to bring it back.
 
-On a Steam Deck that is not docked (no external display connected), Dosplex
+On a Steam Deck that is not docked (no external display connected), DosPlex
 starts on the built-in screen at the mode it already has: the panel is 800x1280
 and is shown turned, as 1280x800. A saved TV mode is ignored while undocked and
 kept, so the next docked start uses it again. `--output-mode` then accepts only
@@ -233,13 +239,13 @@ Steam Machine has no built-in screen, so without a display `start` still stops
 with "no connected display".
 
 If you used `--output-mode` on a TV, run `dosplex stop` before you reboot. Otherwise the
-TV stays at the mode Dosplex saved until the next start and stop put the old one
+TV stays at the mode DosPlex saved until the next start and stop put the old one
 back. A running Gaming mode may apply the restored mode only the next time it
 restarts.
 
 ## Start at boot
 
-Starting at boot is experimental in this release. After an install it is off: Dosplex
+Starting at boot is experimental in this release. After an install it is off: DosPlex
 starts only when you start it, and a restart of the device is plain SteamOS. To turn it
 on, say that you know it is experimental:
 
@@ -253,7 +259,7 @@ already starts at boot keeps doing so after an update.
 It writes one unit, `/etc/systemd/system/dosplex-autostart.service`, and its
 link in `graphical.target.wants`; it does not start anything now. At every boot
 the unit runs `dosplex start --boot` once the display manager is up. That starts
-Dosplex with Main alone on the full screen, as the Steam you know, and it needs
+DosPlex with Main alone on the full screen, as the Steam you know, and it needs
 no controller. Guest is not signed in until a player opens a split from the
 menu. `dosplex autostart status` and `dosplex status` say whether it is on
 ("Starts at boot"); `sudo /opt/dosplex/bin/dosplex autostart off` removes the
@@ -265,7 +271,7 @@ it leaves the device on stock Steam and exits without an error:
 
 - In Desktop mode it does nothing. It never switches the device to Gaming mode.
 - It waits up to five minutes for Steam to be idle, because Steam may update
-  itself at boot. If Steam is not idle by then, Dosplex does not start and Steam
+  itself at boot. If Steam is not idle by then, DosPlex does not start and Steam
   stays as it is.
 - If something goes wrong after it began, it undoes what it did and returns to
   stock Steam. `systemctl status dosplex-autostart.service` and
@@ -274,11 +280,11 @@ it leaves the device on stock Steam and exits without an error:
   [tested set](#tested-versions) it is refused, unless you gave `--allow-untested`
   at the install or the last start and the versions are still the same. After a
   SteamOS update, run `sudo /opt/dosplex/bin/dosplex start --allow-untested` once
-  (or `update`) to accept the new versions, or leave Dosplex off until a tested
+  (or `update`) to accept the new versions, or leave DosPlex off until a tested
   release comes. A Steam client that is not in the tested set does not stop it,
   because Steam updates itself: `dosplex status` shows a warning with the version.
 
-A boot that did not start Dosplex does not need a repair; run
+A boot that did not start DosPlex does not need a repair; run
 `sudo /opt/dosplex/bin/dosplex start` when you want it.
 
 ## Update
@@ -292,7 +298,7 @@ sudo /opt/dosplex/bin/dosplex update
 
 - It reads the signed release index of the channel and checks its signature
   with the key built into the program. By default the channel is the list of
-  Dosplex releases on GitHub. `--channel ADDRESS` (an `https://` or `file://`
+  DosPlex releases on GitHub. `--channel ADDRESS` (an `https://` or `file://`
   address) or the environment variable `DOSPLEX_CHANNEL` points it at another
   one, for example a private copy.
 - It takes the newest release that is newer than the one installed and tested
@@ -305,7 +311,7 @@ sudo /opt/dosplex/bin/dosplex update
   in one step. The release it replaced is kept; the one before that is deleted.
 - If the release comes with another `dosplex` program, that program is
   installed and the one it replaces is kept as `/opt/dosplex/bin/dosplex.previous`.
-- If Dosplex was running, it is stopped and started again on the new release,
+- If DosPlex was running, it is stopped and started again on the new release,
   with the layout it had. `--no-restart` leaves it on the release it started with until you run
   `dosplex stop` and `dosplex start`.
 
@@ -330,7 +336,7 @@ sudo /opt/dosplex/bin/dosplex rollback
 
 Nothing is downloaded. `rollback` checks the kept release against the digest
 recorded when it was installed, switches `/opt/dosplex/current` back and
-restarts Dosplex if it was running (`--no-restart` as for `update`). The release
+restarts DosPlex if it was running (`--no-restart` as for `update`). The release
 you left is kept, so a second `rollback` goes forward again. It refuses, and
 changes nothing, if the kept release was changed or if your SteamOS is not in
 its tested set (`--allow-untested`). It leaves the `dosplex` program alone: if
@@ -367,7 +373,7 @@ sudo /opt/dosplex/bin/dosplex library on --experimental
 
 Without `--experimental` the command refuses and changes nothing.
 
-This needs an installed Dosplex whose release ships the store tool. It makes the
+This needs an installed DosPlex whose release ships the store tool. It makes the
 store (by default in `/home/dosplex-library`, or where `--root PATH` says),
 writes its units and one udev rule and records the library in
 `/var/lib/dosplex/state.json`:
@@ -390,24 +396,24 @@ interrupted.
 
 ### How a game gets shared
 
-1. In the background, Dosplex reads every file of an installed game and compares
+1. In the background, DosPlex reads every file of an installed game and compares
    it with Steam's own file list. Only files that match go in: saves, settings,
    mods and Proton prefixes stay with the account. You can play meanwhile.
-2. At the next start of Dosplex, or the next restart of the machine, the game
+2. At the next start of DosPlex, or the next restart of the machine, the game
    moves into the store. That takes a moment, not a copy. Both accounts then
    see it installed.
 3. The other account's Steam checks every file of the game once before its
    first play.
 
 A new install and an update that one account's Steam downloaded take the same
-way. So a new game reaches the other account after the next start of Dosplex,
+way. So a new game reaches the other account after the next start of DosPlex,
 and at the latest after the second one.
 
-Steam drops its file lists for games it installed long ago. Dosplex asks each
-account's Steam for them again when Dosplex starts and the device is online.
+Steam drops its file lists for games it installed long ago. DosPlex asks each
+account's Steam for them again when DosPlex starts and the device is online.
 Steam fetches them at its start, within about a second for each game and without
 downloading or changing a game file. Those games are shared one start later.
-If Steam could not answer (the device went offline), Dosplex takes the request
+If Steam could not answer (the device went offline), DosPlex takes the request
 back at the next start and tries again a day later, so no game stays in
 "update required".
 
@@ -440,7 +446,7 @@ owned by Guest, and reachable for Guest at `/run/media/guest/NAME/SteamLibrary`
 (a bind of its folder, made at every start). It is an ordinary library in
 Guest's Steam list. Guest's own installs onto the card go there.
 
-If such a disk is missing when Dosplex or the machine starts, its games are
+If such a disk is missing when DosPlex or the machine starts, its games are
 not shown for either account until it is back, and Steam shows the drive as
 missing, as it does for any card that is out; nothing is lost. If it will not
 come back:
@@ -452,13 +458,13 @@ sudo /opt/dosplex/bin/dosplex library forget /run/media/deck/NAME
 #### Shutdown, a card that is put in, a card that is pulled out
 
 Stock Steam must never find an app manifest for a shared game whose files it
-cannot see: it would offer to download the game again. So Dosplex makes the
+cannot see: it would offer to download the game again. So DosPlex makes the
 disks right at the moments the disks change, not only at its own start.
 
 - **Shutdown and restart.** The boot unit's stop step, `dosplex library release`,
   takes every account's overlays and binds off every disk and sets the manifests
   of shared games aside (renamed into a stash on the same disk), as an orderly
-  stop of Dosplex does. It waits up to 30 seconds for a Steam that still runs.
+  stop of DosPlex does. It waits up to 30 seconds for a Steam that still runs.
   If a Steam still runs it keeps its manifests where they are for now; the next
   start of the machine puts it right. It is safe to run twice.
 - **At boot.** The slot mounts the libraries before the display manager starts.
@@ -476,11 +482,11 @@ disks right at the moments the disks change, not only at its own start.
   the device is gone and unmounts what is left of it lazily. Nothing can be set
   aside on a card that is not there; the next time it is put in, `arrive`
   mounts the overlays before anything else has to look at the card. A card
-  pulled while a game from it runs ends that game, as it does without Dosplex.
+  pulled while a game from it runs ends that game, as it does without DosPlex.
 - **Eject.** Steam's Storage page ejects a card through UDisks2. That fails for a
-  card that holds shared games ("target is busy"), because Dosplex's overlays
+  card that holds shared games ("target is busy"), because DosPlex's overlays
   and binds are mounted below and beside the card. Nothing is lost when it
-  fails. Use Dosplex's own eject instead:
+  fails. Use DosPlex's own eject instead:
 
   ```bash
   sudo /opt/dosplex/bin/dosplex library eject /run/media/deck/NAME
@@ -523,9 +529,9 @@ sudo /opt/dosplex/bin/dosplex library off
 ```
 
 `off` marks the library as leaving. At the next restart of the machine (or the
-next start of Dosplex) every shared game goes back, as whole files, into the
+next start of DosPlex) every shared game goes back, as whole files, into the
 library of the account that shared it, and the slot then removes the units, the udev rule, their
-links and the state entry. No whiteout of Dosplex and nothing of the stash is
+links and the state entry. No whiteout of DosPlex and nothing of the stash is
 left in any library. What the other account had written for a game it did not
 get back (its manifest, files in the game folder) is not deleted: it is moved to
 the `conflicts` folder of the store (see below).
@@ -562,9 +568,9 @@ restart first.
   that shared it first, and the other account has to download it again. On a
   disk that only one account has a Steam library on, every game of that disk
   goes back to that account.
-- While Dosplex is not running and the shared games are not shown, a stock Steam
+- While DosPlex is not running and the shared games are not shown, a stock Steam
   must not offer to download them again. So when a library stays unmounted (after
-  a failed mount, or when the library is not permanent and Dosplex stops), the
+  a failed mount, or when the library is not permanent and DosPlex stops), the
   account's app manifests for the shared games, and the whiteouts for them, are
   moved by rename to `stash/USER` in the store, and moved back before the next
   mount. Both steps run with that account's Steam closed. `library status`
@@ -578,12 +584,12 @@ restart first.
 ### Updating from the earlier layout
 
 Before this layout each account had a private layer for the shared games and a
-library of Dosplex's own, which Steam listed next to the account's real
+library of DosPlex's own, which Steam listed next to the account's real
 libraries (so Steam's Storage page showed four drives for two). The first start
-of Dosplex, or restart of the machine, after the update moves everything in each
+of DosPlex, or restart of the machine, after the update moves everything in each
 private layer (saves and settings inside game folders, downloaded updates, app
 manifests, Proton files) into the account's real library on the same disk, by
-rename, and takes Dosplex's own library off both accounts' Steam lists. Nothing
+rename, and takes DosPlex's own library off both accounts' Steam lists. Nothing
 is overwritten: an item that exists in the real library already goes to
 `conflicts/USER` in the store and `library status` names it. The move is
 journaled and can be interrupted at any point; the next start finishes it.
@@ -597,7 +603,7 @@ Until it is finished the shared games are not shown for that account, and
   nothing.
 - If a command says `/var/lib/dosplex` (or its `journal` directory) is not owned
   by root, it names the owner it found and prints the `chown` and `chmod` that
-  fix it. Dosplex keeps refusing until root owns it again.
+  fix it. DosPlex keeps refusing until root owns it again.
 - If the power went out or the connection dropped during an install, update,
   rollback, start, stop or uninstall, the next command tells you to run
   `sudo /opt/dosplex/bin/dosplex repair`. It completes the operation or rolls it
@@ -614,9 +620,9 @@ Until it is finished the shared games are not shown for that account, and
 
 ## Upgrading from DuplOS
 
-Dosplex was called DuplOS until October 2026. The old name used `/opt/duplos`,
+DosPlex was called DuplOS until October 2026. The old name used `/opt/duplos`,
 `/var/lib/duplos` and the `duplos` command. A device never keeps both: install
-Dosplex as in [Install](#install) or [Install a signed release](#install-a-signed-release)
+DosPlex as in [Install](#install) or [Install a signed release](#install-a-signed-release)
 and `dosplex install` replaces the old install.
 
 What `dosplex install` does when it finds a DuplOS install:
@@ -629,7 +635,7 @@ What `dosplex install` does when it finds a DuplOS install:
   puts the TV mode and the Steam session back. If that fails, or the old program
   is gone, it refuses and prints the recovery command. It changes nothing else in
   that case. Save and quit your games first: the running session ends.
-- It installs Dosplex exactly as on a clean device, and keeps what only the old
+- It installs DosPlex exactly as on a clean device, and keeps what only the old
   install knew: the main user, the Guest record (a Guest that DuplOS created can
   still be removed with `--remove-guest`, and one it adopted stays adopted), the
   original SteamOS defaults, the controller slots and the output mode. If the
@@ -638,7 +644,7 @@ What `dosplex install` does when it finds a DuplOS install:
   controller registry, the input policy and the per-user Wine journals), keeps
   the old state file and transaction journal as a record in
   `/var/lib/dosplex/legacy-duplos`, and removes `/opt/duplos`. Whatever it cannot
-  place, because the new name has it already or because Dosplex did not put it
+  place, because the new name has it already or because DosPlex did not put it
   there, stays where it is and is listed. Run the install again and it picks up
   where it stopped. `dosplex status` shows `migrated_from` in the JSON output
   after a migration.
@@ -653,9 +659,9 @@ profile (`~/.local/share/duplos`, with the desktop scale you chose, becomes
 A folder moves only if the new name does not exist yet; nothing is merged or
 overwritten, and the launch log says what moved.
 
-`dosplex update` of an old DuplOS install does not see Dosplex releases, because
+`dosplex update` of an old DuplOS install does not see DosPlex releases, because
 the release index has a new name (`dosplex-index.json`). Install the first
-Dosplex release by hand; later updates work as described above.
+DosPlex release by hand; later updates work as described above.
 
 ## Uninstall
 
@@ -663,14 +669,14 @@ Dosplex release by hand; later updates work as described above.
 sudo /opt/dosplex/bin/dosplex uninstall
 ```
 
-This stops Dosplex, removes the unit that starts it at boot if you turned that
+This stops DosPlex, removes the unit that starts it at boot if you turned that
 on, undoes the install from the journal and removes `/opt/dosplex`. Guest's account and files are kept, because they hold Guest's
 Steam library and saves; group memberships that `--adopt-guest-strip-groups`
 removed are put back. To remove them as well, run
 `sudo /opt/dosplex/bin/dosplex uninstall --remove-guest`. It prints Guest's home
 path and asks you to type it; nothing is deleted otherwise. After a plain uninstall
 the installed program is gone: the `dosplex` program of the release archive does
-it, `sudo ./dosplex-VERSION/dosplex uninstall --remove-guest`. Dosplex never removes
+it, `sudo ./dosplex-VERSION/dosplex uninstall --remove-guest`. DosPlex never removes
 a guest account that was already on the device, and never touches Main's files.
 
 With `--remove-guest`, Guest is removed before the program is. The uninstall waits up to 20 seconds
@@ -679,11 +685,11 @@ or, when `loginctl enable-linger` is set for Guest, says so and names
 `sudo loginctl disable-linger guest`. The program is still installed then, and
 `sudo /opt/dosplex/bin/dosplex repair` finishes the uninstall and keeps Guest.
 
-A finished uninstall prints what is still on the machine: Dosplex's entry in Steam's
-library, the shared library folder `/home/dosplex-library`, the two Steam settings Dosplex
+A finished uninstall prints what is still on the machine: DosPlex's entry in Steam's
+library, the shared library folder `/home/dosplex-library`, the two Steam settings DosPlex
 switched on (Maximum Game Resolution, Enable Native Resolution on External Displays) and
 `/var/lib/dosplex`. That folder stays while Guest is kept, because its journal is the record
-that Dosplex created Guest. When Guest is removed, the folder is removed too, except `perf/`
+that DosPlex created Guest. When Guest is removed, the folder is removed too, except `perf/`
 with your recordings.
 
 ## What it changes

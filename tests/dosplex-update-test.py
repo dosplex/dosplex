@@ -220,6 +220,8 @@ class ReleaseWorld(cli_test.World):
         return cli_test.Result(proc)
 
     def install_release(self, release_, *args, **options):
+        if '--no-start' not in args and '--start' not in args:
+            args += ('--start',)       # an install starts nothing by itself; these tests want a running session
         return self.run('install', '--release', release_.archive, '--sample-seconds', '0.3', *args, **options)
 
 
@@ -509,7 +511,7 @@ class Update(Channeled):
         result = self.update(world, url)
         self.assertOk(result)
         for expected in ('signed by key %s' % FIXTURES.key.key_id, 'Verified the signature of release 0.2.0-b',
-                         'Updated Dosplex 0.2.0-a -> 0.2.0-b.'):
+                         'Updated DosPlex 0.2.0-a -> 0.2.0-b.'):
             self.assertIn(expected, result.out)
         self.assertEqual(self.state_of(world), ('0.2.0-b', '0.2.0-a', ['0.2.0-a', '0.2.0-b']))
         self.assertEqual(os.readlink(world.tree / 'opt/dosplex/current'), 'releases/0.2.0-b')
@@ -521,11 +523,11 @@ class Update(Channeled):
                                                   'signed': {'key_id': FIXTURES.key.key_id, 'sequence': 100}})
         for name, item in json.loads(two.manifest.read_text())['files'].items():
             self.assertEqual(sha256((world.tree / 'opt/dosplex/releases/0.2.0-b' / name).read_bytes()), item['sha256'], name)
-        self.assertEqual(world.run('status').out.splitlines()[0], 'Dosplex 0.2.0-b (commit 012345678)')
+        self.assertEqual(world.run('status').out.splitlines()[0], 'DosPlex 0.2.0-b (commit 012345678)')
         self.assertIn('signature: signed by key %s, sequence 200' % FIXTURES.key.key_id, world.run('status').out)
         again = self.update(world, url)
         self.assertOk(again)
-        self.assertIn('Dosplex is up to date.', again.out)
+        self.assertIn('DosPlex is up to date.', again.out)
         self.assertEqual(self.state_of(world)[0], '0.2.0-b')
 
     def test_the_journal_has_the_steps_of_an_update_with_the_commit_after_staging(self):
@@ -593,7 +595,7 @@ class Update(Channeled):
         before = world.snapshot(exclude=())
         result = self.update(world, url)
         self.assertOk(result)
-        self.assertIn('Dosplex is up to date.', result.out)
+        self.assertIn('DosPlex is up to date.', result.out)
         self.assertUnchanged(world, before)
 
     def test_a_device_installed_from_a_bundle_takes_the_newest_signed_release(self):
@@ -636,7 +638,7 @@ class Update(Channeled):
         _, url = self.channel(world, ['one', 'two'])
         result = self.update(world, url)
         self.assertOk(result)
-        self.assertIn('Restarting Dosplex on 0.2.0-b.', result.out)
+        self.assertIn('Restarting DosPlex on 0.2.0-b.', result.out)
         (second,) = sorted((world.tree / 'run').glob('dosplex-trial-*'))
         self.assertNotEqual(first, second)
         self.assertEqual(world.state()['trial']['root'], str(second))
@@ -676,7 +678,7 @@ class Update(Channeled):
         self.assertOk(world.install_release(self.releases()['one'], *world.controllers()))
         _, url = self.channel(world, ['one', 'two'])
         result = self.update(world, url, FAKE_TRIAL_FAIL='before-root')
-        self.assertFailed(result, 'Dosplex could not be restarted')
+        self.assertFailed(result, 'DosPlex could not be restarted')
         self.assertIn('sudo', result.err)
         self.assertEqual(self.state_of(world)[0], '0.2.0-b')
         self.assertEqual(world.run('repair').out.strip(), 'Nothing to repair.')
@@ -694,7 +696,7 @@ class Update(Channeled):
         world = self.world()
         _, url = self.channel(world, ['one'])
         self.assertFailed(self.update(world, url, root=False), 'needs root')
-        self.assertFailed(self.update(world, url), 'Dosplex is not installed')
+        self.assertFailed(self.update(world, url), 'DosPlex is not installed')
         self.assertOk(world.install_release(self.releases()['one'], '--no-start'))
         unpinned = self.world(program=FIXTURES.program_pinned_to())
         self.assertOk(unpinned.install(unpinned.bundle(), '--no-start'))
@@ -864,13 +866,13 @@ class Rollback(Channeled):
         result = self.rollback(world)
         self.assertOk(result)
         self.assertIn('Release 0.2.0-a is intact: ', result.out)
-        self.assertIn('Rolled back Dosplex 0.2.0-b -> 0.2.0-a.', result.out)
+        self.assertIn('Rolled back DosPlex 0.2.0-b -> 0.2.0-a.', result.out)
         self.assertEqual(self.state_of(world), ('0.2.0-a', '0.2.0-b', ['0.2.0-a', '0.2.0-b']))
         self.assertEqual(os.readlink(world.tree / 'opt/dosplex/current'), 'releases/0.2.0-a')
         state = world.state()
         self.assertEqual((state['manifest_sha256'], state['signed']['sequence'], state['previous_info']['manifest_sha256'],
                           state['previous_info']['signed']['sequence']), (one.manifest_sha256, 100, two.manifest_sha256, 200))
-        self.assertEqual(world.run('status').out.splitlines()[0], 'Dosplex 0.2.0-a (commit 012345678)')
+        self.assertEqual(world.run('status').out.splitlines()[0], 'DosPlex 0.2.0-a (commit 012345678)')
         self.assertEqual((world.tree / 'opt/dosplex/bin/dosplex').read_bytes(), program)
         kinds = [(r['kind'], r.get('step')) for r in world.journal()['0003-rollback.jsonl']]
         self.assertEqual([step for kind, step in kinds if kind == 'intent'], ['verify-previous', 'current', 'state'])
@@ -888,7 +890,7 @@ class Rollback(Channeled):
         self.assertEqual(len(world.events('trial.start')), 2)
         result = self.rollback(world)
         self.assertOk(result)
-        self.assertIn('Restarting Dosplex on 0.2.0-a.', result.out)
+        self.assertIn('Restarting DosPlex on 0.2.0-a.', result.out)
         starts = world.events('trial.start')
         self.assertEqual(len(starts), 3)
         self.assertTrue(starts[-1]['bundle'].endswith('/releases/0.2.0-a'))
@@ -1087,6 +1089,33 @@ class LibraryUnits(Channeled):
                          cli_test.SharedGameLibrary.EXPECTED_DISK_RULE)
         self.assertIn(['daemon-reload'], self.systemctl(world))
 
+    def test_an_update_from_0_1_0_alpha_5_takes_its_units_for_dosplexs_and_writes_them_again(self):
+        # That release spelled the name "Dosplex" in the units and in the rule. They are not somebody else's files.
+        world, url = self.old_library()
+        shared = cli_test.SharedGameLibrary
+        units = ((self.BOOT_UNIT, 'library'), (shared.DISK_SERVICE, 'disk service'), (shared.DISK_RULE, 'disk rule'),
+                 (self.AUTO_SERVICE, 'auto service'), (self.AUTO_TIMER, 'auto timer'))
+        for name, key in units:
+            path = world.tree / name
+            if not path.exists():       # (this world's earlier release wrote neither a boot unit nor disk units)
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text({'library': shared.EXPECTED_UNIT, 'disk service': shared.EXPECTED_DISK_SERVICE,
+                                 'disk rule': shared.EXPECTED_DISK_RULE, 'auto service': shared.EXPECTED_AUTO_SERVICE,
+                                 'auto timer': shared.EXPECTED_AUTO_TIMER}[key])
+            cli_test.as_alpha_5_wrote(self, path, key)
+        link = world.tree / 'etc/systemd/system/multi-user.target.wants/dosplex-game-library.service'
+        if not os.path.lexists(link):
+            link.parent.mkdir(parents=True, exist_ok=True)
+            os.symlink('../dosplex-game-library.service', link)
+        result = self.update(world, url)
+        self.assertOk(result)
+        self.assertNotIn('not the one DosPlex writes', result.out)
+        self.assertNotIn('could not be set up', result.out)
+        self.assertEqual(world.state()['version'], '0.5.0-b')
+        self.assertEqual((world.tree / self.BOOT_UNIT).read_text(), shared.EXPECTED_UNIT)
+        self.assertEqual((world.tree / shared.DISK_SERVICE).read_text(), shared.EXPECTED_DISK_SERVICE)
+        self.assertEqual((world.tree / shared.DISK_RULE).read_text(), shared.EXPECTED_DISK_RULE)
+
     def test_an_update_brings_the_units_up_to_date_even_with_automatic_sharing_off(self):
         world, url = self.old_library(game_store_auto=False)
         self.earlier_boot_unit(world)
@@ -1118,7 +1147,7 @@ class LibraryUnits(Channeled):
         result = self.update(world, url)
         self.assertOk(result)
         self.assertIn('could not be set up', result.out)
-        self.assertIn('not the one Dosplex writes', result.out)
+        self.assertIn('not the one DosPlex writes', result.out)
         self.assertEqual(world.state()['version'], '0.5.0-b')
         self.assertEqual((world.tree / self.AUTO_SERVICE).read_text(), '[Unit]\nDescription=mine\n')
         self.assertFalse(os.path.lexists(world.tree / self.AUTO_TIMER))
@@ -1174,7 +1203,7 @@ class AutostartUnit(Channeled):
         (world.tree / self.UNIT).write_text('[Unit]\nDescription=mine\n')
         result = self.update(world, url)
         self.assertOk(result)
-        self.assertIn('not the one Dosplex writes', result.out)
+        self.assertIn('not the one DosPlex writes', result.out)
         self.assertEqual(world.state()['version'], '0.2.0-b')
         self.assertEqual((world.tree / self.UNIT).read_text(), '[Unit]\nDescription=mine\n')
 
@@ -1293,7 +1322,7 @@ class Interrupted(Channeled):
                 self.assertEqual(self.opt_part(world.snapshot()), finished_tree)
                 self.assertEqual(self.stripped(world.state()), finished_state)
                 self.assertEqual(self.state_of(world), ('0.2.0-b', '0.2.0-a', ['0.2.0-a', '0.2.0-b']))
-                self.assertIn('Dosplex is up to date.', self.update(world, url).out)
+                self.assertIn('DosPlex is up to date.', self.update(world, url).out)
                 self.assertOk(world.run('rollback', '--sample-seconds', '0.3'))
             else:
                 self.assertEqual(outcome, 'rolled-back')
@@ -1403,7 +1432,7 @@ class Interrupted(Channeled):
         result = world.run('repair')
         self.assertOk(result)
         self.assertIn('The update was completed.', result.out)
-        self.assertIn('Dosplex keeps running the release it started with', result.out)
+        self.assertIn('DosPlex keeps running the release it started with', result.out)
         self.assertEqual(sorted((world.tree / 'run').glob('dosplex-trial-*')), [trial])
         self.assertIn('Running: yes', world.run('status').out)
         self.assertOk(world.run('stop'))
@@ -1515,7 +1544,7 @@ class KeyRotation(Channeled):
         self.assertEqual(world.state()['signed']['key_id'], FIXTURES.other_key.key_id)
         # The window is closed: an index signed with the new key is read, one signed with the old key is not.
         closed = self.channel_of(world, made, ['first', 'bridge', 'last'], programs['new'], FIXTURES.other_secret, 'closed')
-        self.assertIn('Dosplex is up to date.', self.update(world, closed).out)
+        self.assertIn('DosPlex is up to date.', self.update(world, closed).out)
         before = world.snapshot(exclude=())
         result = self.update(world, window)
         self.assertFailed(result, 'does not trust')

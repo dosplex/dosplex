@@ -2,7 +2,7 @@
 
 ## Product scope: SteamOS devices
 
-Dosplex is tested on a Steam Deck and a Steam Machine. Other SteamOS devices have
+DosPlex is tested on a Steam Deck and a Steam Machine. Other SteamOS devices have
 not been tried.
 Support is described in two tiers:
 
@@ -16,7 +16,7 @@ shared operating system.
 
 ## Current test bed: SteamOS PC connected to a TV
 
-Dosplex is for two people sharing one TV: two game sessions for
+DosPlex is for two people sharing one TV: two game sessions for
 couch co-op, or a game alongside movie playback in a separate session. Each session owns a screen region, controller input, audio output and
 microphone selection. The same requirements apply when each player uses a
 headset. Screen placement and audio-device selection are independent.
@@ -48,7 +48,7 @@ Nested Gamescope separately presents Native, 1:1, 4:3 or 16:9 to the game. The
 ratio choices use the largest exact ratio that fits the side region; Fit keeps
 proportions and Stretch fills the region. Pending menu changes require Apply;
 changing one player's game resolution must not change the other player. Steam's
-per-game Game Resolution is a separate override and is left unchanged by Dosplex.
+per-game Game Resolution is a separate override and is left unchanged by DosPlex.
 
 The existing automatic portrait-panel rotation is restricted to an eDP output
 with an 800×1280 mode. External portrait displays must not inherit that rule.

@@ -5,17 +5,17 @@ These are the limits a user will meet, in plain words. Each says what does not w
 ## The picture
 
 - **No picture changes while a game is running.** Changing the layout or the picture size while a game runs does not move it: Gamescope scales the running picture into your area. Quit the game and start it again to make it fill the new area.
-- **A game keeps its own resolution setting.** Dosplex sets the size of the monitor a game sees, and Steam's own resolution settings work inside that. What a game saved in its own video settings is the game's: one that saved the full screen's size may quit at once when you start it in a split. [When something is wrong](14-when-something-is-wrong.md) says what to do.
-- **The Steam Deck's own screen shares one backlight.** If you run Dosplex on the Deck's built-in screen, both players share that screen's brightness. Main's menu is the only brightness control, and it is not there on a Steam Machine or an external monitor.
-- **The frame-rate display has not been checked on a device yet.** Dosplex's own frame-rate counter and Steam's Performance Overlay have so far only been checked with stand-in programs, not on a Steam Deck or a Steam Machine.
+- **A game keeps its own resolution setting.** DosPlex sets the size of the monitor a game sees, and Steam's own resolution settings work inside that. What a game saved in its own video settings is the game's: one that saved the full screen's size may quit at once when you start it in a split. [When something is wrong](14-when-something-is-wrong.md) says what to do.
+- **The Steam Deck's own screen shares one backlight.** If you run DosPlex on the Deck's built-in screen, both players share that screen's brightness. Main's menu is the only brightness control, and it is not there on a Steam Machine or an external monitor.
+- **The frame-rate display has not been checked on a device yet.** DosPlex's own frame-rate counter and Steam's Performance Overlay have so far only been checked with stand-in programs, not on a Steam Deck or a Steam Machine.
 - **Standby is experimental.** When a side goes to Standby it keeps using memory, does not survive a power loss, and online games can disconnect. Save before you rely on it. After more than an hour in Standby a session's Steam asks for sleep the moment it comes back; see [Layout](06-layout.md).
 
 ## Controllers and sound
 
-- **Other gamepads open the menu experimentally.** A DualShock 4, a DualSense, an Xbox or a Switch Pro controller can open the menu of its player with the same chord, but only experimentally: Dosplex cannot filter these controllers, so the chord also reaches the game, and the player's side is paused while the menu is open because of the controller. A keyboard, a Steam Controller or the Deck's own controls open it without any of that.
-- **A controller that connects first belongs to Main.** Every controller you connect is Main's until someone assigns it. Main can give a controller to Guest; Guest can claim and release their own.
+- **Other gamepads open the menu experimentally.** A DualShock 4, a DualSense, an Xbox or a Switch Pro controller can open the menu of its player with the same chord, but only experimentally: DosPlex cannot filter these controllers, so the chord also reaches the game, and the player's side is paused while the menu is open because of the controller. A keyboard, a Steam Controller or the Deck's own controls open it without any of that.
+- **The first controller is Main's, the next is the second player's.** A new controller goes to the second player only while they are on the screen and have no controller that is awake; otherwise it is Main's. Main can give a controller to Guest at any time; Guest can claim and release their own.
 - **A game that was already running may not see a newly claimed controller.** Start the game after the controller is in place, or restart it once it is claimed.
-- **Guest's own Steam shows one output and one microphone.** The real devices are chosen in the Dosplex Audio menu; Steam's own audio settings cannot change them.
+- **Guest's own Steam shows one output and one microphone.** The real devices are chosen in the DosPlex Audio menu; Steam's own audio settings cannot change them.
 - **A microphone you claim is not kept.** Output claims stay across restarts, but microphone claims do not. Claim the microphone again after a restart.
 
 ## Steam's own settings pages
@@ -23,7 +23,7 @@ These are the limits a user will meet, in plain words. Each says what does not w
 Steam's own settings pages for Wi-Fi, power, updates and storage do not work inside a side. The installation documentation says what to do for each:
 
 - **Wi-Fi and power.** Open Steam's Quick Access Menu on the side and use it there.
-- **Updates.** Update the machine itself before you update Dosplex. Run the update from a plain shell:
+- **Updates.** Update the machine itself before you update DosPlex. Run the update from a plain shell:
 
   ```bash
   sudo /opt/dosplex/bin/dosplex update
@@ -33,7 +33,7 @@ Steam's own settings pages for Wi-Fi, power, updates and storage do not work ins
 
 ## Between the two players
 
-Dosplex keeps the two players apart in ordinary use: each has their own account, Steam, games, saves, controllers and sound. It is not yet a wall against a player who sets out to cross it. Use the alpha only with people you trust at the same screen.
+DosPlex keeps the two players apart in ordinary use: each has their own account, Steam, games, saves, controllers and sound. It is not yet a wall against a player who sets out to cross it. Use the alpha only with people you trust at the same screen.
 
 What is open today:
 
@@ -45,5 +45,5 @@ What Main decides for both of you, by design:
 - The layout, and who has the whole screen.
 - Which controller, mouse or keyboard belongs to whom. Guest can claim and release their own controllers.
 - The shared speakers and their mix. **Use own output** takes a player out of the shared mix.
-- Turning Dosplex off, and Sleep, Restart and Shut down.
+- Turning DosPlex off, and Sleep, Restart and Shut down.
 - When the machine sleeps: with two players on the screen it does not go to sleep by itself. See [Turn off, sleep, restart](12-turn-off-sleep-restart.md).

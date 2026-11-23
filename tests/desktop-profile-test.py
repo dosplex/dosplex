@@ -247,7 +247,7 @@ class LauncherProfile(unittest.TestCase):
         (run.config / 'autostart/mine.desktop').write_text('[Desktop Entry]\nName=Mine\n')
         (run.data / 'Desktop/notes.txt').write_text('mine')
         (run.data / 'applications/mine.desktop').write_text('[Desktop Entry]\nName=Mine\n')
-        (run.config / 'autostart/dosplex-steam.desktop').write_text('changed')     # Dosplex's own entry comes back
+        (run.config / 'autostart/dosplex-steam.desktop').write_text('changed')     # DosPlex's own entry comes back
         run.succeed()
         self.assertEqual((run.config / 'kwinrc').read_text(),
                          KWINRC.replace('XwaylandEisNoPrompt=false', 'XwaylandEisNoPrompt=true')
@@ -265,7 +265,7 @@ class LauncherProfile(unittest.TestCase):
 
     def test_the_entries_under_the_old_name_are_removed(self):
         # A desktop profile moved over from DuplOS still holds DuplOS's own entries; its Steam autostart would start
-        # a second Steam beside Dosplex's (seen on the Steam Machine, 2026-11-02: Guest's pointer did not move).
+        # a second Steam beside DosPlex's (seen on the Steam Machine, 2026-11-02: Guest's pointer did not move).
         run = Profile(self)
         run.succeed()
         old = (run.config / 'autostart/duplos-steam.desktop', run.data / 'applications/duplos-return.desktop',
@@ -812,7 +812,7 @@ class LauncherSource(unittest.TestCase):
 
 
 class LegacyUserData(unittest.TestCase):
-    """migrate_legacy_user_data: what the DuplOS name left in a player's home moves to the Dosplex name, once."""
+    """migrate_legacy_user_data: what the DuplOS name left in a player's home moves to the DosPlex name, once."""
     TOOLS = ('mv',)
 
     def setUp(self):

@@ -9,7 +9,7 @@ Window {
     visible: true
     visibility: Window.FullScreen
     color: "#cc1111"
-    title: "Dosplex Red Test"
+    title: "DosPlex Red Test"
 
     Rectangle {
         anchors.fill: parent
